@@ -24,6 +24,14 @@
   (+ lower (* (gen/double)
               (- upper lower))))
 
+(defn into-connected-disconnected
+  [pcon synapses]
+  (-> (group-by (fn [[id perm]]
+                  (if (>= perm pcon) :connected :disconnected))
+                synapses)
+      (update-in [:connected] #(into {} %))
+      (update-in [:disconnected] #(into {} %))))
+
 (defn in-synapses
   [column-id
    {:as spec
@@ -39,12 +47,9 @@
         n (* potential-pct (count idseq))
         ids (take n (gen/shuffle idseq))
         perms (repeatedly n #(rand-in (- sp-perm-connected sp-perm-inc)
-                                      (+ sp-perm-connected sp-perm-inc)))
-        syns (map vector ids perms)
-        conn (filter (fn [[_ p]] (>= p sp-perm-connected)) syns)
-        disc (remove (fn [[_ p]] (>= p sp-perm-connected)) syns)]
-    {:connected (into {} conn)
-     :disconnected (into {} disc)}))
+                                      (+ sp-perm-connected sp-perm-inc)))]
+    (->> (map vector ids perms)
+         (into-connected-disconnected sp-perm-connected))))
 
 (defn column
   [id spec]
@@ -52,21 +57,20 @@
    :in-synapses (in-synapses id spec)
    :neighbours #{} ;; cache
    :boost 1.0
-   :active-history (sorted-set 0)
-   :overlap-history (sorted-set 0)
-   :active? false
-   })
+   :active-history (sorted-set) ;; set of timesteps
+   :overlap-history (sorted-set)
+   :active? false})
+
+(declare update-neighbours)
 
 (defn region
   [{:as spec
-    :keys [ncol input-size
-           stimulus-threshold]}]
-  {:columns (mapv column (range ncol) (repeat spec))
-   :input-size input-size
-   :spec spec
-   :avg-receptive-field 1.0
-   :active-cols #{}
-   })
+    :keys [ncol]}]
+  (-> {:columns (mapv column (range ncol) (repeat spec))
+       :spec spec
+       :active-columns #{}
+       :timestep 0}
+      (update-neighbours)))
 
 (defn mean
   [xs]
@@ -82,30 +86,31 @@
         centr (mean idxs)]
     (mean (map #(absint (- % centr)) idxs))))
 
-(defn update-avg-receptive-field-size
+(defn avg-receptive-field-size
   [rgn]
-  (assoc rgn :avg-receptive-field
-         (mean (map column-receptive-field-size (:columns rgn)))))
+  (mean (map column-receptive-field-size (:columns rgn))))
 
 (defn neighbours
   [col-id ncol radius]
-  (disj (set (range (max 0 (- col-id radius))
-                    (min ncol (+ col-id radius))))
-        col-id))
+  (let [r (Math/round (double radius))]
+   (disj (set (range (max 0 (- col-id r))
+                     (min ncol (+ col-id r 1))))
+         col-id)))
 
 (defn update-neighbours
   [rgn]
   (let [ncol (count (:columns rgn))
-        radius (:avg-receptive-field rgn)
+        radius (avg-receptive-field-size rgn)
         cols (mapv (fn [col]
                      (assoc col :neighbours
                             (neighbours (:id col) ncol radius)))
                    (:columns rgn))]
-   (assoc rgn :columns cols)))
+    (assoc rgn :columns cols
+           :avg-receptive-field-size radius)))
 
 (defn overlapping
   [col in-set]
-  (select-keys (:connected (:synapses col)) in-set))
+  (select-keys (:connected (:in-synapses col)) in-set))
 
 (defn column-update-overlap
   [col in-set t stimulus-threshold]
@@ -133,10 +138,14 @@
       (assoc :active? true)
       (update-in [:active-history] conj t)))
 
+(defn deactivate
+  [col]
+  (assoc col :active? false))
+
 (defn column-update-activation
   [col overlaps t activity-limit]
   (if (zero? (:overlap col))
-    col
+    (deactivate col)
     (let [ns (:neighbours col)
           nso (select-keys overlaps ns)]
       (if (< (count nso) activity-limit)
@@ -144,15 +153,15 @@
         (activate col t)
         ;; inhibition within neighbourhood
         (let [ovals (sort > (vals nso))]
-          (if (< (nth ovals activity-limit)
+          (if (< (nth ovals (dec activity-limit))
                  (+ (:overlap col) ;; break ties:
                     (rand-in -0.1 0.1)))
             (activate col t)
-            col))))))
+            (deactivate col)))))))
 
 (defn compute-activations
   [rgn t]
-  (let [th (:active-per-inh-area)
+  (let [th (:active-per-inh-area (:spec rgn))
         overlaps (into {} (keep (fn [col]
                                   (when-not (zero? (:overlap col))
                                     [(:id col) (:overlap col)]))
@@ -169,15 +178,14 @@
 (defn column-update-permanences
   [col in-set pinc pdec pcon]
   (let [syns (:in-synapses col)
-        nsyns (reduce (fn [m [id perm]]
-                        (let [newp (if (in-set id)
-                                     (min 1.0 (+ perm pinc))
-                                     (max 0.0 (- perm pdec)))
-                              k (if (>= newp pcon) :connected :disconnected)]
-                          (assoc-in m [k id] newp)))
-                      {:connected {} ;; TODO transients?
-                       :disconnected {}}
-                      (concat (:connected syns) (:disconnected syns)))]
+        nsyns (->> (concat (:connected syns)
+                           (:disconnected syns))
+                   (mapv (fn [[id perm]]
+                           (let [newp (if (in-set id)
+                                        (min 1.0 (+ perm pinc))
+                                        (max 0.0 (- perm pdec)))]
+                             [id newp])))
+                   (into-connected-disconnected pcon))]
     (assoc col :in-synapses nsyns)))
 
 (defn learn
@@ -192,31 +200,33 @@
                      (:columns rgn) (:active-columns rgn))]
     (assoc rgn :columns cols)))
 
-(defn truncate-duty-cycle-history
+(defn column-truncate-duty-cycle-history
   [col t-horizon]
-  (let [trunc1 (fn [ss]
-                 (let [t0 (first ss)]
-                   (if (< t0 t-horizon)
-                     (disj ss t0)
-                     ss)))]
+  (let [trunc (fn [ss]
+                (let [t0 (first ss)]
+                  (if (and t0 (< t0 t-horizon))
+                    (recur (disj ss t0))
+                    ss)))]
     (-> col
-        (update-in [:active-history] trunc1)
-        (update-in [:overlap-history] trunc1))))
+        (update-in [:active-history] trunc)
+        (update-in [:overlap-history] trunc))))
 
 (defn column-increase-permanences
   [col pcon]
-  (let [inc-vals (fn [m] (into (empty m) (map (fn [[k v]]
-                                               [k (min 1.0 (+ v (* pcon 0.1)))])
-                                             m)))]
-    (-> col
-        (update-in [:in-synapses :connected] inc-vals)
-        (update-in [:in-synapses :disconnected] inc-vals))))
+  (let [syns (:in-synapses col)
+        nsyns (->> (concat (:connected syns)
+                           (:disconnected syns))
+                   (mapv (fn [[id perm]]
+                           (let [newp (min 1.0 (+ perm (* pcon 0.1)))]
+                             [id newp])))
+                   (into-connected-disconnected pcon))]
+    (assoc col :in-synapses nsyns)))
 
 (defn column-update-boosting
   [col ods-m ads-m o-th a-th maxb pcon]
   (let [ns (:neighbours col)
-        max-ods (apply max (vals (select-keys ods-m ns)))
-        max-ads (apply max (vals (select-keys ads-m ns)))
+        max-ods (apply max 1 (vals (select-keys ods-m ns)))
+        max-ads (apply max 1 (vals (select-keys ads-m ns)))
         crit-ods (* o-th max-ods)
         crit-ads (* a-th max-ads)
         ods (count (:overlap-history col))
@@ -238,22 +248,24 @@
         period (:duty-cycle-period (:spec rgn))
         maxb (:max-boost (:spec rgn))
         pcon (:sp-perm-connected (:spec rgn))
-        a-ds (into {} (map (juxt :id (comp count :active-history)) (:columns rgn)))
-        o-ds (into {} (map (juxt :id (comp count :overlap-history)) (:columns rgn)))
+        rolling (fn [ss] (count (subseq ss >= (- t period))))
+        ads-m (into {} (map (juxt :id (comp rolling :active-history)) (:columns rgn)))
+        ods-m (into {} (map (juxt :id (comp rolling :overlap-history)) (:columns rgn)))
         cols (mapv (fn [col]
-                     (column-update-boosting col o-ds a-ds o-th a-th maxb pcon))
-                   (:columns rgn))
-        ]
-    (-> (assoc rgn :columns cols)
-        (truncate-duty-cycle-history (- t period))
-        ;; TODO not every iteration:
-        (update-avg-receptive-field-size)
-        (update-neighbours))))
+                     (column-update-boosting col ods-m ads-m o-th a-th maxb pcon))
+                   (:columns rgn))]
+    (assoc rgn :columns cols)))
 
 (defn pooling-step
-  [rgn in-set t]
-  (-> rgn
-      (compute-overlaps in-set t)
-      (compute-activations t)
-      (learn in-set)
-      (update-boosting t)))
+  [rgn in-set]
+  (let [t (inc (:timestep rgn))
+        dcp (:duty-cycle-period (:spec rgn))
+        boost? (zero? (mod t (quot dcp 2)))
+        neigh? (zero? (mod t (quot dcp 2)))]
+    (cond-> rgn
+            true (compute-overlaps in-set t)
+            true (compute-activations t)
+            true (learn in-set)
+            boost? (update-boosting t)
+            neigh? (update-neighbours)
+            true (assoc :timestep t))))
