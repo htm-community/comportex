@@ -1,4 +1,17 @@
 
+* sequence memory
+
+** learning
+** only update synapses when cells turn on/off? (not when continuing?)
+
+* temporal pooling
+
+"The trick to adding TP to the SP is the following. When the input to
+the SP was correctly predicted in the previous layer we want the cells
+in the column to remain active long enough to learn to respond to the
+next input pattern."
+
+
 * visualisation driven development
 ** varianceplots?
 
