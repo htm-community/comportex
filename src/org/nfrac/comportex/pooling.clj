@@ -18,6 +18,8 @@
    :max-boost 10.0
    })
 
+;; CONSTRUCTION
+
 (defn rand-in
   [lower upper]
   {:pre [(<= lower upper)]}
@@ -58,8 +60,7 @@
    :neighbours #{} ;; cache
    :boost 1.0
    :active-history (sorted-set) ;; set of timesteps
-   :overlap-history (sorted-set)
-   :active? false})
+   :overlap-history (sorted-set)})
 
 (declare update-neighbours)
 
@@ -68,9 +69,10 @@
     :keys [ncol]}]
   (-> {:columns (mapv column (range ncol) (repeat spec))
        :spec spec
-       :active-columns #{}
-       :timestep 0}
+       :active-columns #{}}
       (update-neighbours)))
+
+;; NEIGHBOURING COLUMNS
 
 (defn mean
   [xs]
@@ -108,74 +110,80 @@
     (assoc rgn :columns cols
            :avg-receptive-field-size radius)))
 
-(defn overlapping
+;; OVERLAPS
+
+(defn overlapping-synapses
   [col in-set]
   (select-keys (:connected (:in-synapses col)) in-set))
 
-(defn column-update-overlap
-  [col in-set t stimulus-threshold]
-  (let [os (overlapping col in-set)
-        overlap? (>= (count os) stimulus-threshold)
-        x (if overlap?
-            (* (count os) (:boost col))
-            0.0)
-        col (assoc col :overlap x)]
-    (if overlap?
-      (update-in col [:overlap-history] conj t)
-      col)))
+(defn column-overlap
+  [col in-set stimulus-threshold]
+  (let [os (overlapping-synapses col in-set)]
+    (if (>= (count os) stimulus-threshold)
+      (* (count os) (:boost col))
+      0.0)))
 
-(defn compute-overlaps
-  [rgn in-set t]
-  (let [th (:stimulus-threshold (:spec rgn))
-        cols (mapv (fn [col]
-                     (column-update-overlap col in-set t th))
-                   (:columns rgn))]
-    (assoc rgn :columns cols)))
+(defn overlaps
+  [rgn in-set]
+  (let [th (:stimulus-threshold (:spec rgn))]
+    (into {} (keep (fn [col]
+                     (let [o (column-overlap col in-set th)]
+                       (when-not (zero? o)
+                         [(:id col) o])))
+                   (:columns rgn)))))
 
-(defn activate
+(defn column-record-overlap
   [col t]
-  (-> col
-      (assoc :active? true)
-      (update-in [:active-history] conj t)))
+  (update-in col [:overlap-history] conj t))
 
-(defn deactivate
-  [col]
-  (assoc col :active? false))
+(defn update-overlaps
+  [rgn in-set t]
+  (let [om (overlaps rgn in-set)]
+    (->
+     (reduce (fn [r [id _]]
+               (update-in r [:columns id] column-record-overlap t))
+             rgn om)
+     (assoc :overlaps om))))
 
-(defn column-update-activation
-  [col overlaps t activity-limit]
-  (if (zero? (:overlap col))
-    (deactivate col)
+;; ACTIVATION
+
+(defn column-active?
+  [col om t activity-limit]
+  (when-let [o-val (om (:id col))]
     (let [ns (:neighbours col)
-          nso (select-keys overlaps ns)]
+          nso (select-keys om ns)]
       (if (< (count nso) activity-limit)
         ;; no inhibition within neighbourhood
-        (activate col t)
+        true
         ;; inhibition within neighbourhood
-        (let [ovals (sort > (vals nso))]
-          (if (< (nth ovals (dec activity-limit))
-                 (+ (:overlap col) ;; break ties:
-                    (rand-in -0.1 0.1)))
-            (activate col t)
-            (deactivate col)))))))
+        (let [ovals (sort > (vals nso))
+              crit-o (nth ovals (dec activity-limit))]
+          (< crit-o (+ o-val ;; break ties:
+                       (rand-in -0.1 0.1))))))))
 
-(defn compute-activations
+(defn active-columns
+  [rgn om t]
+  (let [th (:active-per-inh-area (:spec rgn))]
+    (set (keep (fn [col]
+                 (when (column-active? col om t th) (:id col)))
+               (:columns rgn)))))
+
+(defn column-record-activation
+  [col t]
+  (update-in col [:active-history] conj t))
+
+(defn update-active-columns
   [rgn t]
-  (let [th (:active-per-inh-area (:spec rgn))
-        overlaps (into {} (keep (fn [col]
-                                  (when-not (zero? (:overlap col))
-                                    [(:id col) (:overlap col)]))
-                                (:columns rgn)))
-        cols (mapv (fn [col]
-                     (column-update-activation col overlaps t th))
-                   (:columns rgn))
-        act (set (keep (fn [col]
-                         (when (:active? col) (:id col)))
-                       cols))]
-    (assoc rgn :columns cols
-           :active-columns act)))
+  (let [as (active-columns rgn (:overlaps rgn) t)]
+    (->
+     (reduce (fn [r id]
+               (update-in r [:columns id] column-record-activation t))
+             rgn as)
+     (assoc :active-columns as))))
 
-(defn column-update-permanences
+;; LEARNING
+
+(defn column-update-in-synapses
   [col in-set pinc pdec pcon]
   (let [syns (:in-synapses col)
         nsyns (->> (concat (:connected syns)
@@ -196,20 +204,11 @@
         cols (reduce (fn [cols i]
                        (update-in cols [i]
                                   (fn [col]
-                                    (column-update-permanences col in-set pinc pdec pcon))))
+                                    (column-update-in-synapses col in-set pinc pdec pcon))))
                      (:columns rgn) (:active-columns rgn))]
     (assoc rgn :columns cols)))
 
-(defn column-truncate-duty-cycle-history
-  [col t-horizon]
-  (let [trunc (fn [ss]
-                (let [t0 (first ss)]
-                  (if (and t0 (< t0 t-horizon))
-                    (recur (disj ss t0))
-                    ss)))]
-    (-> col
-        (update-in [:active-history] trunc)
-        (update-in [:overlap-history] trunc))))
+;; BOOSTING
 
 (defn column-increase-permanences
   [col pcon]
@@ -248,24 +247,38 @@
         period (:duty-cycle-period (:spec rgn))
         maxb (:max-boost (:spec rgn))
         pcon (:sp-perm-connected (:spec rgn))
-        rolling (fn [ss] (count (subseq ss >= (- t period))))
-        ads-m (into {} (map (juxt :id (comp rolling :active-history)) (:columns rgn)))
-        ods-m (into {} (map (juxt :id (comp rolling :overlap-history)) (:columns rgn)))
+        rollcnt (fn [ss] (count (subseq ss >= (- t period))))
+        ads-m (into {} (map (juxt :id (comp rollcnt :active-history)) (:columns rgn)))
+        ods-m (into {} (map (juxt :id (comp rollcnt :overlap-history)) (:columns rgn)))
         cols (mapv (fn [col]
                      (column-update-boosting col ods-m ads-m o-th a-th maxb pcon))
                    (:columns rgn))]
     (assoc rgn :columns cols)))
 
+;; not currently used; just to limit memory use
+(defn column-truncate-duty-cycle-history
+  [col t-horizon]
+  (let [trunc (fn [ss]
+                (let [t0 (first ss)]
+                  (if (and t0 (< t0 t-horizon))
+                    (recur (disj ss t0))
+                    ss)))]
+    (-> col
+        (update-in [:active-history] trunc)
+        (update-in [:overlap-history] trunc))))
+
+;; ORCHESTRATION
+
 (defn pooling-step
   [rgn in-set]
-  (let [t (inc (:timestep rgn))
+  (let [t (inc (:timestep rgn 0))
         dcp (:duty-cycle-period (:spec rgn))
         boost? (zero? (mod t (quot dcp 2)))
         neigh? (zero? (mod t (quot dcp 2)))]
     (cond-> rgn
-            true (compute-overlaps in-set t)
-            true (compute-activations t)
+            true (assoc :timestep t)
+            true (update-overlaps in-set t)
+            true (update-active-columns t)
             true (learn in-set)
             boost? (update-boosting t)
-            neigh? (update-neighbours)
-            true (assoc :timestep t))))
+            neigh? (update-neighbours))))

@@ -29,7 +29,6 @@
   (def r-ts (reductions (fn [r in] (pooling-step r in))
                         r ins))
 
-
   (map :overlap-history (:columns (last r-ts)))
   (map :active-history (:columns (last r-ts)))
   (map :boost (:columns (last r-ts)))
@@ -39,8 +38,7 @@
   (map :active-columns r-ts)
 
   (def r-ts (reductions (fn [r in] (pooling-step r in))
-                        r
-                        (apply concat (repeat 10 ins))))
+                        r (apply concat (repeat 10 ins))))
 
   (map println (partition 40 40 (map (comp count :active-columns) r-ts)))
 
