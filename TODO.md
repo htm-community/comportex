@@ -3,6 +3,7 @@
 
 ** learning
 ** only update synapses when cells turn on/off? (not when continuing?)
+** define connected permanence value to be 1.0? parameter is then max-perm
 
 * temporal pooling
 
@@ -11,9 +12,13 @@ the SP was correctly predicted in the previous layer we want the cells
 in the column to remain active long enough to learn to respond to the
 next input pattern."
 
+* docstrings
+** marginalia
 
 * visualisation driven development
 ** varianceplots?
+** c2 / d3?
+** raphael?
 
 * protocols
 
