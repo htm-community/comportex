@@ -1,35 +1,48 @@
 
-* sequence memory
+# TODO
 
-** learning
-** only update synapses when cells turn on/off? (not when continuing?)
-** define connected permanence value to be 1.0? parameter is then max-perm
+## pooling
 
-* temporal pooling
+* try spatio-temporal pooling by extending (column/cell?) activation
+* allow columns arrayed in 2 dimensions
+* target 2% activation
 
-"The trick to adding TP to the SP is the following. When the input to
+## sequence memory
+
+* limit connections to one cell of bursting columns ("learning state")
+* start empty?
+* only update synapses when cells turn on/off? (not when continuing?)
+* define connected permanence value to be 1.0? parameter is then max-perm
+* limit lateral synapses to within a radius 
+
+## temporal pooling
+
+> "The trick to adding TP to the SP is the following. When the input to
 the SP was correctly predicted in the previous layer we want the cells
 in the column to remain active long enough to learn to respond to the
 next input pattern."
 
 * docstrings
-** marginalia
+  * marginalia
 
-* visualisation driven development
-** varianceplots?
-** c2 / d3?
-** raphael?
+## visualisation
+
+* varianceplots?
+* c2 / d3?
+* raphael?
+
+## code architecture
 
 * protocols
 
 
 
 
-== test problems ==
+## test problems
 
 what is "hello world" for CLA / HTM?
 
-1. sequence
+### sequence
 
 * 1 2 3 1 1 8, 1 2 3 1 1 8
 
@@ -42,7 +55,7 @@ what is "hello world" for CLA / HTM?
 7 000000 000000
 8 000001 000001
 
-2. shooting spaceship
+### shooting spaceship
 
 000100000001
 001000000010
@@ -52,7 +65,7 @@ what is "hello world" for CLA / HTM?
 000000100000
 000000010000
 
-3. moving shooting spaceship
+### moving shooting spaceship
 
 00010011000010000000010000
 00101100110100000000100000
@@ -67,10 +80,10 @@ motor signals:
 01000000000000000100000000 fire up
 00000100000000000000000100 fire down
 
-4. two-d bouncing ball
+### two-d bouncing ball
 
-+ motor control of ball
-++ proprioceptive sense
+* motor control of ball
+  * proprioceptive sense
 
 
 

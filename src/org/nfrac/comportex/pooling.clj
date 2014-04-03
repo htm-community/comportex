@@ -3,9 +3,9 @@
             [clojure.set :as set]))
 
 (def spatial-pooler-defaults
-  {:ncol 100 ;; TODO dimensions of columns can be 2d, even 3d
-   :input-size 300
-   :potential-radius 100
+  {:ncol 200
+   :input-size 200
+   :potential-radius 40
    :potential-pct 0.5
    :active-per-inh-area 10
    :sp-perm-inc 0.1

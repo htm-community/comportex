@@ -5,7 +5,7 @@
 
 (def sequence-memory-defaults
   {:depth 8
-   :init-segment-count 1
+   :init-segment-count 0
    :new-synapse-count 15
    :activation-threshold 12
    :min-threshold 8
@@ -53,9 +53,9 @@
 
 (defn segment-activation
   [seg active-cells pcon]
-  (count (filterv (fn [[id p]]
-                    (and (>= pcon p)
-                         (active-cells id)))
+  (count (filter (fn [[id p]]
+                   (and (>= pcon p)
+                        (active-cells id)))
                   (:synapses seg))))
 
 (defn cell-active-segments
@@ -69,7 +69,7 @@
   [cell active-cells spec]
   (let [act-th (:activation-threshold spec)
         pcon (:connected-perm spec)]
-    (seq (cell-active-segments cell act-th pcon))))
+    (seq (cell-active-segments cell active-cells act-th pcon))))
 
 (defn column-predictive-cells
   [col active-cells spec]
@@ -94,13 +94,19 @@
 (defn most-active-segment
   "Returns the index of the segment in the cell having the most active
    synapses, followed by its number of active synapses, in a map with
-   keys :segment-idx and :activation."
+   keys :segment-idx and :activation. If no segments exist,
+   returns :segment-idx nil and :activation zero."
   [cell active-cells spec]
   (let [pcon (:connected-perm spec)
         acts (map-indexed (fn [i seg]
-                            {:segment-idx i :activation (segment-activation seg active-cells pcon)})
+                            {:segment-idx i
+                             :activation (segment-activation seg active-cells pcon)})
                           (:segments cell))]
-    (apply max-key :activation acts)))
+    (if (seq acts)
+      (apply max-key :activation acts)
+      ;; no segments exist
+      {:segment-idx nil
+       :activation 0.0})))
 
 (defn best-matching-segment-and-cell
   "Finds the segment in the column having the most active synapses,
@@ -149,9 +155,9 @@
 
 (defn grow-new-segment
   [cell active-cells spec]
-  (let [column-id (first (:id cell))
+  (let [[column-id _] (:id cell)
         n (:new-synapse-count spec)
-        seg0 {:synapses []}
+        seg0 {:synapses {}}
         seg (grow-new-synapses seg0 column-id active-cells n spec)]
     (update-in cell [:segments] conj seg)))
 
@@ -160,7 +166,7 @@
   (let [pcon (:connected-perm spec)
         na (segment-activation seg active-cells pcon)
         n (- (:new-synapse-count spec) na)
-        column-id (first (:id cell))]
+        [column-id _] (:id cell)]
     (-> seg
         (segment-reinforce active-cells spec)
         (grow-new-synapses column-id active-cells n spec))))
@@ -168,8 +174,8 @@
 (defn bursting-column-learn
   [col active-cells spec]
   (let [sc (best-matching-segment-and-cell col active-cells spec)
-        idx (:cell-idx sc)
-        cell (nth idx (:cells col))]
+        [_ idx] (:cell-id sc)
+        cell (nth (:cells col) idx)]
     (if-let [seg-idx (:segment-idx sc)]
       ;; there is a matching segment, extend it
       (update-in col [:cells idx :segments seg-idx] segment-extend cell active-cells spec)
@@ -185,7 +191,7 @@
         ;; prefer if activated by a "learn-state" cell (not bursting)?
         idx (gen/rand-nth idxs)
         cell (nth (:cells col) idx)
-        [seg-idx _] (most-active-segment cell prev-cells spec)]
+        seg-idx (:segment-idx (most-active-segment cell prev-cells spec))]
     (update-in col [:cells idx :segments seg-idx]
                segment-reinforce prev-cells spec)))
 
@@ -202,10 +208,11 @@
 ;; ORCHESTRATION
 
 (defn sequence-memory-step
-  [rgn active-columns t]
+  [rgn active-columns]
   (let [prev-ac (:active-cells rgn #{})
         acbc (active-cells-by-column rgn active-columns prev-ac)
-        new-ac (set (mapcat :cell-ids acbc))
+
+        new-ac (set (mapcat :cell-ids (vals acbc)))
         burst-cols (set (keep (fn [[i m]] (when (:bursting? m) i)) acbc))]
     (-> rgn
         (assoc :active-cells new-ac)

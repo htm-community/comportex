@@ -1,15 +1,23 @@
-(ns org.nfrac.comportex.encoders)
+(ns org.nfrac.comportex.encoders
+  (:require [clojure.set :as set]))
 
 (defn number-linear
-  [lower upper width bits x]
-  (let [x (-> x (max lower) (min upper))
-        range (double (- upper lower))
-        bit-width (Math/max 1.0 (* bits (/ width range)))
-        z (/ (- x lower) range)
-        i (* z (- (dec bits) (quot bit-width 2)))]
-    (take bits
-          (concat (repeat i false)
-                  (repeat bit-width true)
-                  (repeat false)))))
+  [bits [lower upper] width]
+  (let [span (double (- upper lower))
+        bit-width (max 1.0 (* bits (/ width span)))
+        bit-radius (quot bit-width 2)]
+    (fn [x]
+      (let [x (-> x (max lower) (min upper))
+            z (/ (- x lower) span)
+            i (long (* z (- (dec bits) bit-radius)))]
+        (if false
+          (take bits
+                (concat (repeat i false)
+                        (repeat bit-width true)
+                        (repeat false)))
+          (set (range i (+ i bit-width))))))))
 
-
+(defn union-encoder
+    [enc-fn]
+    (fn [xs]
+      (apply set/union (map enc-fn xs))))
