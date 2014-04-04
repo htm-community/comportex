@@ -3,15 +3,16 @@
             [clojure.set :as set]))
 
 (def spatial-pooler-defaults
-  {:ncol 200
-   :input-size 200
-   :potential-radius 40
+  {:ncol 400
+   :input-size 400
+   :potential-radius 80
    :potential-pct 0.5
-   :active-per-inh-area 10
-   :sp-perm-inc 0.1
+   :global-inhibition true
+   :activation-level 0.04
+   :sp-perm-inc 0.05
    :sp-perm-dec 0.01
    :sp-perm-connected 0.1
-   :stimulus-threshold 5
+   :stimulus-threshold 3
    :boost-overlap-duty-ratio 0.001
    :boost-active-duty-ratio 0.001
    :duty-cycle-period 1000
@@ -74,35 +75,39 @@
 
 ;; NEIGHBOURING COLUMNS
 
+(defn round
+  [x]
+  (Math/round (double x)))
+
 (defn mean
   [xs]
   (/ (apply + xs) (double (count xs))))
 
-(defn absint
-  [x]
-  (Math/abs (long x)))
-
 (defn column-receptive-field-size
   [col]
-  (let [idxs (keys (:connected (:in-synapses col)))
-        centr (mean idxs)]
-    (mean (map #(absint (- % centr)) idxs))))
+  (let [idxs (keys (:connected (:in-synapses col)))]
+    (if (seq idxs)
+      (- (apply max idxs) (apply min idxs))
+      0)))
 
 (defn avg-receptive-field-size
   [rgn]
   (mean (map column-receptive-field-size (:columns rgn))))
 
 (defn neighbours
-  [col-id ncol radius]
-  (let [r (Math/round (double radius))]
-   (disj (set (range (max 0 (- col-id r))
-                     (min ncol (+ col-id r 1))))
-         col-id)))
+  [col-id ncol r]
+  (disj (set (range (max 0 (- col-id r))
+                    (min ncol (+ col-id r 1))))
+        col-id))
 
 (defn update-neighbours
   [rgn]
-  (let [ncol (count (:columns rgn))
-        radius (avg-receptive-field-size rgn)
+  (let [spec (:spec rgn)
+        nin (:input-size spec)
+        ncol (:ncol spec)
+        arfs (avg-receptive-field-size rgn)
+        diameter (round (* ncol (/ arfs nin)))
+        radius (quot diameter 2)
         cols (mapv (fn [col]
                      (assoc col :neighbours
                             (neighbours (:id col) ncol radius)))
@@ -112,24 +117,24 @@
 
 ;; OVERLAPS
 
-(defn overlapping-synapses
-  [col in-set]
-  (select-keys (:connected (:in-synapses col)) in-set))
-
 (defn column-overlap
   [col in-set stimulus-threshold]
-  (let [os (overlapping-synapses col in-set)]
-    (if (>= (count os) stimulus-threshold)
-      (* (count os) (:boost col))
+  ;; pooler is 10% faster with reduce here, vs select-keys
+  (let [ov (reduce (fn [sum id]
+                     (if (in-set id) (inc sum) sum))
+                   0 ;; init
+                   (keys (:connected (:in-synapses col))))]
+    (if (>= ov stimulus-threshold)
+      (* ov (:boost col))
       0.0)))
 
 (defn overlaps
   [rgn in-set]
   (let [th (:stimulus-threshold (:spec rgn))]
     (into {} (keep (fn [col]
-                     (let [o (column-overlap col in-set th)]
-                       (when-not (zero? o)
-                         [(:id col) o])))
+                     (let [ov (column-overlap col in-set th)]
+                       (when-not (zero? ov)
+                         [(:id col) ov])))
                    (:columns rgn)))))
 
 (defn column-record-overlap
@@ -147,26 +152,52 @@
 
 ;; ACTIVATION
 
-(defn column-active?
-  [col om t activity-limit]
+(defn column-active-with-local-inhibition?
+  [col om level]
   (when-let [o-val (om (:id col))]
     (let [ns (:neighbours col)
-          nso (select-keys om ns)]
-      (if (< (count nso) activity-limit)
+          nom (select-keys om ns)
+          activity-limit (-> (* level (inc (count ns)))
+                             (round)
+                             (max 1))]
+      (if (< (count nom) activity-limit)
         ;; no inhibition within neighbourhood
         true
-        ;; inhibition within neighbourhood
-        (let [ovals (sort > (vals nso))
-              crit-o (nth ovals (dec activity-limit))]
-          (< crit-o (+ o-val ;; break ties:
-                       (rand-in -0.1 0.1))))))))
+        ;; inhibition within neighbourhood;
+        ;; check number of neighbouring columns dominating col
+        (let [o-val* (+ o-val (rand-in -0.1 0.1)) ;; break ties
+              n (count (filterv #(> % o-val*) (vals nom)))]
+          (< n activity-limit))))))
+
+(defn active-columns-with-local-inhibition
+  [rgn om level]
+  (set (keep (fn [col]
+               (when (column-active-with-local-inhibition? col om level)
+                 (:id col)))
+             (:columns rgn))))
+
+(defn active-columns-with-global-inhibition
+  [rgn om level]
+  (let [activity-limit (-> (* level (count (:columns rgn)))
+                           (round)
+                           (max 1))]
+    (if (<= (count om) activity-limit)
+      ;; no inhibition
+      (set (keys om))
+      ;; inhibition
+      (->> om
+           (sort-by val >)
+           (take activity-limit)
+           (map first)
+           (set)))))
 
 (defn active-columns
-  [rgn om t]
-  (let [th (:active-per-inh-area (:spec rgn))]
-    (set (keep (fn [col]
-                 (when (column-active? col om t th) (:id col)))
-               (:columns rgn)))))
+  [rgn om]
+  (let [spec (:spec rgn)
+        level (:activation-level spec)]
+    (if (:global-inhibition spec)
+      (active-columns-with-global-inhibition rgn om level)
+      (active-columns-with-local-inhibition rgn om level))))
 
 (defn column-record-activation
   [col t]
@@ -174,7 +205,7 @@
 
 (defn update-active-columns
   [rgn t]
-  (let [as (active-columns rgn (:overlaps rgn) t)]
+  (let [as (active-columns rgn (:overlaps rgn))]
     (->
      (reduce (fn [r id]
                (update-in r [:columns id] column-record-activation t))
