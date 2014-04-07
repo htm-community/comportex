@@ -211,7 +211,6 @@
   [rgn active-columns]
   (let [prev-ac (:active-cells rgn #{})
         acbc (active-cells-by-column rgn active-columns prev-ac)
-
         new-ac (set (mapcat :cell-ids (vals acbc)))
         burst-cols (set (keep (fn [[i m]] (when (:bursting? m) i)) acbc))]
     (-> rgn

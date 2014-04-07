@@ -1,9 +1,19 @@
 
 # TODO
 
+* docstrings
+  * marginalia
+* unit tests
+* property-based testing (clojure.test.check)
+
 ## pooling
 
 * try spatio-temporal pooling by extending (column/cell?) activation
+> "The trick to adding TP to the SP is the following. When the input to
+the SP was correctly predicted in the previous layer we want the cells
+in the column to remain active long enough to learn to respond to the
+next input pattern."
+
 * allow columns arrayed in 2 dimensions
 * target 2% activation
 
@@ -14,16 +24,6 @@
 * only update synapses when cells turn on/off? (not when continuing?)
 * define connected permanence value to be 1.0? parameter is then max-perm
 * limit lateral synapses to within a radius 
-
-## temporal pooling
-
-> "The trick to adding TP to the SP is the following. When the input to
-the SP was correctly predicted in the previous layer we want the cells
-in the column to remain active long enough to learn to respond to the
-next input pattern."
-
-* docstrings
-  * marginalia
 
 ## visualisation
 

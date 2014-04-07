@@ -17,7 +17,16 @@
                         (repeat false)))
           (set (range i (+ i bit-width))))))))
 
-(defn union-encoder
-    [enc-fn]
-    (fn [xs]
-      (apply set/union (map enc-fn xs))))
+(defn merge-encoder
+  [enc-fn]
+  (fn [xs]
+    (apply set/union (map enc-fn xs))))
+
+(defn map-encoder
+  [each-bits enc-fn]
+  (fn [xs]
+    (set (apply concat
+                (map-indexed (fn [i x]
+                               (map + (enc-fn x)
+                                    (repeat (* i each-bits))))
+                             xs)))))

@@ -6,8 +6,11 @@
             [clojure.data.generators :as gen]
             [clojure.set :as set]))
 
-(def PATTERN_DOMAIN [0 30])
-(def INPUT_BIT_WIDTH 200)
+(def bit-width 200)
+(def numb-domain [0 30])
+(def numb-span 1.2)
+(def ncol 200)
+(def depth 5)
 
 (def patterns
   {:run0 (range 5)
@@ -35,6 +38,41 @@
                           :values (set (keep :val ms))})
            tagseqs)))
 
+(defn cla-seq
+  [rgn bitset-inps]
+  (reductions (fn [r in]
+                (let [r2 (p/pooling-step r in)]
+                  (sm/sequence-memory-step r2 (:active-columns r2))))
+              rgn
+              bitset-inps))
+
+(deftest sm-test
+  (let [ps (mix-patterns-with-gaps patterns [1 50])
+        ;; TODO add noise?
+        efn (enc/merge-encoder
+             (enc/number-linear bit-width numb-domain numb-span))
+        inpseq (map efn (map :values ps))
+        r* (p/region (assoc p/spatial-pooler-defaults
+                       :ncol ncol
+                       :input-size bit-width
+                       :potential-radius (quot bit-width 5)
+                       :global-inhibition false
+                       :stimulus-threshold 2
+                       :duty-cycle-period 500))
+        r (sm/with-sequence-memory r* (assoc sm/sequence-memory-defaults
+                                        :depth depth))]
+    (testing "CLA with sequence memory runs"
+      (let [r1k (time
+                 (-> (cla-seq r inpseq)
+                     (nth 1000)))]
+        (let [ncells (map (comp count :cells) (:columns r1k))]
+          (is (every? #(= depth %) ncells)
+              "All columns have the specified number of cells."))
+        (let [nsegs (map (fn [c] (count (mapcat :segments (:cells c))))
+                         (:columns r1k))]
+          (is (every? pos? nsegs)
+              "All columns have grown at least one dendrite segment."))))))
+
 
 (comment
   (require 'org.nfrac.comportex.sequence-memory-test :reload-all)
@@ -48,38 +86,10 @@
 
   ;; TODO add noise
 
-  (def efn (enc/union-encoder
-            (enc/number-linear INPUT_BIT_WIDTH PATTERN_DOMAIN 1.2)))
+  (def efn (enc/merge-encoder
+            (enc/number-linear bit-width numb-domain numb-span)))
   
   (pprint (map efn (map :values (take 20 ps))))
   (map count (map efn (map :values (take 100 ps))))
-  
-  (def r* (p/region (assoc p/spatial-pooler-defaults
-                     :ncol 200
-                     :input-size INPUT_BIT_WIDTH
-                     :potential-radius (quot INPUT_BIT_WIDTH 5)
-                     :global-inhibition false
-                     :stimulus-threshold 2
-                     :duty-cycle-period 500)))
 
-  (def r (sm/with-sequence-memory r* sm/sequence-memory-defaults))
-
-  (time
-   (def r1k (reduce (fn [r in]
-                      (let [r2 (p/pooling-step r in)]
-                        (sm/sequence-memory-step r2 (:active-columns r2))))
-                    r
-                    (map efn (map :values (take 1000 ps))))))
-
-  (sort (map (comp count :overlap-history) (:columns r1k)))
-  (sort (map (comp count :active-history) (:columns r1k)))
-  (sort (map :boost (:columns r1k)))
-
-  ;; number of active columns each time step
-  (for [t (range 900 1000)]
-    (reduce (fn [sum col]
-              (if (contains? (:active-history col) t)
-                (inc sum) sum))
-            0 (:columns r1k)))
-  
   )
