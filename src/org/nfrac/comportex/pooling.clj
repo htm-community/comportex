@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.pooling
-  (:require [clojure.data.generators :as gen]
+  (:require [org.nfrac.comportex.util :as util]
             [clojure.set :as set]))
 
 (def spatial-pooler-defaults
@@ -20,12 +20,6 @@
    })
 
 ;; CONSTRUCTION
-
-(defn rand-in
-  [lower upper]
-  {:pre [(<= lower upper)]}
-  (+ lower (* (gen/double)
-              (- upper lower))))
 
 (defn into-connected-disconnected
   [pcon synapses]
@@ -48,9 +42,9 @@
         idseq (range (max 0 (- input-focus potential-radius))
                      (min input-size (+ input-focus potential-radius)))
         n (* potential-pct (count idseq))
-        ids (take n (gen/shuffle idseq))
-        perms (repeatedly n #(rand-in (- sp-perm-connected sp-perm-inc)
-                                      (+ sp-perm-connected sp-perm-inc)))]
+        ids (take n (util/shuffle idseq))
+        perms (repeatedly n #(util/rand (- sp-perm-connected sp-perm-inc)
+                                        (+ sp-perm-connected sp-perm-inc)))]
     (->> (map vector ids perms)
          (into-connected-disconnected sp-perm-connected))))
 
@@ -165,7 +159,7 @@
         true
         ;; inhibition within neighbourhood;
         ;; check number of neighbouring columns dominating col
-        (let [o-val* (+ o-val (rand-in -0.1 0.1)) ;; break ties
+        (let [o-val* (+ o-val (util/rand -0.1 0.1)) ;; break ties
               n (count (filterv #(> % o-val*) (vals nom)))]
           (< n activity-limit))))))
 

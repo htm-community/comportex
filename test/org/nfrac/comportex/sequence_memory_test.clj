@@ -2,8 +2,8 @@
   (:use clojure.test)
   (:require (org.nfrac.comportex [pooling :as p]
                                  [sequence-memory :as sm]
-                                 [encoders :as enc])
-            [clojure.data.generators :as gen]
+                                 [encoders :as enc]
+                                 [util :as util])
             [clojure.set :as set]))
 
 (def bit-width 200)
@@ -25,7 +25,7 @@
 
 (defn repeat-with-gaps
   [xs [lower upper]]
-  (let [gap #(repeat (gen/uniform lower upper) nil)]
+  (let [gap #(repeat (util/rand-int lower upper) nil)]
     (apply concat (interpose xs (repeatedly gap)))))
 
 (defn mix-patterns-with-gaps

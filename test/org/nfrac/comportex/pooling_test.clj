@@ -1,8 +1,8 @@
 (ns org.nfrac.comportex.pooling-test
   (:use clojure.test)
   (:require (org.nfrac.comportex [pooling :as p]
-                                 [encoders :as enc])
-            [clojure.data.generators :as gen]
+                                 [encoders :as enc]
+                                 [util :as util])
             [clojure.set :as set]))
 
 (def numb-bit-width 100)
@@ -25,10 +25,10 @@
              (enc/number-linear numb-bit-width numb-domain numb-span))
         [lo hi] numb-domain
         gen-ins (fn []
-                  (repeatedly n-in-items #(gen/uniform lo hi)))
+                  (repeatedly n-in-items #(util/rand-int lo hi)))
         add-noise (fn [delta xs]
                     (map (fn [x]
-                           (-> (+ x (gen/uniform (- delta) (inc delta)))
+                           (-> (+ x (util/rand-int (- delta) (inc delta)))
                                (min hi)
                                (max lo)))
                          xs))

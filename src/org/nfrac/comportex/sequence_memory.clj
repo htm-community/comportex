@@ -1,6 +1,6 @@
 (ns org.nfrac.comportex.sequence-memory
-  (:require (org.nfrac.comportex [pooling :as pooling])
-            [clojure.data.generators :as gen]
+  (:require (org.nfrac.comportex [pooling :as pooling]
+                                 [util :as util])
             [clojure.set :as set]))
 
 (def sequence-memory-defaults
@@ -20,8 +20,8 @@
 ;; TODO maybe don't need this, just start empty
 (defn random-segment
   [i column-id {:as spec :keys [ncol depth new-synapse-count initial-perm]}]
-  (let [cell-ids (->> (repeatedly #(vector (gen/uniform 0 ncol)
-                                           (gen/uniform 0 depth)))
+  (let [cell-ids (->> (repeatedly #(vector (util/rand-int 0 ncol)
+                                           (util/rand-int 0 depth)))
                       (remove (fn [[c _]] (= c column-id)))
                       (distinct)
                       (take new-synapse-count))
@@ -149,7 +149,8 @@
          cell-ids (->> active-cells
                        (remove (fn [[c _]] (= c column-id)))
                        (remove existing-ids)
-                       (gen/reservoir-sample n))
+                       (util/shuffle)
+                       (take n))
          syns (map vector cell-ids (repeat (:initial-perm spec)))]
      (update-in seg [:synapses] into syns))))
 
@@ -189,7 +190,7 @@
                    active-cells)
         ;; TODO: how to choose from multiple active cells?
         ;; prefer if activated by a "learn-state" cell (not bursting)?
-        idx (gen/rand-nth idxs)
+        idx (util/rand-nth idxs)
         cell (nth (:cells col) idx)
         seg-idx (:segment-idx (most-active-segment cell prev-cells spec))]
     (update-in col [:cells idx :segments seg-idx]
