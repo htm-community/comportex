@@ -15,8 +15,8 @@
 (defn active-columns-at
   [r t]
   (reduce (fn [s col]
-              (if (contains? (:active-history col) t)
-                (conj s (:id col)) s))
+            (if (contains? (:active-history col) t)
+              (conj s (:id col)) s))
           #{} (:columns r)))
 
 (deftest pooling-test
@@ -35,13 +35,12 @@
         inseq (repeatedly gen-ins)
         enc-inseq (map efn inseq)
         r (p/region (assoc p/spatial-pooler-defaults
-                     :ncol ncol
-                     :input-size bit-width
-                     :potential-radius (quot bit-width 5)
-                     :global-inhibition false
-                     :active-per-inh-area 3
-                     :stimulus-threshold 2
-                     :duty-cycle-period 100))
+                      :ncol ncol
+                      :input-size bit-width
+                      :potential-radius (quot bit-width 5)
+                      :global-inhibition false
+                      :stimulus-threshold 2
+                      :duty-cycle-period 100))
         r1k (time
              (reduce (fn [r in] (p/pooling-step r in))
                      r (take 1000 enc-inseq)))]
@@ -56,7 +55,7 @@
       (let [nactive-ts (for [t (range 900 1000)]
                          (count (active-columns-at r1k t)))]
         (is (every? #(< % (* ncol 0.6)) nactive-ts)
-            "Column inhibition limits active columns"))
+            "Inhibition limits active columns in each time step."))
       (let [nsyns (map (comp count :connected :in-synapses) (:columns r1k))]
         (is (>= (apply min nsyns) 1)
             "All columns have at least one connected input synapse."))
