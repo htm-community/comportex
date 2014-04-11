@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.pooling
-  (:require [org.nfrac.comportex.util :as util]
+  (:require [org.nfrac.comportex.util :as util :refer [round mean]]
             [clojure.set :as set]))
 
 (def spatial-pooler-defaults
@@ -68,14 +68,6 @@
       (update-neighbours)))
 
 ;; NEIGHBOURING COLUMNS
-
-(defn round
-  [x]
-  (Math/round (double x)))
-
-(defn mean
-  [xs]
-  (/ (apply + xs) (double (count xs))))
 
 (defn column-receptive-field-size
   [col]

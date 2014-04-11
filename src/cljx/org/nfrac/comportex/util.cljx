@@ -2,6 +2,14 @@
   (:require [cemerick.pprng :as rng])
   (:refer-clojure :exclude [rand rand-int rand-nth shuffle]))
 
+(defn round
+  [x]
+  (Math/round (double x)))
+
+(defn mean
+  [xs]
+  (/ (apply + xs) (double (count xs))))
+
 (def RNG (rng/rng))
 
 (defn rand

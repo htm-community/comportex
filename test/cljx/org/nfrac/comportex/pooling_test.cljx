@@ -1,9 +1,13 @@
 (ns org.nfrac.comportex.pooling-test
-  (:use clojure.test)
-  (:require (org.nfrac.comportex [pooling :as p]
-                                 [encoders :as enc]
-                                 [util :as util])
-            [clojure.set :as set]))
+  (:require [org.nfrac.comportex.pooling :as p]
+            [org.nfrac.comportex.encoders :as enc]
+            [org.nfrac.comportex.util :as util]
+            [clojure.set :as set]
+            #+clj [clojure.test :as t
+                   :refer (is deftest testing run-tests)]
+            #+cljs [cemerick.cljs.test :as t])
+  #+cljs (:require-macros [cemerick.cljs.test
+                           :refer (is deftest testing run-tests)]))
 
 (def numb-bit-width 100)
 (def numb-domain [0 100])
@@ -20,9 +24,8 @@
           #{} (:columns r)))
 
 (deftest pooling-test
-  (let [efn (enc/map-encoder
-             numb-bit-width
-             (enc/number-linear numb-bit-width numb-domain numb-span))
+  (let [efn (enc/map-encoder numb-bit-width
+                             (enc/number-linear numb-bit-width numb-domain numb-span))
         [lo hi] numb-domain
         gen-ins (fn []
                   (repeatedly n-in-items #(util/rand-int lo hi)))

@@ -1,6 +1,5 @@
 (ns org.nfrac.comportex.sequence-memory
-  (:require (org.nfrac.comportex [pooling :as pooling]
-                                 [util :as util])
+  (:require [org.nfrac.comportex.util :as util]
             [clojure.set :as set]))
 
 (def sequence-memory-defaults

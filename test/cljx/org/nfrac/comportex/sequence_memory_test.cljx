@@ -1,10 +1,14 @@
 (ns org.nfrac.comportex.sequence-memory-test
-  (:use clojure.test)
-  (:require (org.nfrac.comportex [pooling :as p]
-                                 [sequence-memory :as sm]
-                                 [encoders :as enc]
-                                 [util :as util])
-            [clojure.set :as set]))
+  (:require [org.nfrac.comportex.pooling :as p]
+            [org.nfrac.comportex.sequence-memory :as sm]
+            [org.nfrac.comportex.encoders :as enc]
+            [org.nfrac.comportex.util :as util]
+            [clojure.set :as set]
+            #+clj [clojure.test :as t
+                   :refer (is deftest testing run-tests)]
+            #+cljs [cemerick.cljs.test :as t])
+  #+cljs (:require-macros [cemerick.cljs.test
+                           :refer (is deftest testing run-tests)]))
 
 (def bit-width 200)
 (def numb-domain [0 30])
