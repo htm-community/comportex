@@ -38,7 +38,7 @@
            potential-pct
            sp-perm-connected
            sp-perm-inc]}]
-  (let [input-focus (* input-size (/ column-id ncol))
+  (let [input-focus (round (* input-size (/ column-id ncol)))
         idseq (range (max 0 (- input-focus potential-radius))
                      (min input-size (+ input-focus potential-radius)))
         n (* potential-pct (count idseq))
