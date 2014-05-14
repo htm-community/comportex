@@ -11,8 +11,8 @@
                            :refer (is deftest testing run-tests)]))
 
 (def bit-width 200)
-(def numb-domain [0 30])
-(def numb-span 1.2)
+(def on-bits 20)
+(def numb-domain [0 15])
 (def ncol 200)
 (def depth 5)
 
@@ -20,10 +20,10 @@
   {:run0 (range 5)
    :twos (range 0 10 2)
    :reps (mapcat #(repeat 2 %) (range 5))
-   :run20 (range 20 25)
-   :rev20 (reverse (range 20 25))
-   :fives (range 0 30 5)
-   :bounce (map + (repeat 10)
+   :run10 (range 10 15)
+   :rev10 (reverse (range 10 15))
+   :threes (range 0 15 3)
+   :bounce (map (partial + 10)
                 (concat (range 5) (range 4) (range 3) (range 2) (range 1)))
    })
 
@@ -53,8 +53,8 @@
 (deftest sm-test
   (let [ps (mix-patterns-with-gaps patterns [1 50])
         ;; TODO add noise?
-        efn (enc/merge-encoder
-             (enc/number-linear bit-width numb-domain numb-span))
+        efn (enc/superpose-encoder
+             (enc/linear-number-encoder bit-width on-bits numb-domain))
         inpseq (map efn (map :values ps))
         r* (p/region (assoc p/spatial-pooler-defaults
                        :ncol ncol
@@ -90,8 +90,8 @@
 
   ;; TODO add noise
 
-  (def efn (enc/merge-encoder
-            (enc/number-linear bit-width numb-domain numb-span)))
+  (def efn (enc/superpose-encoder
+            (enc/linear-number-encoder bit-width on-bits numb-domain)))
   
   (pprint (map efn (map :values (take 20 ps))))
   (map count (map efn (map :values (take 100 ps))))

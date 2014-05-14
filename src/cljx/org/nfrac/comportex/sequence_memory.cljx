@@ -1,8 +1,38 @@
 (ns org.nfrac.comportex.sequence-memory
-  (:require [org.nfrac.comportex.util :as util]
-            [clojure.set :as set]))
+  "Sequence Memory as in the CLA (not temporal pooling!).
+
+   One difference from the Numenta white paper is that _predictive_
+   states are not calculated acrosss the whole region, only on active
+   columns to determine their active cells."
+  (:require [org.nfrac.comportex.util :as util]))
 
 (def sequence-memory-defaults
+  "Default parameter specification map for sequence memory. This gets
+   merged with the specification map for pooling (should use
+   namespaced keywords?). Mostly based on values from NuPIC.
+
+   * `depth` - number of cells per column.
+
+   * `init-segment-count` - initial number of dendrite segments per
+     cell (note default is zero).
+
+   * `new-synapse-count` - number of synapses on a new dendrite
+     segment.
+
+   * `activation-threshold` - number of active synapses on a dendrite
+     segment required for it to become active.
+
+   * `min-threshold` - number of active synapses on a dendrite segment
+     required for it to be reinforced and extended on a bursting column.
+
+   * `initial-perm` - permanence value for new synapses on dendrite
+     segments.
+
+   * `permanence-inc` - amount by which to increase synapse permanence
+     when reinforcing dendrite segments.
+
+   * `permanence-dec` - amount by which to decrease synapse permanence
+     when reinforcing dendrite segments."
   {:depth 8
    :init-segment-count 0
    :new-synapse-count 15
@@ -14,10 +44,14 @@
    :permanence-dec 0.10
    })
 
-;; CONSTRUCTION
+;; ## Construction
 
-;; TODO maybe don't need this, just start empty
+;; TODO maybe don't need this, always start empty?
 (defn random-segment
+  "Generates a new dendrite segment, the `i`th on the cell, with
+   `new-synapse-count` synapses connected to randomly chosen cells in
+   the region. Connections are not made to cells in the host cell's
+   column."
   [i column-id {:as spec :keys [ncol depth new-synapse-count initial-perm]}]
   (let [cell-ids (->> (repeatedly #(vector (util/rand-int 0 ncol)
                                            (util/rand-int 0 depth)))
@@ -29,6 +63,8 @@
      }))
 
 (defn init-cell
+  "Constructs a cell, at index `idx` in the column. A number
+   `init-segment-count` of new random segments are attached."
   [idx column-id {:as spec :keys [ncol depth init-segment-count]}]
   {:id [column-id idx]
    :segments (mapv random-segment (range init-segment-count)
@@ -36,11 +72,17 @@
    })
 
 (defn column-with-sequence-memory
+  "Constructs `depth` cells in a vector, attaching to key `:cells` in
+   the column."
   [col {:as spec :keys [depth]}]
   (assoc col
     :cells (mapv init-cell (range depth) (repeat (:id col)) (repeat spec))))
 
 (defn with-sequence-memory
+  "Takes a region `rgn` constructed as a spatial pooler, and extends
+   it with sequence memory capability. That is, it adds individual
+   cell representations to each column. Specifically, specification
+   key `:depth` gives the number of cells in each column."
   [rgn spec]
   (let [fullspec (merge (:spec rgn) spec)]
     (assoc rgn
@@ -48,7 +90,7 @@
       :columns (mapv column-with-sequence-memory
                      (:columns rgn) (repeat fullspec)))))
 
-;; ACTIVATION
+;; ## Activation
 
 (defn segment-activation
   [seg active-cells pcon]
@@ -78,6 +120,16 @@
         (:cells col)))
 
 (defn active-cells-by-column
+  "Finds the active cells grouped by their column id. Returns a map
+   from (the active) column ids to sub-keys `:cell-ids` (a sequence of
+   cell ids in the column) and `:bursting?` (true if the feed-forward
+   input was unpredicted and so all cells become active).
+
+  * `active-columns` - the set of active column ids (from the spatial
+    pooling step)
+
+  * `prev-cells` - the set of active cell ids from the previous
+    iteration."
   [rgn active-columns prev-cells]
   (->> active-columns
        (map (fn [i]
@@ -88,13 +140,13 @@
                 [i {:cell-ids cids :bursting? burst?}])))
        (into {})))
 
-;; LEARNING
+;; ## Learning
 
 (defn most-active-segment
   "Returns the index of the segment in the cell having the most active
-   synapses, followed by its number of active synapses, in a map with
-   keys :segment-idx and :activation. If no segments exist,
-   returns :segment-idx nil and :activation zero."
+   synapses, together with its number of active synapses, in a map with
+   keys `:segment-idx` and `:activation`. If no segments exist,
+   then `:segment-idx` is nil and `:activation` is zero."
   [cell active-cells spec]
   (let [pcon (:connected-perm spec)
         acts (map-indexed (fn [i seg]
@@ -109,13 +161,13 @@
 
 (defn best-matching-segment-and-cell
   "Finds the segment in the column having the most active synapses,
-   as long as this is at least min-threshold (note that this is lower
-   than the usual activation-threshold). Returns indices of the
-   segment and its containing cell in a map with keys :segment-idx
-   and :cell-id.
+   as long as this is at least `min-threshold` (note that this is
+   lower than the usual activation-threshold). Returns indices of the
+   segment and its containing cell in a map with keys `:segment-idx`
+   and `:cell-id`.
 
    If no such segments exist in the column, returns the cell with the
-   fewest segments, and :segment-idx nil."
+   fewest segments, and `:segment-idx` nil."
   [col active-cells spec]
   (let [th (:min-threshold spec)
         maxs (map (fn [cell]
@@ -205,9 +257,19 @@
                            (predicted-column-learn col active-cells prev-cells (:spec rgn))))))
           rgn active-columns))
 
-;; ORCHESTRATION
+;; ## Orchestration
 
 (defn sequence-memory-step
+  "Given a set of active columns (from the spatial pooling step),
+   performs an iteration of the CLA sequence memory algorithm:
+
+   * determines the new set of active cells (using also the set of
+     active cells from the previous iteration) and stores it in
+     `:active-cells`.
+      * determines the set of _bursting_ columns (indicating unpredicted
+        inputs) and stores it in `:bursting-columns`.
+   * performs learning by forming and updating lateral
+     connections (synapses on dendrite segments)."
   [rgn active-columns]
   (let [prev-ac (:active-cells rgn #{})
         acbc (active-cells-by-column rgn active-columns prev-ac)
@@ -215,4 +277,5 @@
         burst-cols (set (keep (fn [[i m]] (when (:bursting? m) i)) acbc))]
     (-> rgn
         (assoc :active-cells new-ac)
+        (assoc :bursting-columns burst-cols)
         (learn active-columns new-ac prev-ac burst-cols))))

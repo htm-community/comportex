@@ -1,12 +1,61 @@
 (ns org.nfrac.comportex.pooling
-  (:require [org.nfrac.comportex.util :as util :refer [round mean]]
-            [clojure.set :as set]))
+  "Currently this implements Spatial Pooling as in the CLA."
+  (:require [org.nfrac.comportex.util :as util :refer [round mean]]))
 
 (def spatial-pooler-defaults
+  "Default parameter specification map for spatial pooling. Mostly
+   based on values from NuPIC.
+
+   * `ncol` - number of columns. Currently only one-dimensional.
+
+   * `input-size` - number of input bits. Currently only one-dimensional.
+
+   * `potential-radius` - range of potential feed-forward synapse
+     connections; a distance in input bits.
+
+   * `potential-frac` - fraction of inputs within range that will be
+     part of the potentially connected set.
+
+   * `global-inhibition` - whether to use the faster global algorithm
+     for column inhibition (just keep those with highest overlap
+     scores), or to apply inhibition only within a column's
+     neighbours.
+
+   * `activation-level` - fraction of columns that can be
+     active (either locally or globally); inhibition kicks in to
+     reduce it to this level.
+
+   * `sp-perm-inc` - amount to increase a synapse's permanence value
+     by when it is reinforced.
+
+   * `sp-perm-dec` - amount to decrease a synapse's permanence value
+     by when it is not reinforced.
+
+   * `sp-perm-connected` - permanence value at which a synapse is
+     functionally connected. Permanence values are defined to be
+     between 0 and 1.
+
+   * `stimulus-threshold` - minimum number of active input connections
+     for a column to be _overlapping_ the input (i.e. active prior to
+     inhibition).
+
+   * `boost-overlap-duty-ratio` - when a column's overlap frequency is
+     below this proportion of the _highest_ of its neighbours, its
+     input synapses are boosted.
+
+   * `boost-active-duty-ratio` - when a column's activation frequency is
+     below this proportion of the _highest_ of its neighbours, its
+     boost factor is increased.
+
+   * `duty-cycle-period` - number of time steps between updating
+     column boosting measures.
+
+   * `max-boost` - ceiling on the column boosting factor used to
+     increase activation frequency."
   {:ncol 400
    :input-size 400
    :potential-radius 80
-   :potential-pct 0.5
+   :potential-frac 0.5
    :global-inhibition true
    :activation-level 0.04
    :sp-perm-inc 0.05
@@ -19,9 +68,19 @@
    :max-boost 10.0
    })
 
-;; CONSTRUCTION
+;; ## Construction
 
 (defn into-connected-disconnected
+  "Takes a collection of synapse connections and partitions them into
+   connected and disconnected ones.
+
+   * `pcon` - the permanence value at (or above) which synapses are
+     connected.
+
+   * `synapses` - a collection of `[input-id permanence]` tuples.
+
+   Returns a map with keys `:connected` and `:disconnected`, each a
+   map of the corresponding tuples."
   [pcon synapses]
   (-> (group-by (fn [[id perm]]
                   (if (>= perm pcon) :connected :disconnected))
@@ -30,18 +89,30 @@
       (update-in [:disconnected] #(into {} %))))
 
 (defn in-synapses
+  "Generates a random selection of input (feed-forward) synapse
+   connections to the given column. Both the input and columns are
+   assumed to be indexed in one dimension.
+
+   Connections are made locally by scaling the input space to the
+   column space. Potential synapses are chosen within a radius
+   `potential-radius` of input bits, and of those, a fraction
+   `potential-frac` are chosen randomly.
+
+   Initial permanence values are randomly selected from a uniform
+   distribution around the connected threshold, plus-or-minus the
+   increment amount. So about half will be initially connected."
   [column-id
    {:as spec
     :keys [ncol
            input-size
            potential-radius
-           potential-pct
+           potential-frac
            sp-perm-connected
            sp-perm-inc]}]
   (let [input-focus (round (* input-size (/ column-id ncol)))
         idseq (range (max 0 (- input-focus potential-radius))
                      (min input-size (+ input-focus potential-radius)))
-        n (* potential-pct (count idseq))
+        n (* potential-frac (count idseq))
         ids (take n (util/shuffle idseq))
         perms (repeatedly n #(util/rand (- sp-perm-connected sp-perm-inc)
                                         (+ sp-perm-connected sp-perm-inc)))]
@@ -49,6 +120,8 @@
          (into-connected-disconnected sp-perm-connected))))
 
 (defn column
+  "Constructs a column with the given `id` index and with a randomised
+   set of input synapses."
   [id spec]
   {:id id
    :in-synapses (in-synapses id spec)
@@ -60,6 +133,10 @@
 (declare update-neighbours)
 
 (defn region
+  "Constructs a region (as in the CLA) with the given specification
+   map. See documentation on `spatial-pooler-defaults` for possible
+   keys. Initially this region has only columns, not individual cells,
+   so can run spatial pooling but not sequence memory."
   [{:as spec
     :keys [ncol]}]
   (-> {:columns (mapv column (range ncol) (repeat spec))
@@ -67,9 +144,11 @@
        :active-columns #{}}
       (update-neighbours)))
 
-;; NEIGHBOURING COLUMNS
+;; ## Neighbouring columns
 
 (defn column-receptive-field-size
+  "Returns the span over the input bit array to which this column has
+   connected synapses."
   [col]
   (let [idxs (keys (:connected (:in-synapses col)))]
     (if (seq idxs)
@@ -81,12 +160,16 @@
   (mean (map column-receptive-field-size (:columns rgn))))
 
 (defn neighbours
+  "Returns the set of column ids within radius `r` in column space of
+   this column `col-id`, not including itself."
   [col-id ncol r]
   (disj (set (range (max 0 (- col-id r))
                     (min ncol (+ col-id r 1))))
         col-id))
 
 (defn update-neighbours
+  "Recalculates the `:neighbours` of each column in the region, by
+   first recalculating the average receptive field size."
   [rgn]
   (let [spec (:spec rgn)
         nin (:input-size spec)
@@ -101,11 +184,14 @@
     (assoc rgn :columns cols
            :avg-receptive-field-size radius)))
 
-;; OVERLAPS
+;; ## Overlaps
 
 (defn column-overlap
+  "Given the set of active input bits `in-set`, returns the overlap
+   score of column `col`. That is the number of synapses connected to
+   active input bits, multiplied by the column's boosting factor."
   [col in-set stimulus-threshold]
-  ;; pooler is 10% faster with reduce here, vs select-keys
+  ;; pooler is 10% faster with reduce here, vs count select-keys
   (let [ov (reduce (fn [sum id]
                      (if (in-set id) (inc sum) sum))
                    0 ;; init
@@ -115,6 +201,9 @@
       0.0)))
 
 (defn overlaps
+  "Given the set of active input bits `in-set`, finds the columns with
+   an overlap score above parameter `stimulus-threshold`, and returns
+   a map of their column ids to overlap scores."
   [rgn in-set]
   (let [th (:stimulus-threshold (:spec rgn))]
     (into {} (keep (fn [col]
@@ -124,10 +213,13 @@
                    (:columns rgn)))))
 
 (defn column-record-overlap
+  "Stores time step `t` in the column's overlap history series."
   [col t]
   (update-in col [:overlap-history] conj t))
 
 (defn update-overlaps
+  "Stores the overlap scores map in region key `:overlaps`, and
+   records the timestep in each overlapping column."
   [rgn in-set t]
   (let [om (overlaps rgn in-set)]
     (->
@@ -136,9 +228,13 @@
              rgn om)
      (assoc :overlaps om))))
 
-;; ACTIVATION
+;; ## Activation
 
 (defn column-active-with-local-inhibition?
+  "Given the map of column overlap scores `om`, and the target
+   activation rate `level`, decides whether the column should become
+   active. A false value indicates that the column is supressed by
+   local inhibition from its neighbours."
   [col om level]
   (when-let [o-val (om (:id col))]
     (let [ns (:neighbours col)
@@ -156,6 +252,9 @@
           (< n activity-limit))))))
 
 (defn active-columns-with-local-inhibition
+  "Returns the set of column ids which should become active given the
+   map of column overlap scores `om`, and the target activation rate
+   `level`. Local inhibition is applied."
   [rgn om level]
   (set (keep (fn [col]
                (when (column-active-with-local-inhibition? col om level)
@@ -163,6 +262,10 @@
              (:columns rgn))))
 
 (defn active-columns-with-global-inhibition
+  "Returns the set of column ids which should become active given the
+   map of column overlap scores `om`, and the target activation rate
+   `level`. Global inhibition is applied, i.e. the top N columns by
+   overlap score are selected."
   [rgn om level]
   (let [activity-limit (-> (* level (count (:columns rgn)))
                            (round)
@@ -178,6 +281,9 @@
            (set)))))
 
 (defn active-columns
+  "Returns the set of column ids which should become active given the
+   map of column overlap scores `om`. The method used depends on the
+   specification key `:global-inhibition`."
   [rgn om]
   (let [spec (:spec rgn)
         level (:activation-level spec)]
@@ -186,10 +292,13 @@
       (active-columns-with-local-inhibition rgn om level))))
 
 (defn column-record-activation
+  "Stores time step `t` in the column's activation history series."
   [col t]
   (update-in col [:active-history] conj t))
 
 (defn update-active-columns
+  "Stores the set of active column ids in region key
+   `:active-columns`, and records the timestep in each active column."
   [rgn t]
   (let [as (active-columns rgn (:overlaps rgn))]
     (->
@@ -198,9 +307,15 @@
              rgn as)
      (assoc :active-columns as))))
 
-;; LEARNING
+;; ## Learning
 
 (defn column-update-in-synapses
+  "Given the set of input bits `in-set`, adjusts the permanence values
+   of all potential feed-forward synapses on the column. Those linked
+   to active inputs have their permanences increased by `pinc`, and
+   the rest have their permanences decreased by `pdec`. They may
+   become newly connected or disconnected according to the threshold
+   `pcon`."
   [col in-set pinc pdec pcon]
   (let [syns (:in-synapses col)
         nsyns (->> (concat (:connected syns)
@@ -214,6 +329,10 @@
     (assoc col :in-synapses nsyns)))
 
 (defn learn
+  "Adapt feed-forward connections to focus on consistent input
+   patterns. Given the set of input bits `in-set`, adjusts the
+   permanence values of all potential feed-forward synapses in each
+   column in the region."
   [rgn in-set]
   (let [pinc (:sp-perm-inc (:spec rgn))
         pdec (:sp-perm-dec (:spec rgn))
@@ -225,9 +344,12 @@
                      (:columns rgn) (:active-columns rgn))]
     (assoc rgn :columns cols)))
 
-;; BOOSTING
+;; ## Boosting
 
 (defn column-increase-permanences
+  "Used to increase a column's feed-forward connections within its
+   potential pool. All input synapses have their permanences
+   increased, perhaps passing the connection threshold `pcon`."
   [col pcon]
   (let [syns (:in-synapses col)
         nsyns (->> (concat (:connected syns)
@@ -238,7 +360,11 @@
                    (into-connected-disconnected pcon))]
     (assoc col :in-synapses nsyns)))
 
-(defn column-update-boosting
+(defn- column-update-boosting
+  "Recalculates the column's `:boost` factor and possibly applies an
+   increase to all input synapse permanences. These are based on
+   comparing the number of activations or overlaps in recent history
+   to the _maximum_ such value from its neighbours."
   [col ods-m ads-m o-th a-th maxb pcon]
   (let [ns (:neighbours col)
         max-ods (apply max 1 (vals (select-keys ods-m ns)))
@@ -258,6 +384,11 @@
      (assoc :boost nboost))))
 
 (defn update-boosting
+  "For each column, determines whether it has had too few activations
+  -- relative to its neighbours -- in recent history. Boosting may be
+  applied to boost either a column's input overlap (by increasing
+  connections) or its share of activations after inhibition (by
+  increasing its boost factor)."
   [rgn t]
   (let [o-th (:boost-overlap-duty-ratio (:spec rgn))
         a-th (:boost-active-duty-ratio (:spec rgn))
@@ -265,7 +396,9 @@
         maxb (:max-boost (:spec rgn))
         pcon (:sp-perm-connected (:spec rgn))
         rollcnt (fn [ss] (count (subseq ss >= (- t period))))
+        ;; active duty cycle by column
         ads-m (into {} (map (juxt :id (comp rollcnt :active-history)) (:columns rgn)))
+        ;; overlap duty cycle by column
         ods-m (into {} (map (juxt :id (comp rollcnt :overlap-history)) (:columns rgn)))
         cols (mapv (fn [col]
                      (column-update-boosting col ods-m ads-m o-th a-th maxb pcon))
@@ -274,6 +407,9 @@
 
 ;; not currently used; just to limit memory use
 (defn column-truncate-duty-cycle-history
+  "Trucates the time series recording activation and overlap
+   timesteps: `:active-history` and `:overlap-history`, which are
+   sorted sets."
   [col t-horizon]
   (let [trunc (fn [ss]
                 (let [t0 (first ss)]
@@ -284,9 +420,19 @@
         (update-in [:active-history] trunc)
         (update-in [:overlap-history] trunc))))
 
-;; ORCHESTRATION
+;; ## Orchestration
 
 (defn pooling-step
+  "Given a set of active input bits `in-set` and a region `rgn`,
+   performs an iteration of the CLA spatial pooling algorithm:
+
+   * increments the `:timestep`
+   * recalculates overlaps, mapping column ids to overlap scores in `:overlaps`
+   * recalculates the set of active column ids `:active-columns`
+   * performs the learning step by updating input synapse permanences
+   * after every half of the `duty-cycle-period` duration,
+     * applies column boosting as needed
+     * recalculates the neighbours of each column according to the average receptive field size."
   [rgn in-set]
   (let [t (inc (:timestep rgn 0))
         dcp (:duty-cycle-period (:spec rgn))

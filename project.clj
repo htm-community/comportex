@@ -15,7 +15,8 @@
                    :plugins [[com.keminglabs/cljx "0.3.3-SNAPSHOT"]
                              [lein-cljsbuild "1.0.3"]
                              [com.cemerick/clojurescript.test "0.3.0"]
-                             [com.cemerick/austin "0.1.4"]]
+                             [com.cemerick/austin "0.1.4"]
+                             [lein-marginalia "0.7.1"]]
                    :cljx {:builds [{:source-paths ["src/cljx"]
                                     :output-path "target/classes"
                                     :rules :clj}
@@ -33,10 +34,12 @@
                                     :rules :cljs}]}
 
                    :aliases {"cleantest" ["do" "clean," "cljx" "once," "test," "cljsbuild" "test"]}
-
                    :cljsbuild {:builds [{:source-paths ["target/classes" "target/test-classes"]
                                          :jar true
                                          :compiler {:output-to "target/testable.js"
                                                     :libs [""]
-                                                    :optimizations :advanced}}]}}})
+                                                    :optimizations :advanced}}]}}}
 
+  :autodoc {:copyright "Copyright (C) 2014 Felix Andrews."
+            :web-src-dir "http://github.com/floybix/comportex/blob/"
+            :web-home "http://floybix.github.com/comportex/"})

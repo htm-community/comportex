@@ -1,8 +1,6 @@
 
 # TODO
 
-* docstrings
-  * marginalia
 * unit tests
 * property-based testing (clojure.test.check)
 
@@ -25,12 +23,6 @@ next input pattern."
 * define connected permanence value to be 1.0? parameter is then max-perm
 * limit lateral synapses to within a radius 
 
-## visualisation
-
-* varianceplots?
-* c2 / d3?
-* raphael?
-
 ## code architecture
 
 * protocols
@@ -46,6 +38,7 @@ what is "hello world" for CLA / HTM?
 
 * 1 2 3 1 1 8, 1 2 3 1 1 8
 
+```
 1 100110 100110 
 2 010000 010000
 3 001000 001000
@@ -54,9 +47,11 @@ what is "hello world" for CLA / HTM?
 6 000000 000000
 7 000000 000000
 8 000001 000001
+```
 
 ### shooting spaceship
 
+```
 000100000001
 001000000010
 010000000100
@@ -64,9 +59,11 @@ what is "hello world" for CLA / HTM?
 000001000000
 000000100000
 000000010000
+```
 
 ### moving shooting spaceship
 
+```
 00010011000010000000010000
 00101100110100000000100000
 01110100001100000001000000
@@ -74,11 +71,14 @@ what is "hello world" for CLA / HTM?
 00000001000000110100001100
 00000000100000101100110100
 00000000010000010011000010
+```
 motor signals:
+```
 00101010000000000000101010 move up
 00000000101010101010000000 move down
 01000000000000000100000000 fire up
 00000100000000000000000100 fire down
+```
 
 ### two-d bouncing ball
 

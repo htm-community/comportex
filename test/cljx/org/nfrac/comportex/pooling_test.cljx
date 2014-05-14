@@ -9,11 +9,11 @@
   #+cljs (:require-macros [cemerick.cljs.test
                            :refer (is deftest testing run-tests)]))
 
-(def numb-bit-width 100)
+(def numb-bits 127)
+(def numb-on-bits 21)
 (def numb-domain [0 100])
-(def numb-span 5)
 (def n-in-items 3)
-(def bit-width (* numb-bit-width n-in-items))
+(def bit-width (* numb-bits n-in-items))
 (def ncol 200)
 
 (defn active-columns-at
@@ -24,8 +24,8 @@
           #{} (:columns r)))
 
 (deftest pooling-test
-  (let [efn (enc/map-encoder numb-bit-width
-                             (enc/number-linear numb-bit-width numb-domain numb-span))
+  (let [efn (enc/juxtapose-encoder
+             (enc/linear-number-encoder numb-bits numb-on-bits numb-domain))
         [lo hi] numb-domain
         gen-ins (fn []
                   (repeatedly n-in-items #(util/rand-int lo hi)))
