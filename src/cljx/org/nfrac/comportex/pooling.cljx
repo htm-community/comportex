@@ -47,8 +47,9 @@
      below this proportion of the _highest_ of its neighbours, its
      boost factor is increased.
 
-   * `duty-cycle-period` - number of time steps between updating
-     column boosting measures.
+   * `duty-cycle-period` - number of time steps to consider when
+     updating column boosting measures. Also the period between such
+     updates.
 
    * `max-boost` - ceiling on the column boosting factor used to
      increase activation frequency."
@@ -405,11 +406,11 @@
                    (:columns rgn))]
     (assoc rgn :columns cols)))
 
-;; not currently used; just to limit memory use
+;; Not currently used, we just clear them completely after update.
 (defn column-truncate-duty-cycle-history
   "Trucates the time series recording activation and overlap
    timesteps: `:active-history` and `:overlap-history`, which are
-   sorted sets."
+   sorted sets. This is just to limit memory use."
   [col t-horizon]
   (let [trunc (fn [ss]
                 (let [t0 (first ss)]
@@ -419,6 +420,17 @@
     (-> col
         (update-in [:active-history] trunc)
         (update-in [:overlap-history] trunc))))
+
+(defn clear-duty-cycle-history
+  "Clears the time series of activation and overlap time steps stored
+   in each column. To limit memory use."
+  [rgn]
+  (let [cols (->> (:columns rgn)
+                  (mapv (fn [col]
+                          (-> col
+                              (update-in [:active-history] empty)
+                              (update-in [:overlap-history] empty)))))]
+    (assoc rgn :columns cols)))
 
 ;; ## Orchestration
 
@@ -430,18 +442,21 @@
    * recalculates overlaps, mapping column ids to overlap scores in `:overlaps`
    * recalculates the set of active column ids `:active-columns`
    * performs the learning step by updating input synapse permanences
-   * after every half of the `duty-cycle-period` duration,
+   * after every `duty-cycle-period` duration,
      * applies column boosting as needed
-     * recalculates the neighbours of each column according to the average receptive field size."
+     * clears history from each column
+     * recalculates the neighbours of each column according to the
+       average receptive field size."
   [rgn in-set]
   (let [t (inc (:timestep rgn 0))
         dcp (:duty-cycle-period (:spec rgn))
-        boost? (zero? (mod t (quot dcp 2)))
-        neigh? (zero? (mod t (quot dcp 2)))]
+        do-boost? (zero? (mod t dcp))
+        do-neigh? (zero? (mod t dcp))]
     (cond-> rgn
             true (assoc :timestep t)
             true (update-overlaps in-set t)
             true (update-active-columns t)
             true (learn in-set)
-            boost? (update-boosting t)
-            neigh? (update-neighbours))))
+            do-boost? (update-boosting t)
+            do-boost? (clear-duty-cycle-history)
+            do-neigh? (update-neighbours))))

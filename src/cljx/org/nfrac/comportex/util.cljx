@@ -13,10 +13,12 @@
 (def RNG (rng/rng))
 
 (defn rand
-  [lower upper]
-  {:pre [(< lower upper)]}
-  (+ lower (* (rng/double RNG)
-              (- upper lower))))
+  ([]
+     (rand 0 1))
+  ([lower upper]
+     {:pre [(< lower upper)]}
+     (+ lower (* (rng/double RNG)
+                 (- upper lower)))))
 
 (defn rand-int
   [lower upper]
