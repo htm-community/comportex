@@ -22,12 +22,11 @@
   * `[lower upper]` gives the numeric range to cover. The input number
     will be clamped to this range."
   [bit-width on-bits [lower upper]]
-  (let [span (double (- upper lower))
-        bit-radius (quot bit-width 2)]
+  (let [span (double (- upper lower))]
     (fn [x]
       (let [x (-> x (max lower) (min upper))
             z (/ (- x lower) span)
-            i (long (* z (- (dec bit-width) bit-radius)))]
+            i (long (* z (- bit-width on-bits)))]
         (-> (set (range i (+ i on-bits)))
             (with-meta {::bit-width bit-width}))))))
 
