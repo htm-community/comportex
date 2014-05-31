@@ -11,10 +11,10 @@
   :jar-exclusions [#"\.cljx"]
   :jvm-opts ["-server" "-Xmx2g"]
 
-  :profiles {:dev {:dependencies [[org.clojure/clojurescript "0.0-2197"]]
-                   :plugins [[com.keminglabs/cljx "0.3.3-SNAPSHOT"]
+  :profiles {:dev {:dependencies [[org.clojure/clojurescript "0.0-2227"]]
+                   :plugins [[com.keminglabs/cljx "0.4.0"]
                              [lein-cljsbuild "1.0.3"]
-                             [com.cemerick/clojurescript.test "0.3.0"]
+                             [com.cemerick/clojurescript.test "0.3.1"]
                              [com.cemerick/austin "0.1.4"]
                              [lein-marginalia "0.7.1"]]
                    :cljx {:builds [{:source-paths ["src/cljx"]

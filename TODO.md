@@ -15,19 +15,18 @@ next input pattern."
 * allow columns arrayed in 2 dimensions
 * target 2% activation
 
+* perhaps update active synapses in :connected :disconnected maps
+  rather than rebuilding them each time - for more structural sharing.
+
 ## sequence memory
 
-* limit connections to one cell of bursting columns ("learning state")
-* start empty?
+* negatively reinforce lateral synapses on active cells if they stop predicting
 * only update synapses when cells turn on/off? (not when continuing?)
-* define connected permanence value to be 1.0? parameter is then max-perm
 * limit lateral synapses to within a radius 
 
 ## code architecture
 
 * protocols
-
-
 
 
 ## test problems
