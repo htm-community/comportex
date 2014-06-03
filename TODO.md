@@ -4,6 +4,7 @@
 * unit tests
 * property-based testing (clojure.test.check)
 
+
 ## pooling
 
 * try spatio-temporal pooling by extending (column/cell?) activation
@@ -18,15 +19,35 @@ next input pattern."
 * perhaps update active synapses in :connected :disconnected maps
   rather than rebuilding them each time - for more structural sharing.
 
+
 ## sequence memory
 
 * negatively reinforce lateral synapses on active cells if they stop predicting
 * only update synapses when cells turn on/off? (not when continuing?)
+
+* limits
+  * fixed-size CLA; and/or
+  * global decay of segments       ;; avoid - long-term memory is good?
+* do not allow distal synapses to multiple cells of one column
+* avoid over-saturated predictive states (almost bursting)
+* predict only one cell per column?
+* prediction confidence, based on duty cycle / permanences
+* classify steps as predicted or unpredicted (bursting > 50%)
+* backtracking if we chose the wrong sequence?
+* reset context if failing predictions too long? (why isn't bursting enough?)
+
+* trace back to inputs that would have produced a given activation pattern
+
+* "start cell" (cell 0)?
 * limit lateral synapses to within a radius 
+
 
 ## code architecture
 
 * protocols
+
+* track column and/or segment activation history in a top-level
+  counter map rather than nested?
 
 
 ## test problems
