@@ -135,15 +135,19 @@
 
 (defn region
   "Constructs a region (as in the CLA) with the given specification
-   map. See documentation on `spatial-pooler-defaults` for possible
-   keys. Initially this region has only columns, not individual cells,
-   so can run spatial pooling but not sequence memory."
-  [{:as spec
-    :keys [ncol]}]
-  (-> {:columns (mapv column (range ncol) (repeat spec))
-       :spec spec
-       :active-columns #{}}
-      (update-neighbours)))
+   map. See documentation on `spatial-pooler-defaults` and
+   `sequence-memory-defaults` for possible keys. Any keys given here
+   will override those default values.
+
+   Initially this region has only columns, not individual cells, so can
+   run spatial pooling but not sequence memory."
+  [spec]
+  (let [full-spec (merge spatial-pooler-defaults spec)
+        ncol (:ncol full-spec)]
+    (-> {:columns (mapv column (range ncol) (repeat full-spec))
+         :spec full-spec
+         :active-columns #{}}
+        (update-neighbours))))
 
 ;; ## Neighbouring columns
 

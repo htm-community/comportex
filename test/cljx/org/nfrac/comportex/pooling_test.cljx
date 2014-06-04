@@ -37,13 +37,12 @@
                          xs))
         inseq (repeatedly gen-ins)
         enc-inseq (map efn inseq)
-        r (p/region (assoc p/spatial-pooler-defaults
-                      :ncol ncol
-                      :input-size bit-width
-                      :potential-radius (quot bit-width 5)
-                      :global-inhibition false
-                      :stimulus-threshold 2
-                      :duty-cycle-period 100))
+        r (p/region {:ncol ncol
+                     :input-size bit-width
+                     :potential-radius (quot bit-width 5)
+                     :global-inhibition false
+                     :stimulus-threshold 2
+                     :duty-cycle-period 600})
         r1k (time
              (reduce (fn [r in] (p/pooling-step r in))
                      r (take 1000 enc-inseq)))]
@@ -53,8 +52,8 @@
         (is (every? pos? noverlaps)
             "All columns have overlapped with input at least once."))
       (let [nactive (map (comp count :active-history) (:columns r1k))]
-        (is (every? pos? nactive)
-            "All columns have been active at least once"))
+        (is (pos? (util/quantile nactive 0.8))
+            "At least 20% of columns have been active."))
       (let [nactive-ts (for [t (range 900 1000)]
                          (count (active-columns-at r1k t)))]
         (is (every? #(< % (* ncol 0.6)) nactive-ts)
@@ -63,8 +62,8 @@
         (is (>= (apply min nsyns) 1)
             "All columns have at least one connected input synapse."))
       (let [bs (map :boost (:columns r1k))]
-        (is (== 1.0 (nth bs (quot (count bs) 2)))
-            "Most columns are unboosted.")))
+        (is (== 1.0 (util/quantile bs 0.3))
+            "At least 30% of columns are unboosted.")))
 
     (testing "Spatial pooler acts as a Locality Sensitive Hashing function."
       (let [in (gen-ins)

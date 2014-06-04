@@ -76,4 +76,12 @@
   (:require [org.nfrac.comportex.pooling :as p]
             [org.nfrac.comportex.sequence-memory :as sm]))
 
+(defn cla-region
+  [spec]
+  (-> (p/region spec)
+      (sm/with-sequence-memory)))
 
+(defn cla-step
+  [rgn in-bits]
+  (let [r-sp (p/pooling-step rgn in-bits)]
+    (sm/sequence-memory-step r-sp (:active-columns r-sp))))

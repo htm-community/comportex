@@ -33,6 +33,10 @@
   (let [xrs (map list (repeatedly #(rng/double RNG)) xs)]
     (map second (sort-by first xrs))))
 
+(defn quantile
+  [xs p]
+  (nth (sort xs) (long (* p (dec (count xs))))))
+
 (defn triangular
   "Returns a function transforming uniform randoms in [0 1] to variates on a
    Triangular distribution. http://en.wikipedia.org/wiki/Triangular_distribution

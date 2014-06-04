@@ -4,6 +4,7 @@
 * unit tests
 * property-based testing (clojure.test.check)
 
+* make learning an option
 
 ## pooling
 
@@ -28,9 +29,9 @@ next input pattern."
 * limits
   * fixed-size CLA; and/or
   * global decay of segments       ;; avoid - long-term memory is good?
-* do not allow distal synapses to multiple cells of one column
 * avoid over-saturated predictive states (almost bursting)
 * predict only one cell per column?
+* can there be multiple learn-state cells in a column?
 * prediction confidence, based on duty cycle / permanences
 * classify steps as predicted or unpredicted (bursting > 50%)
 * backtracking if we chose the wrong sequence?
@@ -40,6 +41,11 @@ next input pattern."
 
 * "start cell" (cell 0)?
 * limit lateral synapses to within a radius 
+
+
+## encoders
+
+* allow a sequence of different encoders to super/juxt
 
 
 ## code architecture
