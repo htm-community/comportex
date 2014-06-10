@@ -1,9 +1,8 @@
-
 # TODO
 
 * unit tests
 * property-based testing (clojure.test.check)
-
+* perf
 * make learning an option
 
 ## pooling
@@ -23,6 +22,11 @@ next input pattern."
 
 ## sequence memory
 
+* predict only one cell per column?
+* can there be multiple learn-state cells in a column?
+
+* punish cells which stop predicting - sounds wrong but in white paper
+
 * negatively reinforce lateral synapses on active cells if they stop predicting
 * only update synapses when cells turn on/off? (not when continuing?)
 
@@ -30,14 +34,10 @@ next input pattern."
   * fixed-size CLA; and/or
   * global decay of segments       ;; avoid - long-term memory is good?
 * avoid over-saturated predictive states (almost bursting)
-* predict only one cell per column?
-* can there be multiple learn-state cells in a column?
 * prediction confidence, based on duty cycle / permanences
 * classify steps as predicted or unpredicted (bursting > 50%)
 * backtracking if we chose the wrong sequence?
 * reset context if failing predictions too long? (why isn't bursting enough?)
-
-* trace back to inputs that would have produced a given activation pattern
 
 * "start cell" (cell 0)?
 * limit lateral synapses to within a radius 
@@ -49,6 +49,8 @@ next input pattern."
 
 
 ## code architecture
+
+* reorg, sequence memory is not a good namespace concept.
 
 * protocols
 

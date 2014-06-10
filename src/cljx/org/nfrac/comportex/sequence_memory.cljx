@@ -118,6 +118,32 @@
                      [(:id col) cs]))))
          (into {}))))
 
+(defn predicted-bit-votes
+  "Returns a map from input bit index to the number of connections to
+   it from columns in the predictive state. `pc` is the predictive
+   cells given as a map keyed by column id."
+  [rgn pc]
+  (let [pcids (keys pc)
+        columns (:columns rgn)]
+    (reduce (fn [inb cid]
+              (let [col (columns cid)
+                    syns (:connected (:in-synapses col))]
+                (reduce (fn [inb i]
+                          (assoc inb i
+                                 (inc (inb i 0))))
+                        inb (keys syns))))
+            {} pcids)))
+
+(defn predicted-bits
+  "Returns the set of input bit indices which have at least `nmin`
+   connections from predictive columns. `pc` is the predictive cells
+   given as a map keyed by column id."
+  [rgn pc nmin]
+  (->> (predicted-bit-votes rgn pc)
+       (keep (fn [[i votes]]
+               (when (>= votes nmin) i)))
+       (into #{})))
+
 (defn active-cells-by-column
   "Finds the active cells grouped by their column id. Returns a map
    from (the active) column ids to sub-keys `:cell-ids` (a sequence of
@@ -245,6 +271,8 @@
   (let [spec (:spec rgn)
         col (get-in rgn [:columns cid])
         ;; choose the learning segment and cell
+        ;; TODO - break ties by permanence
+        ;; TODO - punish other active segments in the cell/column?
         ;; prefer cells that were activated from other "learn" cells
         scl (best-matching-segment-and-cell col learn-cells spec)
         sc (if (:segment-idx scl) scl
