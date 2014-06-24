@@ -14,13 +14,15 @@
    * `:spec` the specification map giving parameter values. For the
      basic spatial pooling functionality it should have the keys in
      `p/spatial-pooler-defaults`; for sequence memory additional keys
-     are needed as in `sm/sequence-memory-defaults`.
+     are used as in `sm/sequence-memory-defaults`.
 
    * (others updated by the orchestration functions:)
      * `:timestep` the simulation time step, an iteration number.
-     * `:active-columns` a set of the currently active column ids.
-     * `:active-cells` a set of the currently active cell ids.
-     * `:busting-columns` a set of the currently _bursting_ column ids.
+     * `:overlaps` a map from column id to overlap score.
+     * `:active-columns` a set of the active column ids.
+     * `:active-cells` a set of the active cell ids.
+     * `:busting-columns` a set of the bursting column ids.
+     * `:predictive-cells` a set of the predictive cell ids.
 
 ### Columns
 
@@ -82,6 +84,51 @@
       (sm/with-sequence-memory)))
 
 (defn cla-step
-  [rgn in-bits]
-  (let [r-sp (p/pooling-step rgn in-bits)]
-    (sm/sequence-memory-step r-sp (:active-columns r-sp))))
+  [rgn in-bits learn?]
+  (let [r-sp (p/pooling-step rgn in-bits learn?)]
+    (sm/sequence-memory-step r-sp (:active-columns r-sp) learn?)))
+
+(defprotocol PInputGenerator
+  "Maintains an input stream and its encoding into bit sets."
+  (bit-width [this])
+  (bits-value [this])
+  (domain-value [this])
+  (input-step [this]))
+
+(defrecord InputGenerator [value transform encode options]
+  PInputGenerator
+  (bit-width [_] (:bit-width options))
+  (bits-value [_] (encode value))
+  (domain-value [_] value)
+  (input-step [this] (assoc this :value (transform value))))
+
+(defn generator
+  [init-value transform encode options]
+  (->InputGenerator init-value transform encode options))
+
+(defn cla-model
+  [ingen spec]
+  (let [r (cla-region spec)]
+    {:region r
+     :in ingen}))
+
+(defn step
+  ([model]
+     (step model true))
+  ([model learn?]
+     (let [new-in (input-step (:in model))]
+       (-> model
+           (assoc :in new-in)
+           (update-in [:region] cla-step (bits-value new-in) learn?)))))
+
+(defn column-state-freqs
+  [rgn]
+  (let [pm (zipmap (keys (:prev-predictive-cells-by-column rgn))
+                   (repeat :predicted))
+        am (zipmap (:active-columns rgn) (repeat :active))
+        bm (zipmap (:bursting-columns rgn) (repeat :unpredicted))
+        m (merge pm am bm)]
+    (-> {:active 0, :predicted 0, :unpredicted 0}
+        (merge (frequencies (vals m)))
+        (assoc :timestep (:timestep rgn)
+               :ncol (count (:columns rgn))))))

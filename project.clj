@@ -5,13 +5,14 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :source-paths ["src/clj" "src/cljx" "target/classes"]
   :test-paths ["target/test-classes"]
-  :dependencies [[org.clojure/clojure "1.5.1"]
+  :dependencies [[org.clojure/clojure "1.6.0"]
                  [com.cemerick/pprng "0.0.2"]]
 
   :jar-exclusions [#"\.cljx"]
   :jvm-opts ["-server" "-Xmx2g"]
 
-  :profiles {:dev {:dependencies [[org.clojure/clojurescript "0.0-2227"]]
+  :profiles {:dev {:dependencies [[org.clojure/clojurescript "0.0-2234"]
+                                  [criterium "0.4.3"]]
                    :plugins [[com.keminglabs/cljx "0.4.0"]
                              [lein-cljsbuild "1.0.3"]
                              [com.cemerick/clojurescript.test "0.3.1"]

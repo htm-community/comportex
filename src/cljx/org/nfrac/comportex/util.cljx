@@ -12,6 +12,14 @@
 
 (def RNG (rng/rng))
 
+(defn set-seed!
+  [seed]
+  #+cljs
+  :not-implemented
+  #+clj
+  (alter-var-root (var RNG)
+                  (fn [_] (rng/rng seed))))
+
 (defn rand
   ([]
      (rand 0 1))
@@ -53,3 +61,30 @@
       (if (< u Fc)
         (+ a (Math/sqrt (* u (- b a) (- c a))))
         (- b (Math/sqrt (* (- 1 u) (- b a) (- b c))))))))
+
+(defn count-filter
+  "Same as `(count (filter pred coll))`, but faster."
+  [pred coll]
+  (reduce (fn [sum x]
+            (if (pred x) (inc sum) sum))
+          0 coll))
+
+(defn group-by-maps
+  "Like the built-in group-by, but building maps instead of vectors
+   for the groups, and tuned for performance with many values per key."
+  [f kvs]
+  (->> kvs
+       ;; create a transient map of transient maps
+       (reduce (fn [m [k v]]
+                 (let [g (f k v)
+                       items (get m g (transient {}))]
+                   (assoc! m g (assoc! items k v))))
+               (transient {}))
+       ;; make the outer map persistent (can't seq it)
+       (persistent!)
+       ;; make the inner maps persistent within a transient outer map
+       (reduce (fn [m [g items]]
+                 (assoc! m g (persistent! items)))
+               (transient {}))
+       ;; make the outer map persistent
+       (persistent!)))

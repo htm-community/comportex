@@ -1,6 +1,7 @@
 (ns org.nfrac.comportex.pooling
   "Currently this implements Spatial Pooling as in the CLA."
-  (:require [org.nfrac.comportex.util :as util :refer [round mean]]))
+  (:require [org.nfrac.comportex.util :as util
+             :refer [round mean count-filter]]))
 
 (def spatial-pooler-defaults
   "Default parameter specification map for spatial pooling. Mostly
@@ -83,11 +84,9 @@
    Returns a map with keys `:connected` and `:disconnected`, each a
    map of the corresponding tuples."
   [pcon synapses]
-  (-> (group-by (fn [[id perm]]
-                  (if (>= perm pcon) :connected :disconnected))
-                synapses)
-      (update-in [:connected] #(into {} %))
-      (update-in [:disconnected] #(into {} %))))
+  (util/group-by-maps (fn [id perm]
+                        (if (>= perm pcon) :connected :disconnected))
+                synapses))
 
 (defn in-synapses
   "Generates a random selection of input (feed-forward) synapse
@@ -194,16 +193,14 @@
 (defn column-overlap
   "Given the set of active input bits `in-set`, returns the overlap
    score of column `col`. That is the number of synapses connected to
-   active input bits, multiplied by the column's boosting factor."
+   active input bits, multiplied by the column's boosting factor. If
+   the number of connections is below `stimulus-threshold` the result
+   is nil."
   [col in-set stimulus-threshold]
-  ;; pooler is 10% faster with reduce here, vs count select-keys
-  (let [ov (reduce (fn [sum id]
-                     (if (in-set id) (inc sum) sum))
-                   0 ;; init
-                   (keys (:connected (:in-synapses col))))]
-    (if (>= ov stimulus-threshold)
-      (* ov (:boost col))
-      0.0)))
+  (let [syns (:connected (:in-synapses col))
+        ov (count-filter in-set (keys syns))]
+    (when (>= ov stimulus-threshold)
+      (* ov (:boost col)))))
 
 (defn overlaps
   "Given the set of active input bits `in-set`, finds the columns with
@@ -212,9 +209,8 @@
   [rgn in-set]
   (let [th (:stimulus-threshold (:spec rgn))]
     (into {} (keep (fn [col]
-                     (let [ov (column-overlap col in-set th)]
-                       (when-not (zero? ov)
-                         [(:id col) ov])))
+                     (when-let [v (column-overlap col in-set th)]
+                       [(:id col) v]))
                    (:columns rgn)))))
 
 (defn column-record-overlap
@@ -243,28 +239,28 @@
   [col om level]
   (when-let [o-val (om (:id col))]
     (let [ns (:neighbours col)
-          nom (select-keys om ns)
           activity-limit (-> (* level (inc (count ns)))
                              (round)
                              (max 1))]
-      (if (< (count nom) activity-limit)
+      (if (< (count-filter om ns) activity-limit)
         ;; no inhibition within neighbourhood
         true
         ;; inhibition within neighbourhood;
         ;; check number of neighbouring columns dominating col
         (let [o-val* (+ o-val (util/rand -0.1 0.1)) ;; break ties
-              n (count (filterv #(> % o-val*) (vals nom)))]
-          (< n activity-limit))))))
+              n-over (count-filter #(> (om % 0) o-val*) ns)]
+          (< n-over activity-limit))))))
 
 (defn active-columns-with-local-inhibition
   "Returns the set of column ids which should become active given the
    map of column overlap scores `om`, and the target activation rate
    `level`. Local inhibition is applied."
   [rgn om level]
-  (set (keep (fn [col]
+  (->> (:columns rgn)
+       (keep (fn [col]
                (when (column-active-with-local-inhibition? col om level)
-                 (:id col)))
-             (:columns rgn))))
+                 (:id col))))
+       (into #{})))
 
 (defn active-columns-with-global-inhibition
   "Returns the set of column ids which should become active given the
@@ -442,25 +438,25 @@
   "Given a set of active input bits `in-set` and a region `rgn`,
    performs an iteration of the CLA spatial pooling algorithm:
 
-   * increments the `:timestep`
-   * recalculates overlaps, mapping column ids to overlap scores in `:overlaps`
-   * recalculates the set of active column ids `:active-columns`
-   * performs the learning step by updating input synapse permanences
+   * increments the `:timestep`.
+   * maps column ids to overlap scores in `:overlaps`.
+   * calculates the set of active column ids `:active-columns`.
+   * performs the learning step by updating input synapse permanences.
    * after every `duty-cycle-period` duration,
      * applies column boosting as needed
      * clears history from each column
      * recalculates the neighbours of each column according to the
        average receptive field size."
-  [rgn in-set]
+  [rgn in-set learn?]
   (let [t (inc (:timestep rgn 0))
         dcp (:duty-cycle-period (:spec rgn))
-        do-boost? (zero? (mod t dcp))
-        do-neigh? (zero? (mod t dcp))]
+        boost? (and learn? (zero? (mod t dcp)))
+        neigh? (and learn? (zero? (mod t dcp)))]
     (cond-> rgn
             true (assoc :timestep t)
             true (update-overlaps in-set t)
             true (update-active-columns t)
-            true (learn in-set)
-            do-boost? (update-boosting t)
-            do-boost? (clear-duty-cycle-history)
-            do-neigh? (update-neighbours))))
+            learn? (learn in-set)
+            boost? (update-boosting t)
+            boost? (clear-duty-cycle-history)
+            neigh? (update-neighbours))))

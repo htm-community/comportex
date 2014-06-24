@@ -2,10 +2,11 @@
 
 * unit tests
 * property-based testing (clojure.test.check)
-* perf
-* make learning an option
+* repeatability - store random seeds in objs?
 
 ## pooling
+
+* overlap-history just a counter? (since we adjust boosting and reset)
 
 * try spatio-temporal pooling by extending (column/cell?) activation
 > "The trick to adding TP to the SP is the following. When the input to
@@ -16,18 +17,17 @@ next input pattern."
 * allow columns arrayed in 2 dimensions
 * target 2% activation
 
-* perhaps update active synapses in :connected :disconnected maps
-  rather than rebuilding them each time - for more structural sharing.
-
+* local inhibition selecting peaks over a moving average
 
 ## sequence memory
 
 * predict only one cell per column?
 * can there be multiple learn-state cells in a column?
+* in choosing best-matching-segment-and-cell, break ties by permanence?
+* reinforce all active segments, or only the most active, in learn-cell?
+  * differentiate segments within one cell (punish if multiple active)?
+* should reinforce synapses to all active cells, or just learn cells?
 
-* punish cells which stop predicting - sounds wrong but in white paper
-
-* negatively reinforce lateral synapses on active cells if they stop predicting
 * only update synapses when cells turn on/off? (not when continuing?)
 
 * limits
@@ -35,7 +35,6 @@ next input pattern."
   * global decay of segments       ;; avoid - long-term memory is good?
 * avoid over-saturated predictive states (almost bursting)
 * prediction confidence, based on duty cycle / permanences
-* classify steps as predicted or unpredicted (bursting > 50%)
 * backtracking if we chose the wrong sequence?
 * reset context if failing predictions too long? (why isn't bursting enough?)
 
@@ -43,16 +42,13 @@ next input pattern."
 * limit lateral synapses to within a radius 
 
 
-## encoders
-
-* allow a sequence of different encoders to super/juxt
-
-
 ## code architecture
 
 * reorg, sequence memory is not a good namespace concept.
 
 * protocols
+
+* support heirarchy of regions / layers
 
 * track column and/or segment activation history in a top-level
   counter map rather than nested?

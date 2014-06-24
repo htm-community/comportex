@@ -4,7 +4,7 @@
    One difference from the Numenta white paper is that _predictive_
    states are not calculated acrosss the whole region, only on active
    columns to determine their active cells."
-  (:require [org.nfrac.comportex.util :as util]
+  (:require [org.nfrac.comportex.util :as util :refer [count-filter]]
             [clojure.set :as set]))
 
 (def sequence-memory-defaults
@@ -75,10 +75,10 @@
 
 (defn segment-activation
   [seg active-cells pcon]
-  (count (filter (fn [[id p]]
-                   (and (>= p pcon)
-                        (active-cells id)))
-                  (:synapses seg))))
+  (count-filter (fn [[id p]]
+                  (and (>= p pcon)
+                       (active-cells id)))
+                (:synapses seg)))
 
 (defn cell-active-segments
   "Returns a seq of the segments in the cell with activation at or
@@ -97,7 +97,12 @@
   [cell active-cells spec]
   (let [act-th (:activation-threshold spec)
         pcon (:connected-perm spec)]
-    (seq (cell-active-segments cell active-cells act-th pcon))))
+    (loop [segs (:segments cell)]
+      (when-let [seg (first segs)]
+        (if (>= (segment-activation seg active-cells pcon)
+                act-th)
+          true
+          (recur (next segs)))))))
 
 (defn column-predictive-cells
   [col active-cells spec]
@@ -108,15 +113,14 @@
 
 (defn predictive-cells
   "Returns all cell ids that are in the predictive state, in a map
-   grouped and keyed by column id. Uses the stored `:active-cells`."
-  [rgn]
-  (let [ac (:active-cells rgn #{})]
-    (->> (:columns rgn)
-         (keep (fn [col]
-                 (let [cs (column-predictive-cells col ac (:spec rgn))]
-                   (when (seq cs)
-                     [(:id col) cs]))))
-         (into {}))))
+   grouped and keyed by column id."
+  [rgn active-cells]
+  (->> (:columns rgn)
+       (keep (fn [col]
+               (let [cs (column-predictive-cells col active-cells (:spec rgn))]
+                 (when (seq cs)
+                   [(:id col) cs]))))
+       (into {})))
 
 (defn predicted-bit-votes
   "Returns a map from input bit index to the number of connections to
@@ -153,13 +157,13 @@
   * `active-columns` - the set of active column ids (from the spatial
     pooling step)
 
-  * `prev-cells` - the set of active cell ids from the previous
-    iteration."
-  [rgn active-columns prev-cells]
+  * `pred-cells` - the set of predicted cell ids from the previous
+    iteration in a map keyed by column in."
+  [rgn active-columns pred-cells]
   (->> active-columns
        (map (fn [i]
               (let [col (nth (:columns rgn) i)
-                    pcids (column-predictive-cells col prev-cells (:spec rgn))
+                    pcids (pred-cells i)
                     burst? (empty? pcids)
                     cids (if burst? (map :id (:cells col)) pcids)]
                 [i {:cell-ids cids :bursting? burst?}])))
@@ -181,26 +185,26 @@
        :activation 0.0})))
 
 (defn best-matching-segment-and-cell
-  "Finds the segment in the column having the most active synapses,
+  "Finds the segment having the most active synapses within `cells`,
    even if their permanence is below the normal connected threshold.
    There must be at least `min-threshold` synapses (note that this is
    lower than the usual `activation-threshold`). Returns indices of
    the segment and its containing cell in a map with keys
    `:segment-idx` and `:cell-id`.
 
-   If no such segments exist in the column, returns the cell with the
+   If no such segments exist in `cells`, returns the cell with the
    fewest segments, and `:segment-idx` nil."
-  [col active-cells spec]
+  [cells active-cells spec]
   (let [th (:min-threshold spec)
         maxs (map (fn [cell]
                     (assoc (most-active-segment cell active-cells 0.0)
                       :cell-id (:id cell)))
-                  (:cells col))
+                  cells)
         best (apply max-key :activation maxs)]
     (if (>= (:activation best) th)
       best
       ;; no sufficient activation, return cell with fewest segments
-      {:cell-id (:id (apply min-key (comp count :segments) (:cells col)))})))
+      {:cell-id (:id (apply min-key (comp count :segments) cells))})))
 
 (defn segment-reinforce
   [seg active-cells spec]
@@ -249,67 +253,19 @@
     (update-in cell [:segments] conj seg)))
 
 (defn segment-extend
-  [seg cell active-cells learn-cells spec]
+  [seg cid active-cells learn-cells spec]
   (let [na (segment-activation seg active-cells 0.0) ;; include disconnected
-        n (- (:new-synapse-count spec) na)
-        [column-id _] (:id cell)]
-    ;; TODO: should reinforce all active cells or just learn cells?
-    (-> seg
-        (segment-reinforce active-cells spec)
-        (grow-new-synapses column-id learn-cells n spec))))
+        n (- (:new-synapse-count spec) na)]
+    (grow-new-synapses seg cid learn-cells n spec)))
 
 (defn segment-cull
+  "Remove synapses with zero permanence from the segment."
   [seg]
   (let [syns (:synapses seg)
         new-syns (remove (comp zero? val) syns)]
     (if (< (count new-syns) (count syns))
       (assoc seg :synapses (into {} new-syns))
       seg)))
-
-(defn bursting-column-learn
-  [rgn cid learn-cells prev-cells]
-  (let [spec (:spec rgn)
-        col (get-in rgn [:columns cid])
-        ;; choose the learning segment and cell
-        ;; TODO - break ties by permanence
-        ;; TODO - punish other active segments in the cell/column?
-        ;; prefer cells that were activated from other "learn" cells
-        scl (best-matching-segment-and-cell col learn-cells spec)
-        sc (if (:segment-idx scl) scl
-               ;; fall back to activation from all active cells
-               (best-matching-segment-and-cell col prev-cells spec))
-        [_ idx] (:cell-id sc)
-        cell (nth (:cells col) idx)
-        c2 (if-let [seg-idx (:segment-idx sc)]
-             ;; there is a matching segment, extend it
-             (update-in col [:cells idx :segments seg-idx]
-                        (fn [seg]
-                          (-> (segment-cull seg)
-                              (segment-extend cell prev-cells learn-cells spec))))
-             ;; no matching segment, create a new one
-             (update-in col [:cells idx] grow-new-segment learn-cells spec))]
-    (-> rgn
-        (assoc-in [:columns cid] c2)
-        (update-in [:learn-cells] conj (:cell-id sc)))))
-
-(defn predicted-column-learn
-  [rgn cid cell-ids prev-cells]
-  (let [spec (:spec rgn)
-        pcon (:connected-perm spec)
-        col (get-in rgn [:columns cid])
-        c2 (reduce (fn [col [_ idx]]
-                     ;; TODO: only the most active segment or all active segments?
-                     (let [cell (get-in col [:cells idx])
-                           seg-idx (-> (most-active-segment cell prev-cells spec)
-                                       :segment-idx)]
-                       (update-in col [:cells idx :segments seg-idx]
-                                  (fn [seg]
-                                    (-> (segment-cull seg)
-                                        (segment-reinforce prev-cells spec))))))
-                   col cell-ids)]
-    (-> rgn
-        (assoc-in [:columns cid] c2)
-        (update-in [:learn-cells] into cell-ids))))
 
 (defn cell-punish
   [cell prev-cells spec]
@@ -322,26 +278,18 @@
                            segment-punish prev-cells spec)))
             cell as)))
 
-(defn column-punish
-  [col prev-cells spec]
-  (reduce (fn [col cell]
-            (let [[_ idx] (:id cell)]
-              (update-in col [:cells idx] cell-punish
-                         prev-cells spec)))
-          col (:cells col)))
-
 (defn punish
-  "Punish segments which predicted activation on columns which turned off."
-  [rgn new-cells prev-cells]
-  (let [cids (set (map first new-cells))
-        prev-cids (set (map first prev-cells))
-        off-cids (set/difference prev-cids cids)
+  "Punish segments which predicted activation on cells which did
+   not become active."
+  [rgn active-cells prev-cells prev-pred-cells]
+  (let [bad-cells (set/difference prev-pred-cells
+                                  active-cells)
         spec (:spec rgn)]
-    (reduce (fn [r cid]
-              (let [col (get-in r [:columns cid])]
-                ;; TODO compare to predicted set - if not then skip
-                (update-in r [:columns cid] column-punish prev-cells spec)))
-            rgn off-cids)))
+    (reduce (fn [r cell-id]
+              (let [[cid idx] cell-id]
+                (update-in r [:columns cid :cells idx]
+                           cell-punish prev-cells spec)))
+            rgn bad-cells)))
 
 (defn cull-segments
   "Removes any segments with fewer than the minimum number of synapses
@@ -352,22 +300,56 @@
             r)
           rgn (:active-columns rgn)))
 
+(defn column-learning-segment-and-cell
+  [col bursting? cell-ids learn-cells prev-active spec]
+  ;; only consider active cells
+  (let [cells (if bursting?
+                (:cells col)
+                (map (fn [[_ idx]] (nth (:cells col) idx))
+                     cell-ids))
+        ;; prefer cells that were activated from other "learn" cells
+        scl (best-matching-segment-and-cell cells learn-cells spec)]
+    (if (:segment-idx scl)
+      scl
+      ;; fall back to activation from all active cells
+      (best-matching-segment-and-cell cells prev-active spec))))
+
+(defn cell-learn
+  ""
+  [cell seg-idx bursting? learn-cells prev-ac spec]
+  (let [[cid _] (:id cell)]
+    (if seg-idx
+      ;; there is a matching segment, reinforce and/or extend it
+      (update-in cell [:segments seg-idx]
+                 (fn [seg]
+                   (cond-> (segment-cull seg)
+                           true (segment-reinforce prev-ac spec)
+                           bursting? (segment-extend cid prev-ac learn-cells
+                                                     spec))))
+      ;; no matching segment, create a new one
+      (grow-new-segment cell learn-cells spec))))
+
 (defn learn
-  [rgn acbc new-cells burst-cols prev-cells]
-  (let [active-columns (keys acbc)
-        learn-cells (:learn-cells rgn #{})
-        rgn0 (assoc rgn :learn-cells #{})
-        spec (:spec rgn)]
-    ;; TODO: only reinforce newly active cells?
-    ;; (set/difference new-cells prev-cells)
+  [rgn acbc ac burst-cols prev-ac prev-pc]
+  (let [learn-cells (:learn-cells rgn #{})
+        spec (:spec rgn)
+        rgn0 (assoc rgn :learn-cells #{})]
     (->
-     (reduce (fn [r cid]
-               (if (burst-cols cid)
-                 (bursting-column-learn r cid learn-cells prev-cells)
-                 (predicted-column-learn r cid (:cell-ids (acbc cid))
-                                         prev-cells)))
-             rgn0 active-columns)
-     (punish new-cells prev-cells))))
+     (reduce-kv (fn [r cid acm]
+                  (let [col (get-in r [:columns cid])
+                        bursting? (burst-cols cid)
+                        sc (column-learning-segment-and-cell
+                            col bursting? (:cell-ids acm) learn-cells prev-ac
+                            spec)
+                        [_ idx] (:cell-id sc)
+                        seg-idx (:segment-idx sc)]
+                    (-> r
+                        (update-in [:columns cid :cells idx]
+                                   cell-learn seg-idx bursting? learn-cells
+                                   prev-ac spec)
+                        (update-in [:learn-cells] conj (:cell-id sc)))))
+                rgn0 acbc)
+     (punish ac prev-ac prev-pc))))
 
 ;; ## Orchestration
 
@@ -376,18 +358,28 @@
    performs an iteration of the CLA sequence memory algorithm:
 
    * determines the new set of active cells (using also the set of
-     active cells from the previous iteration) and stores it in
+     predictive cells from the previous iteration) and stores it in
      `:active-cells`.
-      * determines the set of _bursting_ columns (indicating
-        unpredicted inputs) and stores it in `:bursting-columns`.
-   * performs learning by forming and updating lateral
+   * determines the set of _bursting_ columns (indicating
+     unpredicted inputs) and stores it in `:bursting-columns`.
+   * determines the set of predictive cells and stores it in
+     `:predictive-cells`.
+   * if `learn?`, performs learning by forming and updating lateral
      connections (synapses on dendrite segments)."
-  [rgn active-columns]
+  [rgn active-columns learn?]
   (let [prev-ac (:active-cells rgn #{})
-        acbc (active-cells-by-column rgn active-columns prev-ac)
+        prev-pc (:predictive-cells rgn #{})
+        prev-pcbc (:predictive-cells-by-column rgn {})
+        acbc (active-cells-by-column rgn active-columns prev-pcbc)
         new-ac (set (mapcat :cell-ids (vals acbc)))
-        burst-cols (set (keep (fn [[i m]] (when (:bursting? m) i)) acbc))]
-    (-> rgn
-        (assoc :active-cells new-ac
-               :bursting-columns burst-cols)
-        (learn acbc new-ac burst-cols prev-ac))))
+        burst-cols (set (keep (fn [[i m]] (when (:bursting? m) i)) acbc))
+        pcbc (predictive-cells rgn new-ac)
+        pc (set (mapcat val pcbc))]
+    (cond->
+     (assoc rgn
+       :active-cells new-ac
+       :bursting-columns burst-cols
+       :predictive-cells pc
+       :predictive-cells-by-column pcbc
+       :prev-predictive-cells-by-column prev-pcbc)
+     learn? (learn acbc new-ac burst-cols prev-ac prev-pc))))

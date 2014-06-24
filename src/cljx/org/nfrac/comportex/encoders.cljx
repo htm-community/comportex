@@ -45,13 +45,31 @@
    encoding function will be applied to each value, and the resulting
    encodings juxtaposed; i.e. the bit width of the combined encoding
    is the sum of the component bit widths."
-  [enc-fn]
-  (fn [xs]
-    (reduce (fn [bset x]
-              (let [offset (::bit-width (meta bset))
-                    b (enc-fn x)
-                    bw (::bit-width (meta b))]
-                (-> (into bset (map (partial + offset) b))
-                    (with-meta {::bit-width (+ offset bw)}))))
-            (enc-fn (first xs))
-            (rest xs))))
+  ([enc-fn]
+     (fn [xs]
+       (->>
+        (map enc-fn xs)
+        (reduce (fn [bset b]
+                  (let [offset (::bit-width (meta bset))
+                        bw (::bit-width (meta b))]
+                    (-> (into bset (map (partial + offset) b))
+                        (with-meta {::bit-width (+ offset bw)}))))))))
+  ([enc-fn & more-fns]
+     (fn [xs]
+       (->>
+        (map (fn [f x] (f x))
+             (list* enc-fn more-fns) xs)
+        (reduce (fn [bset b]
+                  (let [offset (::bit-width (meta bset))
+                        bw (::bit-width (meta b))]
+                    (-> (into bset (map (partial + offset) b))
+                        (with-meta {::bit-width (+ offset bw)})))))))))
+
+(defn category-encoder
+  [bit-width values]
+  (let [n (count values)
+        on-bits (/ bit-width n)
+        val-to-int (zipmap values (range))
+        int-efn (linear-number-encoder bit-width on-bits [0 (dec n)])]
+    (fn [x]
+      (int-efn (val-to-int x)))))
