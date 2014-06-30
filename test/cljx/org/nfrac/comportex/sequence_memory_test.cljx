@@ -2,7 +2,7 @@
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
-            [clojure.set :as set]
+            [org.nfrac.comportex.parameters]
             #+clj [clojure.test :as t
                    :refer (is deftest testing run-tests)]
             #+cljs [cemerick.cljs.test :as t])
@@ -10,85 +10,63 @@
                            :refer (is deftest testing run-tests)]))
 
 (def bit-width 200)
-(def on-bits 20)
-(def numb-domain [0 15])
-(def ncol 200)
-(def depth 5)
+(def items [:a :b :c :d :e :f :g :h])
 
 (def patterns
-  {:run0 (range 5)
-   :twos (range 0 10 2)
-   :reps (mapcat #(repeat 2 %) (range 5))
-   :run10 (range 10 15)
-   :rev10 (reverse (range 10 15))
-   :threes (range 0 15 3)
-   :bounce (map (partial + 10)
-                (concat (range 5) (range 4) (range 3) (range 2) (range 1)))
-   })
+  [[:a :b :c :d]
+   [:a :b :f :g]
+   [:a :b :b :a]
+   [:h :g :f :e]
+   [:d :e :a :d]])
 
-(defn repeat-with-gaps
-  [xs [lower upper]]
-  (let [gap #(repeat (util/rand-int lower upper) nil)]
-    (apply concat (interpose xs (repeatedly gap)))))
+(def initial-input [0 0])
 
-(defn mix-patterns-with-gaps
-  [patterns gap-range]
-  (let [tagseqs (map (fn [[k xs]]
-                       (->> (repeat-with-gaps xs gap-range)
-                            (map (fn [x] {:id (if x k) :val x}))))
-                     patterns)]
-    (apply map (fn [& ms] {:patterns (set (keep :id ms))
-                          :values (set (keep :val ms))})
-           tagseqs)))
+(defn input-transform
+  [[i j]]
+  (let [patt (get patterns i)]
+    (if (< (inc j) (count patt))
+      [i (inc j)]
+      ;; finished pattern, choose another one
+      [(util/rand-int 0 (dec (count patterns)))
+       0])))
 
-(defn cla-seq
-  [rgn bitset-inps]
-  (reductions core/cla-step
-              rgn
-              bitset-inps))
+(def efn
+  (let [f (enc/category-encoder bit-width items)]
+    (fn [[i j]]
+      (f (get-in patterns [i j])))))
+
+(defn model
+  []
+  (let [gen (core/generator initial-input input-transform efn
+                            {:bit-width bit-width})
+        spec (assoc org.nfrac.comportex.parameters/small
+               :ncol 200
+               :input-size bit-width
+               :potential-radius (quot bit-width 2))]
+    (core/cla-model gen spec)))
 
 (deftest sm-test
-  (let [ps (mix-patterns-with-gaps patterns [1 50])
-        ;; TODO add noise?
-        efn (enc/superpose-encoder
-             (enc/linear-number-encoder bit-width on-bits numb-domain))
-        inpseq (map efn (map :values ps))
-        r (core/cla-region {:ncol ncol
-                            :input-size bit-width
-                            :potential-radius (quot bit-width 5)
-                            :global-inhibition false
-                            :stimulus-threshold 2
-                            :duty-cycle-period 500
-                            :depth depth})]
-    (testing "CLA with sequence memory runs"
-      (let [r1k (time
-                 (-> (cla-seq r inpseq)
-                     (nth 1000)))]
-        (let [ncells (map (comp count :cells) (:columns r1k))]
-          (is (every? #(= depth %) ncells)
-              "All columns have the specified number of cells."))
-        (let [nsegs (map (fn [c] (count (mapcat :segments (:cells c))))
-                         (:columns r1k))]
-          (is (pos? (util/quantile nsegs 0.6))
-              "At least 40% of columns have grown dendrite segments."))))))
-
-
-(comment
-  (require 'org.nfrac.comportex.sequence-memory-test :reload-all)
-  (in-ns 'org.nfrac.comportex.sequence-memory-test)
-  (use 'clojure.pprint)
-  (use 'clojure.repl)
-
-  (def ps (mix-patterns-with-gaps patterns [1 50]))
-  (pprint (map :patterns (take 100 ps)))
-  (pprint (map :values (take 100 ps)))
-
-  ;; TODO add noise
-
-  (def efn (enc/superpose-encoder
-            (enc/linear-number-encoder bit-width on-bits numb-domain)))
-  
-  (pprint (map efn (map :values (take 20 ps))))
-  (map count (map efn (map :values (take 100 ps))))
-
-  )
+  (util/set-seed! 0)
+  (testing "CLA with sequence memory runs"
+   (let [m1 (-> (iterate core/step (model))
+                (nth 500))
+         r (:region m1)]
+     (let [depth (:depth (:spec r))
+           ncells (map (comp count :cells) (:columns r))]
+       (is (every? #(= depth %) ncells)
+           "All columns have the specified number of cells."))
+     (let [nsegs (map (fn [c] (count (mapcat :segments (:cells c))))
+                      (:columns r))]
+       (is (pos? (util/quantile nsegs 0.6))
+           "At least 40% of columns have grown dendrite segments."))
+     (let [ncol (count (:columns r))
+           freqs (core/column-state-freqs r)]
+       (is (> (:active freqs) (:unpredicted freqs))
+           "Most column activations are predicted.")
+       (is (> (:predicted freqs) 0)
+           "Some columns were predicted but are not active.")
+       (is (< (+ (:active freqs)
+                 (:unpredicted freqs)
+                 (:predicted freqs))
+              (* ncol 0.2))
+           "Less than 20% of columns are active or predicted.")))))

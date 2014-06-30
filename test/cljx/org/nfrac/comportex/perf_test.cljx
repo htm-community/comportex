@@ -2,6 +2,7 @@
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
+            [org.nfrac.comportex.parameters]
             [clojure.set :as set]
             #+clj [criterium.core :as crit]
             #+clj [clojure.test :as t
@@ -46,34 +47,11 @@
   (enc/superpose-encoder
    (enc/linear-number-encoder bit-width on-bits numb-domain)))
 
-(def small
-  {:ncol 300
-   :input-size 200
-   :potential-radius 100
-   :activation-level 0.06
-   :global-inhibition true
-   :stimulus-threshold 2
-   :sp-perm-inc 0.04
-   :sp-perm-dec 0.01
-   :sp-perm-connected 0.1
-   :duty-cycle-period 1000
-   :max-boost 2.0
-   ;; sequence memory:
-   :depth 5
-   :new-synapse-count 10
-   :activation-threshold 7
-   :min-threshold 5
-   :connected-perm 0.20
-   :initial-perm 0.16
-   :permanence-inc 0.04
-   :permanence-dec 0.01
-   })
-
 (defn model
   []
   (let [gen (core/generator (initial-input) input-transform efn
                             {:bit-width bit-width})
-        spec (assoc small
+        spec (assoc org.nfrac.comportex.parameters/small
                :input-size bit-width
                :potential-radius (quot bit-width 4))]
     (core/cla-model gen spec)))

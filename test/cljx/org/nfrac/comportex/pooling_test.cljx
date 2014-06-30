@@ -11,10 +11,17 @@
 
 (def numb-bits 127)
 (def numb-on-bits 21)
-(def numb-domain [0 100])
+(def numb-max 100)
+(def numb-domain [0 numb-max])
 (def n-in-items 3)
 (def bit-width (* numb-bits n-in-items))
-(def ncol 200)
+
+(def initial-input
+  (repeat n-in-items (quot numb-max 2)))
+
+(defn gen-ins
+  []
+  (repeatedly n-in-items #(util/rand-int 0 numb-max)))
 
 (defn active-columns-at
   [r t]
@@ -23,29 +30,23 @@
               (conj s (:id col)) s))
           #{} (:columns r)))
 
+(def efn
+  (enc/juxtapose-encoder
+   (enc/linear-number-encoder numb-bits numb-on-bits numb-domain)))
+
+(def spec {:ncol 200
+           :input-size bit-width
+           :potential-radius (quot bit-width 2)
+           :global-inhibition true
+           :stimulus-threshold 2
+           :duty-cycle-period 600})
+
 (deftest pooling-test
-  (let [efn (enc/juxtapose-encoder
-             (enc/linear-number-encoder numb-bits numb-on-bits numb-domain))
-        [lo hi] numb-domain
-        gen-ins (fn []
-                  (repeatedly n-in-items #(util/rand-int lo hi)))
-        add-noise (fn [delta xs]
-                    (map (fn [x]
-                           (-> (+ x (util/rand-int (- delta) (inc delta)))
-                               (min hi)
-                               (max lo)))
-                         xs))
-        inseq (repeatedly gen-ins)
-        enc-inseq (map efn inseq)
-        r (p/region {:ncol ncol
-                     :input-size bit-width
-                     :potential-radius (quot bit-width 5)
-                     :global-inhibition false
-                     :stimulus-threshold 2
-                     :duty-cycle-period 600})
-        r1k (time
-             (reduce (fn [r in] (p/pooling-step r in))
-                     r (take 1000 enc-inseq)))]
+  (let [ncol (:ncol spec)
+        r (p/region spec)
+        r1k (reduce (fn [r in] (p/pooling-step r in true))
+                    r
+                    (map efn (repeatedly 1000 gen-ins)))]
     
     (testing "Spatial pooler column activation is distributed and moderated."
       (let [noverlaps (map (comp count :overlap-history) (:columns r1k))]
@@ -66,26 +67,20 @@
             "At least 30% of columns are unboosted.")))
 
     (testing "Spatial pooler acts as a Locality Sensitive Hashing function."
-      (let [in (gen-ins)
-            in-near (add-noise 5 in)
-            in-nearer (add-noise 1 in)
-            in2 (gen-ins)
-            ac (:active-columns (p/pooling-step r1k (efn in)))
-            acnr (:active-columns (p/pooling-step r1k (efn in-near)))
-            acnrr (:active-columns (p/pooling-step r1k (efn in-nearer)))
-            ac2 (:active-columns (p/pooling-step r1k (efn in2)))]
+      (let [in (repeat n-in-items 50)
+            in-far (mapv (partial + 25) in)
+            in-near (mapv (partial + 10) in)
+            in-nearer (mapv (partial + 4) in)
+            ac (:active-columns (p/pooling-step r1k (efn in) true))
+            acfr (:active-columns (p/pooling-step r1k (efn in-far) true))
+            acnr (:active-columns (p/pooling-step r1k (efn in-near) true))
+            acnrr (:active-columns (p/pooling-step r1k (efn in-nearer) true))]
         (is (> (count (set/intersection ac acnrr))
                (* (count ac) 0.5))
             "Minor noise leads to a majority of columns remaining active.")
         (is (< (count (set/intersection ac acnr))
                (count (set/intersection ac acnrr)))
-            "Increasing noise level reduces similarity of active column set")
-        (is (< (count (set/intersection ac ac2))
+            "Increasing noise level reduces similarity of active column set - near")
+        (is (< (count (set/intersection ac acfr))
                (count (set/intersection ac acnr)))
-            "Input close to original has more similar column activation than a random input does.")))))
-
-(comment
-  (require 'org.nfrac.comportex.pooling-test :reload-all)
-  (in-ns 'org.nfrac.comportex.pooling-test)
-  (use 'clojure.pprint)
-  (use 'clojure.repl))
+            "Increasing noise level reduces similarity of active column set - far")))))
