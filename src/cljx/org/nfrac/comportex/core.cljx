@@ -76,7 +76,8 @@
      and 1). Note that unlike the feed-forward synapses these are not
      stored as connected vs disconnected groups."
   (:require [org.nfrac.comportex.pooling :as p]
-            [org.nfrac.comportex.sequence-memory :as sm]))
+            [org.nfrac.comportex.sequence-memory :as sm]
+            [clojure.set :as set]))
 
 (defn cla-region
   [spec]
@@ -123,12 +124,13 @@
 
 (defn column-state-freqs
   [rgn]
-  (let [pm (zipmap (keys (:prev-predictive-cells-by-column rgn))
-                   (repeat :predicted))
-        am (zipmap (:active-columns rgn) (repeat :active))
-        bm (zipmap (:bursting-columns rgn) (repeat :unpredicted))
-        m (merge pm am bm)]
-    (-> {:active 0, :predicted 0, :unpredicted 0}
-        (merge (frequencies (vals m)))
+  (let [pred-cids (set (keys (:prev-predictive-cells-by-column rgn)))
+        active-cids (:active-columns rgn)
+        hit-cids (set/intersection pred-cids active-cids)
+        col-states (merge (zipmap pred-cids (repeat :predicted))
+                          (zipmap active-cids (repeat :active))
+                          (zipmap hit-cids (repeat :active-predicted)))]
+    (-> {:active 0, :predicted 0, :active-predicted 0}
+        (merge (frequencies (vals col-states)))
         (assoc :timestep (:timestep rgn)
                :ncol (count (:columns rgn))))))
