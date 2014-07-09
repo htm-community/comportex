@@ -94,18 +94,20 @@
   (bit-width [this])
   (bits-value [this])
   (domain-value [this])
-  (input-step [this]))
+  (input-step [this])
+  (input-reset [this]))
 
-(defrecord InputGenerator [value transform encode options]
+(defrecord InputGenerator [init-value value transform encode options]
   PInputGenerator
   (bit-width [_] (:bit-width options))
   (bits-value [_] (encode value))
   (domain-value [_] value)
-  (input-step [this] (assoc this :value (transform value))))
+  (input-step [this] (assoc this :value (transform value)))
+  (input-reset [this] (assoc this :value init-value)))
 
 (defn generator
   [init-value transform encode options]
-  (->InputGenerator init-value transform encode options))
+  (->InputGenerator init-value init-value transform encode options))
 
 (defn cla-model
   [ingen spec]
