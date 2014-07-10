@@ -24,11 +24,13 @@
   [bit-width on-bits [lower upper]]
   (let [span (double (- upper lower))]
     (fn [x]
-      (let [x (-> x (max lower) (min upper))
-            z (/ (- x lower) span)
-            i (long (* z (- bit-width on-bits)))]
-        (-> (set (range i (+ i on-bits)))
-            (with-meta {::bit-width bit-width}))))))
+      (-> (if x
+            (let [x (-> x (max lower) (min upper))
+                  z (/ (- x lower) span)
+                  i (long (* z (- bit-width on-bits)))]
+              (set (range i (+ i on-bits))))
+            #{})
+          (with-meta {::bit-width bit-width})))))
 
 (defn superpose-encoder
   "Returns an encoding function for a sequence of values. The same

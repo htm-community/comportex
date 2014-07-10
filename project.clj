@@ -1,4 +1,4 @@
-(defproject org.nfrac/comportex "0.1.0-SNAPSHOT"
+(defproject org.nfrac/comportex "0.0.1"
   :description "Functionally composable cortex, an implementation of Hierarchical Temporal Memory"
   :url "http://github.com/floybix/comportex/"
   :license {:name "Eclipse Public License"
