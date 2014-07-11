@@ -25,7 +25,6 @@ in the column to remain active long enough to learn to respond to the
 next input pattern."
 
 * allow columns arrayed in 2 dimensions
-* target 2% activation
 
 * local inhibition selecting peaks over a moving average
 
@@ -53,8 +52,6 @@ next input pattern."
 
 
 ## code architecture
-
-* reorg, sequence memory is not a good namespace concept.
 
 * protocols
 

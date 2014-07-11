@@ -21,7 +21,7 @@
      * `:overlaps` a map from column id to overlap score.
      * `:active-columns` a set of the active column ids.
      * `:active-cells` a set of the active cell ids.
-     * `:busting-columns` a set of the bursting column ids.
+     * `:bursting-columns` a set of the bursting column ids.
      * `:predictive-cells` a set of the predictive cell ids.
 
 ### Columns
@@ -106,16 +106,25 @@
   (input-reset [this] (assoc this :value init-value)))
 
 (defn generator
+  "Creates an input stream generator from an initial value, a function
+   to transform the input to the next time step, an encoder function to
+   return a set of bit indices, and an options map that should include
+   the total `:bit-width`."
   [init-value transform encode options]
   (->InputGenerator init-value init-value transform encode options))
 
 (defn cla-model
+  "A CLA model encapsulates a CLA region created according to the
+   parameter map `spec`, with an input stream generator."
   [ingen spec]
   (let [r (cla-region spec)]
     {:region r
      :in ingen}))
 
 (defn step
+  "Advances a CLA model by transforming the input value, and updating
+   the region with the new input. Learning is on unless specifically
+   passed as false."
   ([model]
      (step model true))
   ([model learn?]
@@ -125,6 +134,8 @@
            (update-in [:region] cla-step (bits-value new-in) learn?)))))
 
 (defn column-state-freqs
+  "Returns a map with the frequencies of columns in states `:active`,
+  `:predicted`, `:active-predicted`."
   [rgn]
   (let [pred-cids (set (keys (:prev-predictive-cells-by-column rgn)))
         active-cids (:active-columns rgn)

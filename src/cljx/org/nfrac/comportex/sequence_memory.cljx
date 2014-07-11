@@ -1,9 +1,5 @@
 (ns org.nfrac.comportex.sequence-memory
-  "Sequence Memory as in the CLA (not temporal pooling!).
-
-   One difference from the Numenta white paper is that _predictive_
-   states are not calculated acrosss the whole region, only on active
-   columns to determine their active cells."
+  "Sequence Memory as in the CLA (not temporal pooling!)."
   (:require [org.nfrac.comportex.util :as util :refer [count-filter]]
             [clojure.set :as set]))
 
@@ -74,6 +70,9 @@
 ;; ## Activation
 
 (defn segment-activation
+  "Returns the number of active cells to which the segment is
+   connected, i.e. where synapse permanence is equal to or greater than
+   `pcon`."
   [seg active-cells pcon]
   (count-filter (fn [[id p]]
                   (and (>= p pcon)
@@ -94,6 +93,7 @@
                 (:segments cell)))
 
 (defn cell-predictive?
+  "Returns logical true if the cell has any active dendrite segments."
   [cell active-cells spec]
   (let [act-th (:activation-threshold spec)
         pcon (:connected-perm spec)]
