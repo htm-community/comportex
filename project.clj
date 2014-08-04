@@ -34,7 +34,8 @@
                                     :output-path "target/test-classes"
                                     :rules :cljs}]}
 
-                   :aliases {"cleantest" ["do" "clean," "cljx" "once," "test," "cljsbuild" "test"]}
+                   :hooks [cljx.hooks]
+
                    :cljsbuild {:builds [{:source-paths ["target/classes" "target/test-classes"]
                                          :jar true
                                          :compiler {:output-to "target/testable.js"

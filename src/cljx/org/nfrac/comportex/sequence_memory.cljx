@@ -26,7 +26,10 @@
      when reinforcing dendrite segments.
 
    * `permanence-dec` - amount by which to decrease synapse permanence
-     when reinforcing dendrite segments."
+     when reinforcing dendrite segments.
+
+   * `punish?` - whether to negatively reinforce synapses on segments
+     incorrectly predicting activation."
   {:depth 8
    :new-synapse-count 15
    :activation-threshold 12
@@ -35,6 +38,7 @@
    :connected-perm 0.50
    :permanence-inc 0.10
    :permanence-dec 0.10
+   :punish? true
    })
 
 ;; ## Construction
@@ -245,12 +249,18 @@
       (update-in seg [:synapses] into syns))))
 
 (defn grow-new-segment
+  "Adds a new segment to the cell with synapses to a selection of the
+   learn cells from previous time step, unless there are too few to
+   meet the minimum threshold."
   [cell learn-cells spec]
   (let [[column-id _] (:id cell)
         n (:new-synapse-count spec)
         seg0 {:synapses {}}
         seg (grow-new-synapses seg0 column-id learn-cells n spec)]
-    (update-in cell [:segments] conj seg)))
+    (if (< (count (:synapses seg))
+           (:min-threshold spec))
+      cell
+      (update-in cell [:segments] conj seg))))
 
 (defn segment-extend
   [seg cid active-cells learn-cells spec]
@@ -291,28 +301,29 @@
                            cell-punish prev-cells spec)))
             rgn bad-cells)))
 
-(defn cull-segments
-  "Removes any segments with fewer than the minimum number of synapses
-   required for activation."
-  [rgn]
-  ;; TODO
-  (reduce (fn [r cid]
-            r)
-          rgn (:active-columns rgn)))
+(defn column-learning-segments
+  [col bursting? cell-ids prev-active spec]
+  (if bursting?
+    (list (best-matching-segment-and-cell (:cells col) prev-active spec))
+    ;; predicted column - all active cells become learning cells
+    (let [pcon (:connected-perm spec)]
+      (for [cell-id cell-ids
+            :let [[_ idx] cell-id
+                  cell (nth (:cells col) idx)]]
+        (assoc (most-active-segment cell prev-active pcon)
+          :cell-id cell-id)))))
 
-(defn column-learning-segment-and-cell
-  [col bursting? cell-ids learn-cells prev-active spec]
-  ;; only consider active cells
-  (let [cells (if bursting?
-                (:cells col)
-                (map (fn [[_ idx]] (nth (:cells col) idx))
-                     cell-ids))
-        ;; prefer cells that were activated from other "learn" cells
-        scl (best-matching-segment-and-cell cells learn-cells spec)]
-    (if (:segment-idx scl)
-      scl
-      ;; fall back to activation from all active cells
-      (best-matching-segment-and-cell cells prev-active spec))))
+(defn cell-cull-segments
+  "Removes any segments having less than the minimum number of
+   synapses required for activation."
+  [cell spec]
+  (let [th (:min-threshold spec)
+        csegs (remove (fn [s] (< (count (:synapses s)) th))
+                      (:segments cell))]
+    (if (< (count csegs)
+           (count (:segments cell)))
+      (assoc cell :segments (vec csegs))
+      cell)))
 
 (defn cell-learn
   ""
@@ -322,33 +333,40 @@
       ;; there is a matching segment, reinforce and/or extend it
       (update-in cell [:segments seg-idx]
                  (fn [seg]
-                   (cond-> (segment-cull seg)
+                   (cond-> seg
+                           true (segment-cull)
                            true (segment-reinforce prev-ac spec)
                            bursting? (segment-extend cid prev-ac learn-cells
                                                      spec))))
       ;; no matching segment, create a new one
-      (grow-new-segment cell learn-cells spec))))
+      ;; (also remove any unused ones)
+      (-> cell
+          (cell-cull-segments spec)
+          (grow-new-segment learn-cells spec)))))
 
 (defn learn
   [rgn acbc ac burst-cols prev-ac prev-pc]
   (let [learn-cells (:learn-cells rgn #{})
         spec (:spec rgn)
         rgn0 (assoc rgn :learn-cells #{})]
-    (->
+    (cond->
      (reduce-kv (fn [r cid acm]
                   (let [col (get-in r [:columns cid])
                         bursting? (burst-cols cid)
-                        sc (column-learning-segment-and-cell
-                            col bursting? (:cell-ids acm) learn-cells prev-ac
-                            spec)
-                        [_ idx] (:cell-id sc)
-                        seg-idx (:segment-idx sc)]
-                    (-> r
-                        (update-in [:columns cid :cells idx]
-                                   cell-learn seg-idx bursting? learn-cells
-                                   prev-ac spec)
-                        (update-in [:learn-cells] conj (:cell-id sc)))))
+                        scs (column-learning-segments
+                             col bursting? (:cell-ids acm) prev-ac
+                             spec)]
+                    (reduce (fn [r {seg-idx :segment-idx
+                                    [_ idx] :cell-id}]
+                              (-> r
+                                  (update-in [:columns cid :cells idx]
+                                             cell-learn seg-idx bursting? learn-cells
+                                             prev-ac spec)
+                                  (update-in [:learn-cells] conj [cid idx])))
+                            r scs)))
                 rgn0 acbc)
+     ;; allow this phase of learning as an option
+     (:punish? spec)
      (punish ac prev-ac prev-pc))))
 
 ;; ## Orchestration

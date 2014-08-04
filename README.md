@@ -24,7 +24,6 @@ Get [Leiningen](http://leiningen.org/) first.
 Use git to clone this repository. Then:
 
 ```
-lein cljx once
 lein test
 ```
 
