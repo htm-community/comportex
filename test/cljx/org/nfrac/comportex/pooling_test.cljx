@@ -23,13 +23,6 @@
   []
   (repeatedly n-in-items #(util/rand-int 0 numb-max)))
 
-(defn active-columns-at
-  [r t]
-  (reduce (fn [s col]
-            (if (contains? (:active-history col) t)
-              (conj s (:id col)) s))
-          #{} (:columns r)))
-
 (def efn
   (enc/juxtapose-encoder
    (enc/linear-number-encoder numb-bits numb-on-bits numb-domain)))
@@ -44,19 +37,21 @@
 (deftest pooling-test
   (let [ncol (:ncol spec)
         r (p/region spec)
-        r1k (reduce (fn [r in] (p/pooling-step r in true))
+        r1k (reduce (fn [r in]
+                      (-> r
+                          (assoc-in [:active-columns-at (:timestep r)]
+                                    (:active-columns r))
+                          (p/pooling-step in true)))
                     r
                     (map efn (repeatedly 1000 gen-ins)))]
     
     (testing "Spatial pooler column activation is distributed and moderated."
-      (let [noverlaps (map (comp count :overlap-history) (:columns r1k))]
-        (is (every? pos? noverlaps)
-            "All columns have overlapped with input at least once."))
-      (let [nactive (map (comp count :active-history) (:columns r1k))]
-        (is (pos? (util/quantile nactive 0.8))
-            "At least 20% of columns have been active."))
+      (is (every? pos? (:overlap-duty-cycles r1k))
+          "All columns have overlapped with input at least once.")
+      (is (pos? (util/quantile (:active-duty-cycles r1k) 0.8))
+          "At least 20% of columns have been active.")
       (let [nactive-ts (for [t (range 900 1000)]
-                         (count (active-columns-at r1k t)))]
+                         (count (get-in r1k [:active-columns-at t])))]
         (is (every? #(< % (* ncol 0.6)) nactive-ts)
             "Inhibition limits active columns in each time step."))
       (let [nsyns (map (comp count :connected :in-synapses) (:columns r1k))]

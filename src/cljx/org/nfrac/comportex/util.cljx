@@ -88,3 +88,11 @@
                (transient {}))
        ;; make the outer map persistent
        (persistent!)))
+
+(defn update-each
+  [m ks f]
+  (->> ks
+       (reduce (fn [m k]
+                 (assoc! m k (f (get m k))))
+               (transient m))
+       (persistent!)))

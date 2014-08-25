@@ -126,9 +126,7 @@
   {:id id
    :in-synapses (in-synapses id spec)
    :neighbours #{} ;; cache
-   :boost 1.0
-   :active-history (sorted-set) ;; set of timesteps
-   :overlap-history (sorted-set)})
+   :boost 1.0})
 
 (declare update-neighbours)
 
@@ -145,7 +143,9 @@
         ncol (:ncol full-spec)]
     (-> {:columns (mapv column (range ncol) (repeat full-spec))
          :spec full-spec
-         :active-columns #{}}
+         :active-columns #{}
+         :active-duty-cycles (apply vector-of :double (repeat (:ncol spec) 0))
+         :overlap-duty-cycles (apply vector-of :double (repeat (:ncol spec) 0))}
         (update-neighbours))))
 
 ;; ## Neighbouring columns
@@ -206,28 +206,16 @@
   "Given the set of active input bits `in-set`, finds the columns with
    an overlap score above parameter `stimulus-threshold`, and returns
    a map of their column ids to overlap scores."
+  [columns in-set th]
+  (into {} (keep (fn [col]
+                   (when-let [v (column-overlap col in-set th)]
+                     [(:id col) v]))
+                 columns)))
+
+(defn all-overlaps
   [rgn in-set]
   (let [th (:stimulus-threshold (:spec rgn))]
-    (into {} (keep (fn [col]
-                     (when-let [v (column-overlap col in-set th)]
-                       [(:id col) v]))
-                   (:columns rgn)))))
-
-(defn column-record-overlap
-  "Stores time step `t` in the column's overlap history series."
-  [col t]
-  (update-in col [:overlap-history] conj t))
-
-(defn update-overlaps
-  "Stores the overlap scores map in region key `:overlaps`, and
-   records the timestep in each overlapping column."
-  [rgn in-set t]
-  (let [om (overlaps rgn in-set)]
-    (->
-     (reduce (fn [r [id _]]
-               (update-in r [:columns id] column-record-overlap t))
-             rgn om)
-     (assoc :overlaps om))))
+    (overlaps (:columns rgn) in-set th)))
 
 ;; ## Activation
 
@@ -292,22 +280,6 @@
       (active-columns-with-global-inhibition rgn om level)
       (active-columns-with-local-inhibition rgn om level))))
 
-(defn column-record-activation
-  "Stores time step `t` in the column's activation history series."
-  [col t]
-  (update-in col [:active-history] conj t))
-
-(defn update-active-columns
-  "Stores the set of active column ids in region key
-   `:active-columns`, and records the timestep in each active column."
-  [rgn t]
-  (let [as (active-columns rgn (:overlaps rgn))]
-    (->
-     (reduce (fn [r id]
-               (update-in r [:columns id] column-record-activation t))
-             rgn as)
-     (assoc :active-columns as))))
-
 ;; ## Learning
 
 (defn column-update-in-synapses
@@ -366,23 +338,21 @@
    increase to all input synapse permanences. These are based on
    comparing the number of activations or overlaps in recent history
    to the _maximum_ such value from its neighbours."
-  [col ods-m ads-m o-th a-th maxb pcon]
+  [col ods ads o-th a-th maxb pcon]
   (let [ns (:neighbours col)
-        max-ods (apply max 1 (vals (select-keys ods-m ns)))
-        max-ads (apply max 1 (vals (select-keys ads-m ns)))
-        crit-ods (* o-th max-ods)
-        crit-ads (* a-th max-ads)
-        ods (count (:overlap-history col))
-        ads (count (:active-history col))
+        max-od (apply max 1 (vals (select-keys ods ns)))
+        max-ad (apply max 1 (vals (select-keys ads ns)))
+        crit-od (* o-th max-od)
+        crit-ad (* a-th max-ad)
+        od (get ods (:id col))
+        ad (get ads (:id col))
         nboost (-> (- maxb (* (- maxb 1)
-                              (/ ads crit-ads)))
+                              (/ ad crit-ad)))
                    (max 1.0)
                    (double))]
-    (->
-     (if (< ods crit-ods)
-       (column-increase-permanences col pcon)
-       col)
-     (assoc :boost nboost))))
+    (if (< od crit-od)
+      (column-increase-permanences col pcon)
+      (assoc col :boost nboost))))
 
 (defn update-boosting
   "For each column, determines whether it has had too few activations
@@ -393,44 +363,29 @@
   [rgn t]
   (let [o-th (:boost-overlap-duty-ratio (:spec rgn))
         a-th (:boost-active-duty-ratio (:spec rgn))
-        period (:duty-cycle-period (:spec rgn))
         maxb (:max-boost (:spec rgn))
         pcon (:sp-perm-connected (:spec rgn))
-        rollcnt (fn [ss] (count (subseq ss >= (- t period))))
-        ;; active duty cycle by column
-        ads-m (into {} (map (juxt :id (comp rollcnt :active-history)) (:columns rgn)))
-        ;; overlap duty cycle by column
-        ods-m (into {} (map (juxt :id (comp rollcnt :overlap-history)) (:columns rgn)))
+        ods (:overlap-duty-cycles rgn)
+        ads (:active-duty-cycles rgn)
         cols (mapv (fn [col]
-                     (column-update-boosting col ods-m ads-m o-th a-th maxb pcon))
+                     (column-update-boosting col ods ads o-th a-th maxb pcon))
                    (:columns rgn))]
     (assoc rgn :columns cols)))
 
-;; Not currently used, we just clear them completely after update.
-(defn column-truncate-duty-cycle-history
-  "Trucates the time series recording activation and overlap
-   timesteps: `:active-history` and `:overlap-history`, which are
-   sorted sets. This is just to limit memory use."
-  [col t-horizon]
-  (let [trunc (fn [ss]
-                (let [t0 (first ss)]
-                  (if (and t0 (< t0 t-horizon))
-                    (recur (disj ss t0))
-                    ss)))]
-    (-> col
-        (update-in [:active-history] trunc)
-        (update-in [:overlap-history] trunc))))
+(defn update-duty-cycles
+  "Records a set of events with indices `is` in the vector `v`
+   according to duty cycle period `period`. As in NuPIC, the formula is
 
-(defn clear-duty-cycle-history
-  "Clears the time series of activation and overlap time steps stored
-   in each column. To limit memory use."
-  [rgn]
-  (let [cols (->> (:columns rgn)
-                  (mapv (fn [col]
-                          (-> col
-                              (update-in [:active-history] empty)
-                              (update-in [:overlap-history] empty)))))]
-    (assoc rgn :columns cols)))
+```
+y[t] = (period-1) * y[t-1]  +  1
+       -------------------------
+         period
+```"
+  [v is period]
+  (let [d (/ 1.0 period)
+        decay (* d (dec period))]
+    (-> (mapv #(* % decay) v)
+        (util/update-each is #(+ % d)))))
 
 ;; ## Orchestration
 
@@ -444,19 +399,20 @@
    * performs the learning step by updating input synapse permanences.
    * after every `duty-cycle-period` duration,
      * applies column boosting as needed
-     * clears history from each column
      * recalculates the neighbours of each column according to the
        average receptive field size."
   [rgn in-set learn?]
   (let [t (inc (:timestep rgn 0))
+        om (all-overlaps rgn in-set)
+        as (active-columns rgn om)
         dcp (:duty-cycle-period (:spec rgn))
-        boost? (and learn? (zero? (mod t dcp)))
-        neigh? (and learn? (zero? (mod t dcp)))]
+        boost? (and learn? (zero? (mod t dcp)))]
     (cond-> rgn
             true (assoc :timestep t)
-            true (update-overlaps in-set t)
-            true (update-active-columns t)
+            true (assoc :overlaps om)
+            true (assoc :active-columns as)
+            true (update-in [:overlap-duty-cycles] update-duty-cycles (keys om) dcp)
+            true (update-in [:active-duty-cycles] update-duty-cycles as dcp)
             learn? (learn in-set)
             boost? (update-boosting t)
-            boost? (clear-duty-cycle-history)
-            neigh? (update-neighbours))))
+            boost? (update-neighbours))))
