@@ -85,9 +85,11 @@
       (sm/with-sequence-memory)))
 
 (defn cla-step
-  [rgn in-bits learn?]
-  (let [r-sp (p/pooling-step rgn in-bits learn?)]
-    (sm/sequence-memory-step r-sp (:active-columns r-sp) learn?)))
+  ([rgn in-bits learn?]
+     (cla-step rgn in-bits #{} learn?))
+  ([rgn in-bits signal-in-bits learn?]
+   (let [r-sp (p/pooling-step rgn in-bits signal-in-bits learn?)]
+     (sm/sequence-memory-step r-sp (:active-columns r-sp) learn?))))
 
 (defprotocol PInputGenerator
   "Maintains an input stream and its encoding into bit sets."

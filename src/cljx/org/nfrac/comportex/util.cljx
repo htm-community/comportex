@@ -90,9 +90,18 @@
        (persistent!)))
 
 (defn update-each
+  "Transforms a map or vector `m` applying function `f` to the values
+   under keys `ks`."
   [m ks f]
   (->> ks
        (reduce (fn [m k]
                  (assoc! m k (f (get m k))))
                (transient m))
        (persistent!)))
+
+(defn remap
+  "Transforms a map `m` applying function `f` to each value."
+  [f m]
+  (->> m
+       (mapv (juxt key (comp f val)))
+       (into (empty m))))

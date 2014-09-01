@@ -53,7 +53,16 @@
      updates.
 
    * `max-boost` - ceiling on the column boosting factor used to
-     increase activation frequency."
+     increase activation frequency.
+
+   * `temporal-pooling-decay` - multiplier on the continuing overlap
+     score of temporal pooling columns; as this reduces a temporal
+     pooling cell is more likely to be interrupted by competing
+     columns.
+
+   * `temporal-pooling-amp` - multiplier on the initial overlap score
+     of temporal pooling columns; this increases the probability that
+     TP cells will remain active."
   {:ncol 400
    :input-size 400
    :potential-radius 80
@@ -68,6 +77,8 @@
    :boost-active-duty-ratio 0.001
    :duty-cycle-period 1000
    :max-boost 10.0
+   :temporal-pooling-decay 0.9
+   :temporal-pooling-amp 1.1
    })
 
 ;; ## Construction
@@ -144,8 +155,8 @@
     (-> {:columns (mapv column (range ncol) (repeat full-spec))
          :spec full-spec
          :active-columns #{}
-         :active-duty-cycles (apply vector-of :double (repeat (:ncol spec) 0))
-         :overlap-duty-cycles (apply vector-of :double (repeat (:ncol spec) 0))}
+         :active-duty-cycles (vec (repeat (:ncol spec) 0))
+         :overlap-duty-cycles (vec (repeat (:ncol spec) 0))}
         (update-neighbours))))
 
 ;; ## Neighbouring columns
@@ -306,7 +317,7 @@
    patterns. Given the set of input bits `in-set`, adjusts the
    permanence values of all potential feed-forward synapses in each
    column in the region."
-  [rgn in-set]
+  [rgn as in-set]
   (let [pinc (:sp-perm-inc (:spec rgn))
         pdec (:sp-perm-dec (:spec rgn))
         pcon (:sp-perm-connected (:spec rgn))
@@ -314,7 +325,7 @@
                        (update-in cols [i]
                                   (fn [col]
                                     (column-update-in-synapses col in-set pinc pdec pcon))))
-                     (:columns rgn) (:active-columns rgn))]
+                     (:columns rgn) as)]
     (assoc rgn :columns cols)))
 
 ;; ## Boosting
@@ -374,7 +385,8 @@
 
 (defn update-duty-cycles
   "Records a set of events with indices `is` in the vector `v`
-   according to duty cycle period `period`. As in NuPIC, the formula is
+   according to duty cycle period `period`. As in NuPIC, the formula
+   is
 
 ```
 y[t] = (period-1) * y[t-1]  +  1
@@ -387,6 +399,46 @@ y[t] = (period-1) * y[t-1]  +  1
     (-> (mapv #(* % decay) v)
         (util/update-each is #(+ % d)))))
 
+;; ## Temporal Pooling
+
+(defn signal-overlaps
+  "Finds columns with input from the `signal-in-set`, returning the
+   overlap scores in a map. As with normal overlaps they must meet
+   `stimulus-threshold` to be included. Also, only active
+   columns (column ids `as`) are considered."
+  [rgn as signal-in-set]
+  (let [th (:stimulus-threshold (:spec rgn))
+        o-cols (map (partial get (:columns rgn)) as)]
+    (overlaps o-cols signal-in-set th)))
+
+(defn temporal-pooling-scores
+  "Selects a set of columns to be in a temporal pooling state,
+   returning a map from their column ids to an (adjusted) overlap
+   score -- which is used to compete for activation next time step.
+
+   `as` - set of active column ids.
+
+   `signal-in-set` - input set from predicted cells.
+
+   `prev-tpm` - temporal pooling overlap scores from previous step.
+
+   `om` - overlap scores from current feedforward input."
+  [rgn as signal-in-set prev-tpm om]
+  (let [amp (:temporal-pooling-amp (:spec rgn))
+        new-tpm (->> (signal-overlaps rgn as signal-in-set)
+                     (util/remap (partial * amp)))
+        ;; if a previous TP column received a new dominant input
+        ;; then its TP status is interrupted (unless in new-tpm)
+        stopped-tps (keep (fn [[k v]] (when (> (om k 0) v) k))
+                          prev-tpm)
+        ;; which of the previous TP columns became active?
+        ;; their TP status continues but overlap scores decay.
+        decay (:temporal-pooling-decay (:spec rgn))
+        kept-tpm (->> (apply disj as stopped-tps)
+                      (select-keys prev-tpm)
+                      (util/remap (partial * decay)))]
+    (merge-with max new-tpm kept-tpm)))
+
 ;; ## Orchestration
 
 (defn pooling-step
@@ -396,23 +448,35 @@ y[t] = (period-1) * y[t-1]  +  1
    * increments the `:timestep`.
    * maps column ids to overlap scores in `:overlaps`.
    * calculates the set of active column ids `:active-columns`.
+   * updates TP columns mapped to overlap scores in `:temporal-pooling-scores`.
    * performs the learning step by updating input synapse permanences.
    * after every `duty-cycle-period` duration,
      * applies column boosting as needed
      * recalculates the neighbours of each column according to the
-       average receptive field size."
-  [rgn in-set learn?]
-  (let [t (inc (:timestep rgn 0))
-        om (all-overlaps rgn in-set)
-        as (active-columns rgn om)
-        dcp (:duty-cycle-period (:spec rgn))
-        boost? (and learn? (zero? (mod t dcp)))]
-    (cond-> rgn
-            true (assoc :timestep t)
-            true (assoc :overlaps om)
-            true (assoc :active-columns as)
-            true (update-in [:overlap-duty-cycles] update-duty-cycles (keys om) dcp)
-            true (update-in [:active-duty-cycles] update-duty-cycles as dcp)
-            learn? (learn in-set)
-            boost? (update-boosting t)
-            boost? (update-neighbours))))
+       average receptive field size.
+
+   The argument `signal-in-set` gives the subset of `in-set` that came
+   from cells that correctly predicted their activation in lower
+   layers. This is used for temporal pooling. Set to `#{}` to disable."
+  ([rgn in-set learn?]
+     (pooling-step rgn in-set #{} learn?))
+  ([rgn in-set signal-in-set learn?]
+   (let [t (inc (:timestep rgn 0))
+         curr-om (all-overlaps rgn in-set)
+         prev-tpm (:temporal-pooling-scores rgn {})
+         om (merge-with max curr-om prev-tpm)
+         as (active-columns rgn om)
+         tpm (temporal-pooling-scores rgn as signal-in-set prev-tpm curr-om)
+         dcp (:duty-cycle-period (:spec rgn))
+         boost? (and learn? (zero? (mod t dcp)))]
+     (cond->
+      (assoc rgn
+        :timestep t
+        :overlaps om
+        :active-columns as
+        :temporal-pooling-scores tpm)
+      learn? (update-in [:overlap-duty-cycles] update-duty-cycles (keys om) dcp)
+      learn? (update-in [:active-duty-cycles] update-duty-cycles as dcp)
+      learn? (learn (filter curr-om as) in-set) ;; only learn if current feedforward input
+      boost? (update-boosting t)
+      boost? (update-neighbours)))))

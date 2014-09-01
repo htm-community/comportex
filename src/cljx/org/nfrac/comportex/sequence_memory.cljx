@@ -162,16 +162,26 @@
     pooling step)
 
   * `pred-cells` - the set of predicted cell ids from the previous
-    iteration in a map keyed by column in."
-  [rgn active-columns pred-cells]
-  (->> active-columns
-       (map (fn [i]
-              (let [col (nth (:columns rgn) i)
-                    pcids (pred-cells i)
-                    burst? (empty? pcids)
-                    cids (if burst? (map :id (:cells col)) pcids)]
-                [i {:cell-ids cids :bursting? burst?}])))
-       (into {})))
+    iteration in a map keyed by column id.
+
+  * `tp-cols` - the set of temporal pooling column ids.
+
+  * `learn-cells` - the set of learn-state cells from the previous
+    step, i.e. the active cells but with bursting columns having a
+    single representative cell. These are the ones that continue to be
+    active in temporal pooling."
+  [rgn active-columns pred-cells tp-cols learn-cells]
+  (let [tpc (-> (group-by (comp tp-cols first) learn-cells)
+                (dissoc nil))
+        pred-on-cells (merge pred-cells tpc)]
+    (->> active-columns
+         (map (fn [i]
+                (let [col (nth (:columns rgn) i)
+                      pcids (pred-on-cells i)
+                      burst? (empty? pcids)
+                      cids (if burst? (map :id (:cells col)) pcids)]
+                  [i {:cell-ids cids :bursting? burst?}])))
+         (into {}))))
 
 ;; ## Learning
 
@@ -382,21 +392,28 @@
      unpredicted inputs) and stores it in `:bursting-columns`.
    * determines the set of predictive cells and stores it in
      `:predictive-cells`.
+   * determines the subset of active cells from non-bursting columns
+     and stores it in `:signal-cells`.
    * if `learn?`, performs learning by forming and updating lateral
      connections (synapses on dendrite segments)."
   [rgn active-columns learn?]
   (let [prev-ac (:active-cells rgn #{})
         prev-pc (:predictive-cells rgn #{})
         prev-pcbc (:predictive-cells-by-column rgn {})
-        acbc (active-cells-by-column rgn active-columns prev-pcbc)
-        new-ac (set (mapcat :cell-ids (vals acbc)))
+        tp-cols (set (keys (:temporal-pooling-scores rgn {})))
+        prev-lc (if learn? (:learn-cells rgn #{}) (:signal-cells rgn #{}))
+        acbc (active-cells-by-column rgn active-columns prev-pcbc tp-cols prev-lc)
         burst-cols (set (keep (fn [[i m]] (when (:bursting? m) i)) acbc))
+        new-ac (set (mapcat :cell-ids (vals acbc)))
+        signal-ac (set (mapcat :cell-ids
+                               (vals (apply dissoc acbc burst-cols))))
         pcbc (predictive-cells rgn new-ac)
         pc (set (mapcat val pcbc))]
     (cond->
      (assoc rgn
        :active-cells new-ac
        :bursting-columns burst-cols
+       :signal-cells signal-ac
        :predictive-cells pc
        :predictive-cells-by-column pcbc
        :prev-predictive-cells-by-column prev-pcbc)
