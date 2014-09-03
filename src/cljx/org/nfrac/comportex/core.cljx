@@ -77,63 +77,137 @@
      stored as connected vs disconnected groups."
   (:require [org.nfrac.comportex.pooling :as p]
             [org.nfrac.comportex.sequence-memory :as sm]
+            [org.nfrac.comportex.encoders :as enc]
             [clojure.set :as set]))
+
+(defprotocol PFeedForward
+  "A feedforward input source with a bit set representation. Could be
+   sensory input or a lower level region."
+  (bit-width [this])
+  (bits-value* [this offset])
+  (signal-bits-value* [this offset])
+  (feed-forward-step* [this learn?]))
+
+(defn bits-value
+  ([this] (bits-value* this 0))
+  ([this offset] (bits-value* this offset)))
+
+(defn signal-bits-value
+  ([this] (signal-bits-value* this 0))
+  ([this offset] (signal-bits-value* this offset)))
+
+(defn feed-forward-step
+  ([this] (feed-forward-step* this true))
+  ([this learn?] (feed-forward-step* this learn?)))
+
+(defprotocol PInputGenerator
+  "Maintains an input stream."
+  (domain-value [this])
+  (input-reset [this]))
+
+(defprotocol PRegion
+  (n-columns [this])
+  (n-cells-per-column [this])
+  (region-step [this in-bits signal-in-bits learn?])
+  (active-cells [this])
+  (signal-cells [this]))
+
+(extend-protocol PRegion
+  ;; default implementation - for hashmaps
+  #+cljs object
+  #+clj java.lang.Object
+  (n-columns [this]
+    (:ncol (:spec this)))
+  (n-cells-per-column [this]
+    (:depth (:spec this)))
+  (region-step [this in-bits signal-in-bits learn?]
+    (let [r-sp (p/pooling-step this in-bits signal-in-bits learn?)]
+      (sm/sequence-memory-step r-sp (:active-columns r-sp) learn?)))
+  (active-cells [this]
+    (:active-cells this))
+  (signal-cells [this]
+    (:signal-cells this)))
 
 (defn cla-region
   [spec]
   (-> (p/region spec)
       (sm/with-sequence-memory)))
 
-(defn cla-step
-  ([rgn in-bits learn?]
-     (cla-step rgn in-bits #{} learn?))
-  ([rgn in-bits signal-in-bits learn?]
-   (let [r-sp (p/pooling-step rgn in-bits signal-in-bits learn?)]
-     (sm/sequence-memory-step r-sp (:active-columns r-sp) learn?))))
-
-(defprotocol PInputGenerator
-  "Maintains an input stream and its encoding into bit sets."
-  (bit-width [this])
-  (bits-value [this])
-  (domain-value [this])
-  (input-step [this])
-  (input-reset [this]))
-
-(defrecord InputGenerator [init-value value transform encode options]
+(defrecord InputGenerator [init-value value transform encoder]
+  PFeedForward
+  (bit-width [_] (enc/encoder-bit-width encoder))
+  (bits-value* [_ offset] (enc/encode encoder offset value))
+  (signal-bits-value* [_ offset] #{})
+  (feed-forward-step* [this _] (assoc this :value (transform value)))
   PInputGenerator
-  (bit-width [_] (:bit-width options))
-  (bits-value [_] (encode value))
   (domain-value [_] value)
-  (input-step [this] (assoc this :value (transform value)))
   (input-reset [this] (assoc this :value init-value)))
 
-(defn generator
+(defn input-generator
   "Creates an input stream generator from an initial value, a function
-   to transform the input to the next time step, an encoder function to
-   return a set of bit indices, and an options map that should include
-   the total `:bit-width`."
-  [init-value transform encode options]
-  (->InputGenerator init-value init-value transform encode options))
+   to transform the input to the next time step, and an encoder."
+  [init-value transform encoder]
+  (->InputGenerator init-value init-value transform encoder))
 
-(defn cla-model
-  "A CLA model encapsulates a CLA region created according to the
-   parameter map `spec`, with an input stream generator."
-  [ingen spec]
-  (let [r (cla-region spec)]
-    {:region r
-     :in ingen}))
+(defn combined-bit-width
+  "Returns the total bit width from a collection of
+   sources (satisfying PFeedForward)."
+  [ffs]
+  (reduce + (map bit-width ffs)))
 
-(defn step
-  "Advances a CLA model by transforming the input value, and updating
-   the region with the new input. Learning is on unless specifically
-   passed as false."
-  ([model]
-     (step model true))
-  ([model learn?]
-     (let [new-in (input-step (:in model))]
-       (-> model
-           (assoc :in new-in)
-           (update-in [:region] cla-step (bits-value new-in) learn?)))))
+(defn combined-bits-value
+  "Returns the total bit set from a collection of sources (satisfying
+   PFeedForward). `bits-fn` should be `bits-value*` or
+   `signal-bits-value*`."
+  [ffs bits-fn]
+  (let [ws (map bit-width ffs)
+        os (list* 0 (reductions + ws))]
+    (->> (map bits-fn ffs os)
+         (apply set/union))))
+
+(defn cell-id->inbit
+  [offset depth [cid i]]
+  (+ offset (* depth cid) i))
+
+(defrecord RegionTree [region subs]
+  PFeedForward
+  (bit-width [_]
+    (* (n-cells-per-column region)
+       (n-columns region)))
+  (bits-value* [_ offset]
+    (let [depth (n-cells-per-column region)]
+      (->> (active-cells region)
+           (mapv (partial cell-id->inbit offset depth))
+           (into #{}))))
+  (signal-bits-value* [_ offset]
+    (let [depth (n-cells-per-column region)]
+      (->> (signal-cells region)
+           (mapv (partial cell-id->inbit offset depth))
+           (into #{}))))
+  (feed-forward-step* [this learn?]
+    (let [new-subs (map #(feed-forward-step* % learn?) subs)
+          new-rgn (region-step region
+                               (combined-bits-value new-subs bits-value*)
+                               (combined-bits-value new-subs signal-bits-value*)
+                               learn?)]
+      (assoc this :region new-rgn :subs new-subs))))
+
+(defn region-tree
+  [rgn subs]
+  (->RegionTree rgn subs))
+
+(defn tree
+  [build-region spec subs]
+  (-> (assoc spec :input-size (combined-bit-width subs)
+             :potential-radius (quot (combined-bit-width subs) 4)) ; TODO
+      (build-region)
+      (region-tree subs)))
+
+(defn tree-reset-inputs
+  [this]
+  (if (satisfies? PInputGenerator this)
+    (input-reset this)
+    (update-in this [:subs] #(map tree-reset-inputs %))))
 
 (defn column-state-freqs
   "Returns a map with the frequencies of columns in states `:active`,

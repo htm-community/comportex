@@ -8,62 +8,44 @@
             #+clj [clojure.test :as t
                    :refer (is deftest testing run-tests)]))
 
-(def bit-width 400)
-(def on-bits 25)
-(def numb-max 15)
+(def bit-width 300)
+(def cat-bit-width 60)
+(def numb-bit-width (- bit-width cat-bit-width))
+(def numb-max 7)
 (def numb-domain [0 numb-max])
+(def on-bits 30)
 
-(def patterns
-  [(range 0 5)
-   (range 3 9)
-   (range 8 12)
-   (reverse (range 0 15))])
-
-(defn mix-patterns
-  "Returns an infinite sequence of sets of numbers."
-  [patterns]
-  (->> patterns
-       (map #(apply concat (repeat %)))
-       (apply map (fn [& xs] (set xs)))))
-
-(defn crouching-head-hidden-tail
-  "Returns the first element, with the rest in metadata to avoid
-   printing an infinite sequence."
-  [xs]
-  (-> (first xs)
-      (with-meta {::next (next xs)})))
-
-;; a function not a value; do not hold on to the head of an infinite seq.
-(defn initial-input
-  []
-  (let [inseq (mix-patterns patterns)]
-    (crouching-head-hidden-tail inseq)))
+(def initial-input [:up 0])
 
 (defn input-transform
-  [v]
-  (crouching-head-hidden-tail (::next (meta v))))
+  [[dir i]]
+  (let [new-i (-> (case dir
+                    :up (inc i)
+                    :down (dec i))
+                  (min numb-max)
+                  (max 0))
+        new-dir (util/rand-nth [:up :down])]
+    [new-dir new-i]))
 
-(def efn
-  (enc/superpose-encoder
-   (enc/linear-number-encoder bit-width on-bits numb-domain)))
+(def encoder
+  (enc/encat 2
+             (enc/category-encoder cat-bit-width [:down :up])
+             (enc/linear-encoder numb-bit-width on-bits numb-domain)))
 
 (defn model
   []
-  (let [gen (core/generator (initial-input) input-transform efn
-                            {:bit-width bit-width})
-        spec (assoc org.nfrac.comportex.parameters/small
-               :input-size bit-width
-               :potential-radius (quot bit-width 4))]
-    (core/cla-model gen spec)))
+  (let [gen (core/input-generator initial-input input-transform encoder)
+        spec org.nfrac.comportex.parameters/small]
+    (core/tree core/cla-region spec [gen])))
 
 #+clj
 (deftest sm-perf-test
   (util/set-seed! 0)
-  (let [m1 (-> (iterate core/step (model))
+  (let [m1 (-> (iterate core/feed-forward-step (model))
                (nth 200))]
     (crit/with-progress-reporting
       (crit/bench
        (do (util/set-seed! 0)
-           ;(-> (iterate core/step m1) (nth 10))
-           (core/step m1)
-           )))))
+           (-> (iterate core/feed-forward-step m1)
+               (take 10)
+               (last)))))))

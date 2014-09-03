@@ -23,10 +23,6 @@
   []
   (repeatedly n-in-items #(util/rand-int 0 numb-max)))
 
-(def efn
-  (enc/juxtapose-encoder
-   (enc/linear-number-encoder numb-bits numb-on-bits numb-domain)))
-
 (def spec {:ncol 200
            :input-size bit-width
            :potential-radius (quot bit-width 2)
@@ -34,8 +30,13 @@
            :stimulus-threshold 2
            :duty-cycle-period 600})
 
+(def encoder
+  (enc/encat n-in-items
+             (enc/linear-encoder numb-bits numb-on-bits numb-domain)))
+
 (deftest pooling-test
-  (let [ncol (:ncol spec)
+  (let [efn (partial enc/encode encoder 0)
+        ncol (:ncol spec)
         r (p/region spec)
         r1k (reduce (fn [r in]
                       (-> r

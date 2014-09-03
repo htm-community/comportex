@@ -30,27 +30,28 @@
       [(util/rand-int 0 (dec (count patterns)))
        0])))
 
-(def efn
-  (let [f (enc/category-encoder bit-width items)]
-    (fn [[i j]]
-      (f (get-in patterns [i j])))))
+(def encoder
+  (enc/pre-transform #(get-in patterns %)
+                     (enc/category-encoder bit-width items)))
 
 (defn model
   []
-  (let [gen (core/generator initial-input input-transform efn
-                            {:bit-width bit-width})
-        spec (assoc org.nfrac.comportex.parameters/small
-               :ncol 200
-               :input-size bit-width
-               :potential-radius (quot bit-width 2))]
-    (core/cla-model gen spec)))
+  (let [gen (core/input-generator initial-input input-transform encoder)
+        spec org.nfrac.comportex.parameters/small]
+    (core/tree core/cla-region spec [gen])))
 
 (deftest sm-test
   (util/set-seed! 0)
   (testing "CLA with sequence memory runs"
-   (let [m1 (-> (iterate core/step (model))
+   (let [m1 (-> (iterate core/feed-forward-step (model))
                 (nth 500))
-         r (:region m1)]
+         r (:region m1)
+         sums (->> m1
+                   (iterate core/feed-forward-step)
+                   (take 100)
+                   (map :region)
+                   (map core/column-state-freqs)
+                   (apply merge-with +))]
      (let [depth (:depth (:spec r))
            ncells (map (comp count :cells) (:columns r))]
        (is (every? #(= depth %) ncells)
@@ -59,14 +60,12 @@
                       (:columns r))]
        (is (pos? (util/quantile nsegs 0.6))
            "At least 40% of columns have grown dendrite segments."))
-     (let [ncol (count (:columns r))
-           freqs (core/column-state-freqs r)]
-       (is (> (:active-predicted freqs) (:active freqs))
-           "Most column activations are predicted.")
-       (is (> (:predicted freqs) 0)
-           "Some columns were predicted but are not active.")
-       (is (< (+ (:active freqs)
-                 (:active-predicted freqs)
-                 (:predicted freqs))
-              (* ncol 0.2))
-           "Less than 20% of columns are active or predicted.")))))
+     (is (> (:active-predicted sums) (:active sums))
+         "Most column activations are predicted.")
+     (is (> (:predicted sums) 0)
+         "Some columns were predicted but are not active.")
+     (is (< (+ (:active sums)
+               (:active-predicted sums)
+               (:predicted sums))
+            (* (:ncol sums) 0.25))
+         "Less than 25% of columns are active or predicted."))))
