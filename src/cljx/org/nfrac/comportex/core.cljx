@@ -100,10 +100,12 @@
   ([this] (feed-forward-step* this true))
   ([this learn?] (feed-forward-step* this learn?)))
 
+(defprotocol PResettable
+  (reset [this]))
+
 (defprotocol PInputGenerator
   "Maintains an input stream."
-  (domain-value [this])
-  (input-reset [this]))
+  (domain-value [this]))
 
 (defprotocol PRegion
   (n-columns [this])
@@ -112,10 +114,16 @@
   (active-cells [this])
   (signal-cells [this]))
 
-(extend-protocol PRegion
+(defn cla-region
+  [spec]
+  (-> (p/region spec)
+      (sm/with-sequence-memory)))
+
+(extend-type
   ;; default implementation - for hashmaps
   #+cljs object
   #+clj java.lang.Object
+  PRegion
   (n-columns [this]
     (:ncol (:spec this)))
   (n-cells-per-column [this]
@@ -126,12 +134,10 @@
   (active-cells [this]
     (:active-cells this))
   (signal-cells [this]
-    (:signal-cells this)))
-
-(defn cla-region
-  [spec]
-  (-> (p/region spec)
-      (sm/with-sequence-memory)))
+    (:signal-cells this))
+  PResettable
+  (reset [this]
+    (cla-region (:spec this))))
 
 (defrecord InputGenerator [init-value value transform encoder]
   PFeedForward
@@ -141,7 +147,8 @@
   (feed-forward-step* [this _] (assoc this :value (transform value)))
   PInputGenerator
   (domain-value [_] value)
-  (input-reset [this] (assoc this :value init-value)))
+  PResettable
+  (reset [this] (assoc this :value init-value)))
 
 (defn input-generator
   "Creates an input stream generator from an initial value, a function
@@ -190,7 +197,12 @@
                                (combined-bits-value new-subs bits-value*)
                                (combined-bits-value new-subs signal-bits-value*)
                                learn?)]
-      (assoc this :region new-rgn :subs new-subs))))
+      (assoc this :region new-rgn :subs new-subs)))
+  PResettable
+  (reset [this]
+    (-> this
+        (update-in [:subs] #(map reset %))
+        (update-in [:region] reset))))
 
 (defn region-tree
   [rgn subs]
@@ -202,12 +214,6 @@
              :potential-radius (quot (combined-bit-width subs) 4)) ; TODO
       (build-region)
       (region-tree subs)))
-
-(defn tree-reset-inputs
-  [this]
-  (if (satisfies? PInputGenerator this)
-    (input-reset this)
-    (update-in this [:subs] #(map tree-reset-inputs %))))
 
 (defn column-state-freqs
   "Returns a map with the frequencies of columns in states `:active`,

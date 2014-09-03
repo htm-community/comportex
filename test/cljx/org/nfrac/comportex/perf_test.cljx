@@ -46,6 +46,6 @@
     (crit/with-progress-reporting
       (crit/bench
        (do (util/set-seed! 0)
-           (-> (iterate core/feed-forward-step m1)
-               (take 10)
-               (last)))))))
+           (->> (iterate core/feed-forward-step m1)
+                (take 10)
+                (last)))))))
