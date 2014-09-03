@@ -3028,7 +3028,7 @@ net.brehaut.ClojureTools = (function (SH) {
     build_tree: build_tree
   };
 })(SyntaxHighlighter);
-</script><title>org.nfrac/comportex -- Marginalia</title></head><body><table><tr><td class="docs"><div class="header"><h1 class="project-name">org.nfrac/comportex</h1><h2 class="project-version">0.1.0-SNAPSHOT</h2><br /><p>Functionally composable cortex, an implementation of Hierarchical Temporal Memory</p>
+</script><title>org.nfrac/comportex -- Marginalia</title></head><body><table><tr><td class="docs"><div class="header"><h1 class="project-name">org.nfrac/comportex</h1><h2 class="project-version">0.0.2-SNAPSHOT</h2><br /><p>Functionally composable cortex, an implementation of Hierarchical Temporal Memory</p>
 </div><div class="dependencies"><h3>dependencies</h3><table><tr><td class="dep-name">org.clojure/clojure</td><td class="dotted"><hr /></td><td class="dep-version">1.6.0</td></tr><tr><td class="dep-name">com.cemerick/pprng</td><td class="dotted"><hr /></td><td class="dep-version">0.0.2</td></tr></table></div></td><td class="codes" style="text-align: center; vertical-align: middle;color: #666;padding-right:20px"><br /><br /><br />(this space intentionally left almost blank)</td></tr><tr><td class="docs"><div class="toc"><a name="toc"><h3>namespaces</h3></a><ul><li><a href="#org.nfrac.comportex.core">org.nfrac.comportex.core</a></li><li><a href="#org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</a></li><li><a href="#org.nfrac.comportex.pooling">org.nfrac.comportex.pooling</a></li><li><a href="#org.nfrac.comportex.sequence-memory">org.nfrac.comportex.sequence-memory</a></li><li><a href="#org.nfrac.comportex.util">org.nfrac.comportex.util</a></li></ul></div></td><td class="codes">&nbsp;</td></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.core" name="org.nfrac.comportex.core"><h1 class="project-name">org.nfrac.comportex.core</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>Familiarity with the Numenta Cortical Learning Algorithm is assumed.</p>
 
 <p>   A <em>region</em> is the main composable unit in this library. It
@@ -3051,7 +3051,7 @@ net.brehaut.ClojureTools = (function (SH) {
 <li><code>:overlaps</code> a map from column id to overlap score.</li>
 <li><code>:active-columns</code> a set of the active column ids.</li>
 <li><code>:active-cells</code> a set of the active cell ids.</li>
-<li><code>:busting-columns</code> a set of the bursting column ids.</li>
+<li><code>:bursting-columns</code> a set of the bursting column ids.</li>
 <li><code>:predictive-cells</code> a set of the predictive cell ids.</li></ul></li>
 </ul>
 
@@ -3109,61 +3109,134 @@ net.brehaut.ClojureTools = (function (SH) {
 </ul>
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.core
   (:require [org.nfrac.comportex.pooling :as p]
-            [org.nfrac.comportex.sequence-memory :as sm]))</pre></td></tr><tr><td class="docs">
+            [org.nfrac.comportex.sequence-memory :as sm]
+            [org.nfrac.comportex.encoders :as enc]
+            [clojure.set :as set]))</pre></td></tr><tr><td class="docs"><p>A feedforward input source with a bit set representation. Could be
+   sensory input or a lower level region.</p>
+</td><td class="codes"><pre class="brush: clojure">(defprotocol PFeedForward
+  (bit-width [this])
+  (bits-value* [this offset])
+  (signal-bits-value* [this offset])
+  (feed-forward-step* [this learn?]))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn bits-value
+  ([this] (bits-value* this 0))
+  ([this offset] (bits-value* this offset)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn signal-bits-value
+  ([this] (signal-bits-value* this 0))
+  ([this offset] (signal-bits-value* this offset)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn feed-forward-step
+  ([this] (feed-forward-step* this true))
+  ([this learn?] (feed-forward-step* this learn?)))</pre></td></tr><tr><td class="docs"><p>Maintains an input stream.</p>
+</td><td class="codes"><pre class="brush: clojure">(defprotocol PInputGenerator
+  (domain-value [this])
+  (input-reset [this]))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defprotocol PRegion
+  (n-columns [this])
+  (n-cells-per-column [this])
+  (region-step [this in-bits signal-in-bits learn?])
+  (active-cells [this])
+  (signal-cells [this]))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(extend-protocol PRegion
+  ;; default implementation - for hashmaps
+  java.lang.Object
+  (n-columns [this]
+    (:ncol (:spec this)))
+  (n-cells-per-column [this]
+    (:depth (:spec this)))
+  (region-step [this in-bits signal-in-bits learn?]
+    (let [r-sp (p/pooling-step this in-bits signal-in-bits learn?)]
+      (sm/sequence-memory-step r-sp (:active-columns r-sp) learn?)))
+  (active-cells [this]
+    (:active-cells this))
+  (signal-cells [this]
+    (:signal-cells this)))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn cla-region
   [spec]
   (-&gt; (p/region spec)
       (sm/with-sequence-memory)))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn cla-step
-  [rgn in-bits learn?]
-  (let [r-sp (p/pooling-step rgn in-bits learn?)]
-    (sm/sequence-memory-step r-sp (:active-columns r-sp) learn?)))</pre></td></tr><tr><td class="docs"><p>Maintains an input stream and its encoding into bit sets.</p>
-</td><td class="codes"><pre class="brush: clojure">(defprotocol PInputGenerator
-  (bit-width [this])
-  (bits-value [this])
-  (domain-value [this])
-  (input-step [this]))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defrecord InputGenerator [value transform encode options]
+</td><td class="codes"><pre class="brush: clojure">(defrecord InputGenerator [init-value value transform encoder]
+  PFeedForward
+  (bit-width [_] (enc/encoder-bit-width encoder))
+  (bits-value* [_ offset] (enc/encode encoder offset value))
+  (signal-bits-value* [_ offset] #{})
+  (feed-forward-step* [this _] (assoc this :value (transform value)))
   PInputGenerator
-  (bit-width [_] (:bit-width options))
-  (bits-value [_] (encode value))
   (domain-value [_] value)
-  (input-step [this] (assoc this :value (transform value))))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn generator
-  [init-value transform encode options]
-  (-&gt;InputGenerator init-value transform encode options))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn cla-model
-  [ingen spec]
-  (let [r (cla-region spec)]
-    {:region r
-     :in ingen}))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn step
-  ([model]
-     (step model true))
-  ([model learn?]
-     (let [new-in (input-step (:in model))]
-       (-&gt; model
-           (assoc :in new-in)
-           (update-in [:region] cla-step (bits-value new-in) learn?)))))</pre></td></tr><tr><td class="docs">
+  (input-reset [this] (assoc this :value init-value)))</pre></td></tr><tr><td class="docs"><p>Creates an input stream generator from an initial value, a function
+   to transform the input to the next time step, and an encoder.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn input-generator
+  [init-value transform encoder]
+  (-&gt;InputGenerator init-value init-value transform encoder))</pre></td></tr><tr><td class="docs"><p>Returns the total bit width from a collection of
+   sources (satisfying PFeedForward).</p>
+</td><td class="codes"><pre class="brush: clojure">(defn combined-bit-width
+  [ffs]
+  (reduce + (map bit-width ffs)))</pre></td></tr><tr><td class="docs"><p>Returns the total bit set from a collection of sources (satisfying
+   PFeedForward). <code>bits-fn</code> should be <code>bits-value*</code> or
+   <code>signal-bits-value*</code>.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn combined-bits-value
+  [ffs bits-fn]
+  (let [ws (map bit-width ffs)
+        os (list* 0 (reductions + ws))]
+    (-&gt;&gt; (map bits-fn ffs os)
+         (apply set/union))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn cell-id-&gt;inbit
+  [offset depth [cid i]]
+  (+ offset (* depth cid) i))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defrecord RegionTree [region subs]
+  PFeedForward
+  (bit-width [_]
+    (* (n-cells-per-column region)
+       (n-columns region)))
+  (bits-value* [_ offset]
+    (let [depth (n-cells-per-column region)]
+      (-&gt;&gt; (active-cells region)
+           (mapv (partial cell-id-&gt;inbit offset depth))
+           (into #{}))))
+  (signal-bits-value* [_ offset]
+    (let [depth (n-cells-per-column region)]
+      (-&gt;&gt; (signal-cells region)
+           (mapv (partial cell-id-&gt;inbit offset depth))
+           (into #{}))))
+  (feed-forward-step* [this learn?]
+    (let [new-subs (map #(feed-forward-step* % learn?) subs)
+          new-rgn (region-step region
+                               (combined-bits-value new-subs bits-value*)
+                               (combined-bits-value new-subs signal-bits-value*)
+                               learn?)]
+      (assoc this :region new-rgn :subs new-subs))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn region-tree
+  [rgn subs]
+  (-&gt;RegionTree rgn subs))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn tree
+  [build-region spec subs]
+  (-&gt; (assoc spec :input-size (combined-bit-width subs)
+             :potential-radius (quot (combined-bit-width subs) 4)) ; TODO
+      (build-region)
+      (region-tree subs)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn tree-reset-inputs
+  [this]
+  (if (satisfies? PInputGenerator this)
+    (input-reset this)
+    (update-in this [:subs] #(map tree-reset-inputs %))))</pre></td></tr><tr><td class="docs"><p>Returns a map with the frequencies of columns in states <code>:active</code>,
+  <code>:predicted</code>, <code>:active-predicted</code>.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn column-state-freqs
   [rgn]
-  (let [pm (zipmap (keys (:prev-predictive-cells-by-column rgn))
-                   (repeat :predicted))
-        am (zipmap (:active-columns rgn) (repeat :active))
-        bm (zipmap (:bursting-columns rgn) (repeat :unpredicted))
-        m (merge pm am bm)]
-    (-&gt; {:active 0, :predicted 0, :unpredicted 0}
-        (merge (frequencies (vals m)))
+  (let [pred-cids (set (keys (:prev-predictive-cells-by-column rgn)))
+        active-cids (:active-columns rgn)
+        hit-cids (set/intersection pred-cids active-cids)
+        col-states (merge (zipmap pred-cids (repeat :predicted))
+                          (zipmap active-cids (repeat :active))
+                          (zipmap hit-cids (repeat :active-predicted)))]
+    (-&gt; {:active 0, :predicted 0, :active-predicted 0}
+        (merge (frequencies (vals col-states)))
         (assoc :timestep (:timestep rgn)
                :ncol (count (:columns rgn))))))</pre></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.encoders" name="org.nfrac.comportex.encoders"><h1 class="project-name">org.nfrac.comportex.encoders</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>Methods of encoding data as distributed bit sets, for feeding as
-   input to a cortex region. An encoder here is a function that takes
-   some data value and returns a set of integers, which are the
-   indices of the active bits in its representation. In addition, the
-   returned set should have a metadata key <code>::bit-width</code> which gives
-   the number of bits in the full encoded representation: a larger
-   number than the count of active bits.</p>
+   input to a cortical region.</p>
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.encoders
-  (:require [clojure.set :as set]))</pre></td></tr><tr><td class="docs"><p>Returns an encoding function for a single number. It encodes a
+  (:require [clojure.set :as set]))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defprotocol PEncoder
+  (encoder-bit-width [this])
+  (encode [this offset x]))</pre></td></tr><tr><td class="docs"><p>Returns a simple encoder for a single number. It encodes a
    number by its position on a continuous scale within a numeric
    range. It does not represent any other features of a number (its
    component digits, integral/fractional parts, factors, etc).</p>
@@ -3175,54 +3248,75 @@ representation.</p></li>
 <li><p><code>[lower upper]</code> gives the numeric range to cover. The input number
 will be clamped to this range.</p></li>
 </ul>
-</td><td class="codes"><pre class="brush: clojure">(defn linear-number-encoder
+</td><td class="codes"><pre class="brush: clojure">(defn linear-encoder
   [bit-width on-bits [lower upper]]
   (let [span (double (- upper lower))]
-    (fn [x]
-      (let [x (-&gt; x (max lower) (min upper))
-            z (/ (- x lower) span)
-            i (long (* z (- bit-width on-bits)))]
-        (-&gt; (set (range i (+ i on-bits)))
-            (with-meta {::bit-width bit-width}))))))</pre></td></tr><tr><td class="docs"><p>Returns an encoding function for a sequence of values. The same
-   encoding function will be applied to each value, and the resulting
-   encodings superposed; i.e. the union of the sets of bits.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn superpose-encoder
-  [enc-fn]
-  (fn [xs]
-    (let [bs (map enc-fn xs)]
-      (-&gt; (apply set/union bs)
-          (with-meta (meta (first bs)))))))</pre></td></tr><tr><td class="docs"><p>Returns an encoding function for a sequence of values. The same
-   encoding function will be applied to each value, and the resulting
-   encodings juxtaposed; i.e. the bit width of the combined encoding
-   is the sum of the component bit widths.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn juxtapose-encoder
-  ([enc-fn]
-     (fn [xs]
-       (-&gt;&gt;
-        (map enc-fn xs)
-        (reduce (fn [bset b]
-                  (let [offset (::bit-width (meta bset))
-                        bw (::bit-width (meta b))]
-                    (-&gt; (into bset (map (partial + offset) b))
-                        (with-meta {::bit-width (+ offset bw)}))))))))
-  ([enc-fn &amp; more-fns]
-     (fn [xs]
-       (-&gt;&gt;
-        (map (fn [f x] (f x))
-             (list* enc-fn more-fns) xs)
-        (reduce (fn [bset b]
-                  (let [offset (::bit-width (meta bset))
-                        bw (::bit-width (meta b))]
-                    (-&gt; (into bset (map (partial + offset) b))
-                        (with-meta {::bit-width (+ offset bw)})))))))))</pre></td></tr><tr><td class="docs">
+    (reify PEncoder
+      (encoder-bit-width [_] bit-width)
+      (encode [_ offset x]
+        (if x
+          (let [x (-&gt; x (max lower) (min upper))
+                z (/ (- x lower) span)
+                i (long (* z (- bit-width on-bits)))]
+            (set (range (+ offset i)
+                        (+ offset i on-bits))))
+          #{})))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn category-encoder
   [bit-width values]
   (let [n (count values)
         on-bits (/ bit-width n)
         val-to-int (zipmap values (range))
-        int-efn (linear-number-encoder bit-width on-bits [0 (dec n)])]
-    (fn [x]
-      (int-efn (val-to-int x)))))</pre></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.pooling" name="org.nfrac.comportex.pooling"><h1 class="project-name">org.nfrac.comportex.pooling</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>Currently this implements Spatial Pooling as in the CLA.</p>
+        int-e (linear-encoder bit-width on-bits [0 (dec n)])]
+    (reify PEncoder
+      (encoder-bit-width [_]
+        bit-width)
+      (encode [_ offset x]
+        (encode int-e offset (val-to-int x))))))</pre></td></tr><tr><td class="docs"><p>Returns a higher-level encoder for a sequence of values. The given
+   encoder will be applied to each value, and the resulting encodings
+   overlaid (splatted together), taking the union of the sets of bits.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn ensplat
+  [e]
+  (reify PEncoder
+    (encoder-bit-width [_]
+      (encoder-bit-width e))
+    (encode [_ offset xs]
+      (-&gt;&gt; xs
+           (map (fn [x] (encode e offset x)))
+           (apply set/union)))))</pre></td></tr><tr><td class="docs"><p>Returns a higher-level encoder for a sequence of <code>n</code> values. The
+   given encoder will be applied to each value, and the resulting
+   encodings concatenated; i.e. the bit width of the combined encoding
+   is the sum of the component bit widths. If multiple (<code>n</code>) encoders
+   are given they will be applied to corresponding elements of the
+   input collection.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn encat
+  ([n e]
+     (let [w1 (encoder-bit-width e)]
+       (reify PEncoder
+         (encoder-bit-width [_]
+           (* n w1))
+         (encode [_ offset xs]
+           (-&gt;&gt; xs
+                (map-indexed (fn [i x]
+                               (encode e (+ offset (* i w1)) x)))
+                (apply set/union))))))
+  ([n e &amp; more]
+     (let [es (list* e more)
+           ws (map encoder-bit-width es)
+           os (list* 0 (reductions + ws))]
+       (reify PEncoder
+         (encoder-bit-width [_]
+           (apply + ws))
+         (encode [_ offset xs]
+           (-&gt;&gt; (map (fn [e o x]
+                       (encode e (+ offset o) x))
+                     es os xs)
+                (apply set/union)))))))</pre></td></tr><tr><td class="docs"><p>Returns an encoder wrapping another encoder <code>e</code>, where the function
+   <code>f</code> is applied to input values prior to encoding by <code>e</code>.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn pre-transform
+  [f e]
+  (reify PEncoder
+    (encoder-bit-width [_] (encoder-bit-width e))
+    (encode [_ offset x] (encode e offset (f x)))))</pre></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.pooling" name="org.nfrac.comportex.pooling"><h1 class="project-name">org.nfrac.comportex.pooling</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>Currently this implements Spatial Pooling as in the CLA.</p>
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.pooling
   (:require [org.nfrac.comportex.util :as util
              :refer [round mean count-filter]]))</pre></td></tr><tr><td class="docs"><p>Default parameter specification map for spatial pooling. Mostly
@@ -3263,6 +3357,13 @@ will be clamped to this range.</p></li>
  updates.</p></li>
 <li><p><code>max-boost</code> - ceiling on the column boosting factor used to
  increase activation frequency.</p></li>
+<li><p><code>temporal-pooling-decay</code> - multiplier on the continuing overlap
+ score of temporal pooling columns; as this reduces a temporal
+ pooling cell is more likely to be interrupted by competing
+ columns.</p></li>
+<li><p><code>temporal-pooling-amp</code> - multiplier on the initial overlap score
+ of temporal pooling columns; this increases the probability that
+ TP cells will remain active.</p></li>
 </ul>
 </td><td class="codes"><pre class="brush: clojure">(def spatial-pooler-defaults
   {:ncol 400
@@ -3279,6 +3380,8 @@ will be clamped to this range.</p></li>
    :boost-active-duty-ratio 0.001
    :duty-cycle-period 1000
    :max-boost 10.0
+   :temporal-pooling-decay 0.9
+   :temporal-pooling-amp 1.1
    })</pre></td></tr><tr><td class="docs"><h2>Construction</h2>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>Takes a collection of synapse connections and partitions them into
    connected and disconnected ones.</p>
@@ -3331,9 +3434,7 @@ map of the corresponding tuples.</p></li>
   {:id id
    :in-synapses (in-synapses id spec)
    :neighbours #{} ;; cache
-   :boost 1.0
-   :active-history (sorted-set) ;; set of timesteps
-   :overlap-history (sorted-set)})</pre></td></tr><tr><td class="docs">
+   :boost 1.0})</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(declare update-neighbours)</pre></td></tr><tr><td class="docs"><p>Constructs a region (as in the CLA) with the given specification
    map. See documentation on <code>spatial-pooler-defaults</code> and
    <code>sequence-memory-defaults</code> for possible keys. Any keys given here
@@ -3347,7 +3448,9 @@ map of the corresponding tuples.</p></li>
         ncol (:ncol full-spec)]
     (-&gt; {:columns (mapv column (range ncol) (repeat full-spec))
          :spec full-spec
-         :active-columns #{}}
+         :active-columns #{}
+         :active-duty-cycles (vec (repeat (:ncol spec) 0))
+         :overlap-duty-cycles (vec (repeat (:ncol spec) 0))}
         (update-neighbours))))</pre></td></tr><tr><td class="docs"><h2>Neighbouring columns</h2>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>Returns the span over the input bit array to which this column has
    connected synapses.</p>
@@ -3395,24 +3498,15 @@ map of the corresponding tuples.</p></li>
    an overlap score above parameter <code>stimulus-threshold</code>, and returns
    a map of their column ids to overlap scores.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn overlaps
+  [columns in-set th]
+  (into {} (keep (fn [col]
+                   (when-let [v (column-overlap col in-set th)]
+                     [(:id col) v]))
+                 columns)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn all-overlaps
   [rgn in-set]
   (let [th (:stimulus-threshold (:spec rgn))]
-    (into {} (keep (fn [col]
-                     (when-let [v (column-overlap col in-set th)]
-                       [(:id col) v]))
-                   (:columns rgn)))))</pre></td></tr><tr><td class="docs"><p>Stores time step <code>t</code> in the column's overlap history series.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn column-record-overlap
-  [col t]
-  (update-in col [:overlap-history] conj t))</pre></td></tr><tr><td class="docs"><p>Stores the overlap scores map in region key <code>:overlaps</code>, and
-   records the timestep in each overlapping column.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn update-overlaps
-  [rgn in-set t]
-  (let [om (overlaps rgn in-set)]
-    (-&gt;
-     (reduce (fn [r [id _]]
-               (update-in r [:columns id] column-record-overlap t))
-             rgn om)
-     (assoc :overlaps om))))</pre></td></tr><tr><td class="docs"><h2>Activation</h2>
+    (overlaps (:columns rgn) in-set th)))</pre></td></tr><tr><td class="docs"><h2>Activation</h2>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>Given the map of column overlap scores <code>om</code>, and the target
    activation rate <code>level</code>, decides whether the column should become
    active. A false value indicates that the column is supressed by
@@ -3466,19 +3560,7 @@ map of the corresponding tuples.</p></li>
         level (:activation-level spec)]
     (if (:global-inhibition spec)
       (active-columns-with-global-inhibition rgn om level)
-      (active-columns-with-local-inhibition rgn om level))))</pre></td></tr><tr><td class="docs"><p>Stores time step <code>t</code> in the column's activation history series.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn column-record-activation
-  [col t]
-  (update-in col [:active-history] conj t))</pre></td></tr><tr><td class="docs"><p>Stores the set of active column ids in region key
-   <code>:active-columns</code>, and records the timestep in each active column.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn update-active-columns
-  [rgn t]
-  (let [as (active-columns rgn (:overlaps rgn))]
-    (-&gt;
-     (reduce (fn [r id]
-               (update-in r [:columns id] column-record-activation t))
-             rgn as)
-     (assoc :active-columns as))))</pre></td></tr><tr><td class="docs"><h2>Learning</h2>
+      (active-columns-with-local-inhibition rgn om level))))</pre></td></tr><tr><td class="docs"><h2>Learning</h2>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>Given the set of input bits <code>in-set</code>, adjusts the permanence values
    of all potential feed-forward synapses on the column. Those linked
    to active inputs have their permanences increased by <code>pinc</code>, and
@@ -3501,7 +3583,7 @@ map of the corresponding tuples.</p></li>
    permanence values of all potential feed-forward synapses in each
    column in the region.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn learn
-  [rgn in-set]
+  [rgn as in-set]
   (let [pinc (:sp-perm-inc (:spec rgn))
         pdec (:sp-perm-dec (:spec rgn))
         pcon (:sp-perm-connected (:spec rgn))
@@ -3509,7 +3591,7 @@ map of the corresponding tuples.</p></li>
                        (update-in cols [i]
                                   (fn [col]
                                     (column-update-in-synapses col in-set pinc pdec pcon))))
-                     (:columns rgn) (:active-columns rgn))]
+                     (:columns rgn) as)]
     (assoc rgn :columns cols)))</pre></td></tr><tr><td class="docs"><h2>Boosting</h2>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>Used to increase a column's feed-forward connections within its
    potential pool. All input synapses have their permanences
@@ -3528,23 +3610,21 @@ map of the corresponding tuples.</p></li>
    comparing the number of activations or overlaps in recent history
    to the <em>maximum</em> such value from its neighbours.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn- column-update-boosting
-  [col ods-m ads-m o-th a-th maxb pcon]
+  [col ods ads o-th a-th maxb pcon]
   (let [ns (:neighbours col)
-        max-ods (apply max 1 (vals (select-keys ods-m ns)))
-        max-ads (apply max 1 (vals (select-keys ads-m ns)))
-        crit-ods (* o-th max-ods)
-        crit-ads (* a-th max-ads)
-        ods (count (:overlap-history col))
-        ads (count (:active-history col))
+        max-od (apply max 1 (vals (select-keys ods ns)))
+        max-ad (apply max 1 (vals (select-keys ads ns)))
+        crit-od (* o-th max-od)
+        crit-ad (* a-th max-ad)
+        od (get ods (:id col))
+        ad (get ads (:id col))
         nboost (-&gt; (- maxb (* (- maxb 1)
-                              (/ ads crit-ads)))
+                              (/ ad crit-ad)))
                    (max 1.0)
                    (double))]
-    (-&gt;
-     (if (&lt; ods crit-ods)
-       (column-increase-permanences col pcon)
-       col)
-     (assoc :boost nboost))))</pre></td></tr><tr><td class="docs"><p>For each column, determines whether it has had too few activations
+    (if (&lt; od crit-od)
+      (column-increase-permanences col pcon)
+      (assoc col :boost nboost))))</pre></td></tr><tr><td class="docs"><p>For each column, determines whether it has had too few activations
   -- relative to its neighbours -- in recent history. Boosting may be
   applied to boost either a column's input overlap (by increasing
   connections) or its share of activations after inhibition (by
@@ -3553,41 +3633,63 @@ map of the corresponding tuples.</p></li>
   [rgn t]
   (let [o-th (:boost-overlap-duty-ratio (:spec rgn))
         a-th (:boost-active-duty-ratio (:spec rgn))
-        period (:duty-cycle-period (:spec rgn))
         maxb (:max-boost (:spec rgn))
         pcon (:sp-perm-connected (:spec rgn))
-        rollcnt (fn [ss] (count (subseq ss &gt;= (- t period))))
-        ;; active duty cycle by column
-        ads-m (into {} (map (juxt :id (comp rollcnt :active-history)) (:columns rgn)))
-        ;; overlap duty cycle by column
-        ods-m (into {} (map (juxt :id (comp rollcnt :overlap-history)) (:columns rgn)))
+        ods (:overlap-duty-cycles rgn)
+        ads (:active-duty-cycles rgn)
         cols (mapv (fn [col]
-                     (column-update-boosting col ods-m ads-m o-th a-th maxb pcon))
+                     (column-update-boosting col ods ads o-th a-th maxb pcon))
                    (:columns rgn))]
-    (assoc rgn :columns cols)))</pre></td></tr><tr><td class="docs"><p>Trucates the time series recording activation and overlap
-   timesteps: <code>:active-history</code> and <code>:overlap-history</code>, which are
-   sorted sets. This is just to limit memory use.</p>
+    (assoc rgn :columns cols)))</pre></td></tr><tr><td class="docs"><p>Records a set of events with indices <code>is</code> in the vector <code>v</code>
+   according to duty cycle period <code>period</code>. As in NuPIC, the formula
+   is</p>
 
-<p>Not currently used, we just clear them completely after update.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn column-truncate-duty-cycle-history
-  [col t-horizon]
-  (let [trunc (fn [ss]
-                (let [t0 (first ss)]
-                  (if (and t0 (&lt; t0 t-horizon))
-                    (recur (disj ss t0))
-                    ss)))]
-    (-&gt; col
-        (update-in [:active-history] trunc)
-        (update-in [:overlap-history] trunc))))</pre></td></tr><tr><td class="docs"><p>Clears the time series of activation and overlap time steps stored
-   in each column. To limit memory use.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn clear-duty-cycle-history
-  [rgn]
-  (let [cols (-&gt;&gt; (:columns rgn)
-                  (mapv (fn [col]
-                          (-&gt; col
-                              (update-in [:active-history] empty)
-                              (update-in [:overlap-history] empty)))))]
-    (assoc rgn :columns cols)))</pre></td></tr><tr><td class="docs"><h2>Orchestration</h2>
+<p>```
+y[t] = (period-1) * y[t-1]  +  1
+       -------------------------
+         period
+```</p>
+</td><td class="codes"><pre class="brush: clojure">(defn update-duty-cycles
+  [v is period]
+  (let [d (/ 1.0 period)
+        decay (* d (dec period))]
+    (-&gt; (mapv #(* % decay) v)
+        (util/update-each is #(+ % d)))))</pre></td></tr><tr><td class="docs"><h2>Temporal Pooling</h2>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Finds columns with input from the <code>signal-in-set</code>, returning the
+   overlap scores in a map. As with normal overlaps they must meet
+   <code>stimulus-threshold</code> to be included. Also, only active
+   columns (column ids <code>as</code>) are considered.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn signal-overlaps
+  [rgn as signal-in-set]
+  (let [th (:stimulus-threshold (:spec rgn))
+        o-cols (map (partial get (:columns rgn)) as)]
+    (overlaps o-cols signal-in-set th)))</pre></td></tr><tr><td class="docs"><p>Selects a set of columns to be in a temporal pooling state,
+   returning a map from their column ids to an (adjusted) overlap
+   score -- which is used to compete for activation next time step.</p>
+
+<p>   <code>as</code> - set of active column ids.</p>
+
+<p>   <code>signal-in-set</code> - input set from predicted cells.</p>
+
+<p>   <code>prev-tpm</code> - temporal pooling overlap scores from previous step.</p>
+
+<p>   <code>om</code> - overlap scores from current feedforward input.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn temporal-pooling-scores
+  [rgn as signal-in-set prev-tpm om]
+  (let [amp (:temporal-pooling-amp (:spec rgn))
+        new-tpm (-&gt;&gt; (signal-overlaps rgn as signal-in-set)
+                     (util/remap (partial * amp)))
+        ;; if a previous TP column received a new dominant input
+        ;; then its TP status is interrupted (unless in new-tpm)
+        stopped-tps (keep (fn [[k v]] (when (&gt; (om k 0) v) k))
+                          prev-tpm)
+        ;; which of the previous TP columns became active?
+        ;; their TP status continues but overlap scores decay.
+        decay (:temporal-pooling-decay (:spec rgn))
+        kept-tpm (-&gt;&gt; (apply disj as stopped-tps)
+                      (select-keys prev-tpm)
+                      (util/remap (partial * decay)))]
+    (merge-with max new-tpm kept-tpm)))</pre></td></tr><tr><td class="docs"><h2>Orchestration</h2>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>Given a set of active input bits <code>in-set</code> and a region <code>rgn</code>,
    performs an iteration of the CLA spatial pooling algorithm:</p>
 
@@ -3595,31 +3697,41 @@ map of the corresponding tuples.</p></li>
 <li>increments the <code>:timestep</code>.</li>
 <li>maps column ids to overlap scores in <code>:overlaps</code>.</li>
 <li>calculates the set of active column ids <code>:active-columns</code>.</li>
+<li>updates TP columns mapped to overlap scores in <code>:temporal-pooling-scores</code>.</li>
 <li>performs the learning step by updating input synapse permanences.</li>
-<li>after every <code>duty-cycle-period</code> duration,
+<li><p>after every <code>duty-cycle-period</code> duration,</p>
+
 <ul><li>applies column boosting as needed</li>
-<li>clears history from each column</li>
 <li>recalculates the neighbours of each column according to the
-average receptive field size.</li></ul></li>
+average receptive field size.</li></ul>
+
+<p>The argument <code>signal-in-set</code> gives the subset of <code>in-set</code> that came
+from cells that correctly predicted their activation in lower
+layers. This is used for temporal pooling. Set to <code>#{}</code> to disable.</p></li>
 </ul>
 </td><td class="codes"><pre class="brush: clojure">(defn pooling-step
-  [rgn in-set learn?]
-  (let [t (inc (:timestep rgn 0))
-        dcp (:duty-cycle-period (:spec rgn))
-        boost? (and learn? (zero? (mod t dcp)))
-        neigh? (and learn? (zero? (mod t dcp)))]
-    (cond-&gt; rgn
-            true (assoc :timestep t)
-            true (update-overlaps in-set t)
-            true (update-active-columns t)
-            learn? (learn in-set)
-            boost? (update-boosting t)
-            boost? (clear-duty-cycle-history)
-            neigh? (update-neighbours))))</pre></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.sequence-memory" name="org.nfrac.comportex.sequence-memory"><h1 class="project-name">org.nfrac.comportex.sequence-memory</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>Sequence Memory as in the CLA (not temporal pooling!).</p>
-
-<p>   One difference from the Numenta white paper is that <em>predictive</em>
-   states are not calculated acrosss the whole region, only on active
-   columns to determine their active cells.</p>
+  ([rgn in-set learn?]
+     (pooling-step rgn in-set #{} learn?))
+  ([rgn in-set signal-in-set learn?]
+   (let [t (inc (:timestep rgn 0))
+         curr-om (all-overlaps rgn in-set)
+         prev-tpm (:temporal-pooling-scores rgn {})
+         om (merge-with max curr-om prev-tpm)
+         as (active-columns rgn om)
+         tpm (temporal-pooling-scores rgn as signal-in-set prev-tpm curr-om)
+         dcp (:duty-cycle-period (:spec rgn))
+         boost? (and learn? (zero? (mod t dcp)))]
+     (cond-&gt;
+      (assoc rgn
+        :timestep t
+        :overlaps om
+        :active-columns as
+        :temporal-pooling-scores tpm)
+      learn? (update-in [:overlap-duty-cycles] update-duty-cycles (keys om) dcp)
+      learn? (update-in [:active-duty-cycles] update-duty-cycles as dcp)
+      learn? (learn (filter curr-om as) in-set) ;; only learn if current feedforward input
+      boost? (update-boosting t)
+      boost? (update-neighbours)))))</pre></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.sequence-memory" name="org.nfrac.comportex.sequence-memory"><h1 class="project-name">org.nfrac.comportex.sequence-memory</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>Sequence Memory as in the CLA (not temporal pooling!).</p>
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.sequence-memory
   (:require [org.nfrac.comportex.util :as util :refer [count-filter]]
             [clojure.set :as set]))</pre></td></tr><tr><td class="docs"><p>Default parameter specification map for sequence memory. This gets
@@ -3640,6 +3752,8 @@ average receptive field size.</li></ul></li>
  when reinforcing dendrite segments.</p></li>
 <li><p><code>permanence-dec</code> - amount by which to decrease synapse permanence
  when reinforcing dendrite segments.</p></li>
+<li><p><code>punish?</code> - whether to negatively reinforce synapses on segments
+ incorrectly predicting activation.</p></li>
 </ul>
 </td><td class="codes"><pre class="brush: clojure">(def sequence-memory-defaults
   {:depth 8
@@ -3650,6 +3764,7 @@ average receptive field size.</li></ul></li>
    :connected-perm 0.50
    :permanence-inc 0.10
    :permanence-dec 0.10
+   :punish? true
    })</pre></td></tr><tr><td class="docs"><h2>Construction</h2>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>Constructs a cell, initially without any dendrite segments, at
    index <code>idx</code> in the column.</p>
@@ -3674,7 +3789,9 @@ average receptive field size.</li></ul></li>
       :spec spec
       :columns (mapv column-with-sequence-memory
                      (:columns rgn) (repeat spec)))))</pre></td></tr><tr><td class="docs"><h2>Activation</h2>
-</td><td class="codes"></td></tr><tr><td class="docs">
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Returns the number of active cells to which the segment is
+   connected, i.e. where synapse permanence is equal to or greater than
+   <code>pcon</code>.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn segment-activation
   [seg active-cells pcon]
   (count-filter (fn [[id p]]
@@ -3691,7 +3808,7 @@ average receptive field size.</li></ul></li>
                   (let [act (segment-activation seg active-cells pcon)]
                     (when (&gt;= act th)
                       (assoc seg :activation act :segment-idx i))))
-                (:segments cell)))</pre></td></tr><tr><td class="docs">
+                (:segments cell)))</pre></td></tr><tr><td class="docs"><p>Returns logical true if the cell has any active dendrite segments.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn cell-predictive?
   [cell active-cells spec]
   (let [act-th (:activation-threshold spec)
@@ -3747,18 +3864,26 @@ average receptive field size.</li></ul></li>
 <li><p><code>active-columns</code> - the set of active column ids (from the spatial
 pooling step)</p></li>
 <li><p><code>pred-cells</code> - the set of predicted cell ids from the previous
-iteration in a map keyed by column in.</p></li>
+iteration in a map keyed by column id.</p></li>
+<li><p><code>tp-cols</code> - the set of temporal pooling column ids.</p></li>
+<li><p><code>learn-cells</code> - the set of learn-state cells from the previous
+step, i.e. the active cells but with bursting columns having a
+single representative cell. These are the ones that continue to be
+active in temporal pooling.</p></li>
 </ul>
 </td><td class="codes"><pre class="brush: clojure">(defn active-cells-by-column
-  [rgn active-columns pred-cells]
-  (-&gt;&gt; active-columns
-       (map (fn [i]
-              (let [col (nth (:columns rgn) i)
-                    pcids (pred-cells i)
-                    burst? (empty? pcids)
-                    cids (if burst? (map :id (:cells col)) pcids)]
-                [i {:cell-ids cids :bursting? burst?}])))
-       (into {})))</pre></td></tr><tr><td class="docs"><h2>Learning</h2>
+  [rgn active-columns pred-cells tp-cols learn-cells]
+  (let [tpc (-&gt; (group-by (comp tp-cols first) learn-cells)
+                (dissoc nil))
+        pred-on-cells (merge pred-cells tpc)]
+    (-&gt;&gt; active-columns
+         (map (fn [i]
+                (let [col (nth (:columns rgn) i)
+                      pcids (pred-on-cells i)
+                      burst? (empty? pcids)
+                      cids (if burst? (map :id (:cells col)) pcids)]
+                  [i {:cell-ids cids :bursting? burst?}])))
+         (into {}))))</pre></td></tr><tr><td class="docs"><h2>Learning</h2>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>Returns the index of the segment in the cell having the most active
    synapses, together with its number of active synapses, in a map with
    keys <code>:segment-idx</code> and <code>:activation</code>. If no segments exist,
@@ -3825,14 +3950,19 @@ iteration in a map keyed by column in.</p></li>
                         (util/shuffle)
                         (take n))
           syns (map vector cell-ids (repeat (:initial-perm spec)))]
-      (update-in seg [:synapses] into syns))))</pre></td></tr><tr><td class="docs">
+      (update-in seg [:synapses] into syns))))</pre></td></tr><tr><td class="docs"><p>Adds a new segment to the cell with synapses to a selection of the
+   learn cells from previous time step, unless there are too few to
+   meet the minimum threshold.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn grow-new-segment
   [cell learn-cells spec]
   (let [[column-id _] (:id cell)
         n (:new-synapse-count spec)
         seg0 {:synapses {}}
         seg (grow-new-synapses seg0 column-id learn-cells n spec)]
-    (update-in cell [:segments] conj seg)))</pre></td></tr><tr><td class="docs">
+    (if (&lt; (count (:synapses seg))
+           (:min-threshold spec))
+      cell
+      (update-in cell [:segments] conj seg))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn segment-extend
   [seg cid active-cells learn-cells spec]
   (let [na (segment-activation seg active-cells 0.0) ;; include disconnected
@@ -3865,27 +3995,28 @@ iteration in a map keyed by column in.</p></li>
               (let [[cid idx] cell-id]
                 (update-in r [:columns cid :cells idx]
                            cell-punish prev-cells spec)))
-            rgn bad-cells)))</pre></td></tr><tr><td class="docs"><p>Removes any segments with fewer than the minimum number of synapses
-   required for activation.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn cull-segments
-  [rgn]
-  ;; TODO
-  (reduce (fn [r cid]
-            r)
-          rgn (:active-columns rgn)))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn column-learning-segment-and-cell
-  [col bursting? cell-ids learn-cells prev-active spec]
-  ;; only consider active cells
-  (let [cells (if bursting?
-                (:cells col)
-                (map (fn [[_ idx]] (nth (:cells col) idx))
-                     cell-ids))
-        ;; prefer cells that were activated from other &quot;learn&quot; cells
-        scl (best-matching-segment-and-cell cells learn-cells spec)]
-    (if (:segment-idx scl)
-      scl
-      ;; fall back to activation from all active cells
-      (best-matching-segment-and-cell cells prev-active spec))))</pre></td></tr><tr><td class="docs">
+            rgn bad-cells)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn column-learning-segments
+  [col bursting? cell-ids prev-active spec]
+  (if bursting?
+    (list (best-matching-segment-and-cell (:cells col) prev-active spec))
+    ;; predicted column - all active cells become learning cells
+    (let [pcon (:connected-perm spec)]
+      (for [cell-id cell-ids
+            :let [[_ idx] cell-id
+                  cell (nth (:cells col) idx)]]
+        (assoc (most-active-segment cell prev-active pcon)
+          :cell-id cell-id)))))</pre></td></tr><tr><td class="docs"><p>Removes any segments having less than the minimum number of
+   synapses required for activation.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn cell-cull-segments
+  [cell spec]
+  (let [th (:min-threshold spec)
+        csegs (remove (fn [s] (&lt; (count (:synapses s)) th))
+                      (:segments cell))]
+    (if (&lt; (count csegs)
+           (count (:segments cell)))
+      (assoc cell :segments (vec csegs))
+      cell)))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn cell-learn
   [cell seg-idx bursting? learn-cells prev-ac spec]
   (let [[cid _] (:id cell)]
@@ -3893,32 +4024,39 @@ iteration in a map keyed by column in.</p></li>
       ;; there is a matching segment, reinforce and/or extend it
       (update-in cell [:segments seg-idx]
                  (fn [seg]
-                   (cond-&gt; (segment-cull seg)
+                   (cond-&gt; seg
+                           true (segment-cull)
                            true (segment-reinforce prev-ac spec)
                            bursting? (segment-extend cid prev-ac learn-cells
                                                      spec))))
       ;; no matching segment, create a new one
-      (grow-new-segment cell learn-cells spec))))</pre></td></tr><tr><td class="docs">
+      ;; (also remove any unused ones)
+      (-&gt; cell
+          (cell-cull-segments spec)
+          (grow-new-segment learn-cells spec)))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn learn
   [rgn acbc ac burst-cols prev-ac prev-pc]
   (let [learn-cells (:learn-cells rgn #{})
         spec (:spec rgn)
         rgn0 (assoc rgn :learn-cells #{})]
-    (-&gt;
+    (cond-&gt;
      (reduce-kv (fn [r cid acm]
                   (let [col (get-in r [:columns cid])
                         bursting? (burst-cols cid)
-                        sc (column-learning-segment-and-cell
-                            col bursting? (:cell-ids acm) learn-cells prev-ac
-                            spec)
-                        [_ idx] (:cell-id sc)
-                        seg-idx (:segment-idx sc)]
-                    (-&gt; r
-                        (update-in [:columns cid :cells idx]
-                                   cell-learn seg-idx bursting? learn-cells
-                                   prev-ac spec)
-                        (update-in [:learn-cells] conj (:cell-id sc)))))
+                        scs (column-learning-segments
+                             col bursting? (:cell-ids acm) prev-ac
+                             spec)]
+                    (reduce (fn [r {seg-idx :segment-idx
+                                    [_ idx] :cell-id}]
+                              (-&gt; r
+                                  (update-in [:columns cid :cells idx]
+                                             cell-learn seg-idx bursting? learn-cells
+                                             prev-ac spec)
+                                  (update-in [:learn-cells] conj [cid idx])))
+                            r scs)))
                 rgn0 acbc)
+     ;; allow this phase of learning as an option
+     (:punish? spec)
      (punish ac prev-ac prev-pc))))</pre></td></tr><tr><td class="docs"><h2>Orchestration</h2>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>Given a set of active columns (from the spatial pooling step),
    performs an iteration of the CLA sequence memory algorithm:</p>
@@ -3931,6 +4069,8 @@ iteration in a map keyed by column in.</p></li>
  unpredicted inputs) and stores it in <code>:bursting-columns</code>.</li>
 <li>determines the set of predictive cells and stores it in
  <code>:predictive-cells</code>.</li>
+<li>determines the subset of active cells from non-bursting columns
+ and stores it in <code>:signal-cells</code>.</li>
 <li>if <code>learn?</code>, performs learning by forming and updating lateral
  connections (synapses on dendrite segments).</li>
 </ul>
@@ -3939,15 +4079,20 @@ iteration in a map keyed by column in.</p></li>
   (let [prev-ac (:active-cells rgn #{})
         prev-pc (:predictive-cells rgn #{})
         prev-pcbc (:predictive-cells-by-column rgn {})
-        acbc (active-cells-by-column rgn active-columns prev-pcbc)
-        new-ac (set (mapcat :cell-ids (vals acbc)))
+        tp-cols (set (keys (:temporal-pooling-scores rgn {})))
+        prev-lc (if learn? (:learn-cells rgn #{}) (:signal-cells rgn #{}))
+        acbc (active-cells-by-column rgn active-columns prev-pcbc tp-cols prev-lc)
         burst-cols (set (keep (fn [[i m]] (when (:bursting? m) i)) acbc))
+        new-ac (set (mapcat :cell-ids (vals acbc)))
+        signal-ac (set (mapcat :cell-ids
+                               (vals (apply dissoc acbc burst-cols))))
         pcbc (predictive-cells rgn new-ac)
         pc (set (mapcat val pcbc))]
     (cond-&gt;
      (assoc rgn
        :active-cells new-ac
        :bursting-columns burst-cols
+       :signal-cells signal-ac
        :predictive-cells pc
        :predictive-cells-by-column pcbc
        :prev-predictive-cells-by-column prev-pcbc)
@@ -4023,5 +4168,18 @@ iteration in a map keyed by column in.</p></li>
                  (assoc! m g (persistent! items)))
                (transient {}))
        ;; make the outer map persistent
-       (persistent!)))</pre></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr></table><div class="footer">Generated by <a href="https://github.com/fogus/marginalia">Marginalia</a>.&nbsp;&nbsp;Syntax highlighting provided by Alex Gorbatchev's <a href="http://alexgorbatchev.com/SyntaxHighlighter/">SyntaxHighlighter</a></div><script type="text/javascript">SyntaxHighlighter.defaults['gutter'] = false;
+       (persistent!)))</pre></td></tr><tr><td class="docs"><p>Transforms a map or vector <code>m</code> applying function <code>f</code> to the values
+   under keys <code>ks</code>.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn update-each
+  [m ks f]
+  (-&gt;&gt; ks
+       (reduce (fn [m k]
+                 (assoc! m k (f (get m k))))
+               (transient m))
+       (persistent!)))</pre></td></tr><tr><td class="docs"><p>Transforms a map <code>m</code> applying function <code>f</code> to each value.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn remap
+  [f m]
+  (-&gt;&gt; m
+       (mapv (juxt key (comp f val)))
+       (into (empty m))))</pre></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr></table><div class="footer">Generated by <a href="https://github.com/fogus/marginalia">Marginalia</a>.&nbsp;&nbsp;Syntax highlighting provided by Alex Gorbatchev's <a href="http://alexgorbatchev.com/SyntaxHighlighter/">SyntaxHighlighter</a></div><script type="text/javascript">SyntaxHighlighter.defaults['gutter'] = false;
        SyntaxHighlighter.all()</script></body></html>
