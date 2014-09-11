@@ -82,10 +82,13 @@
 
 (defprotocol PFeedForward
   "A feedforward input source with a bit set representation. Could be
-   sensory input or a lower level region."
+   sensory input or a lower level of regions."
   (bit-width [this])
   (bits-value* [this offset])
   (signal-bits-value* [this offset])
+  (source-of-bit [this i])
+  (incoming-bits-value [this])
+  (source-of-incoming-bit [this i])
   (feed-forward-step* [this learn?]))
 
 (defn bits-value
@@ -144,6 +147,9 @@
   (bit-width [_] (enc/encoder-bit-width encoder))
   (bits-value* [_ offset] (enc/encode encoder offset value))
   (signal-bits-value* [_ offset] #{})
+  (source-of-bit [_ i] [i])
+  (incoming-bits-value [this] (bits-value* this 0))
+  (source-of-incoming-bit [this i] [0 (source-of-bit this i)])
   (feed-forward-step* [this _] (assoc this :value (transform value)))
   PInputGenerator
   (domain-value [_] value)
@@ -176,6 +182,11 @@
   [offset depth [cid i]]
   (+ offset (* depth cid) i))
 
+(defn inbit->cell-id
+  [depth i]
+  [(quot i depth)
+   (rem i depth)])
+
 (defrecord RegionTree [region subs]
   PFeedForward
   (bit-width [_]
@@ -191,6 +202,20 @@
       (->> (signal-cells region)
            (mapv (partial cell-id->inbit offset depth))
            (into #{}))))
+  (source-of-bit [_ i]
+    (let [depth (n-cells-per-column region)]
+      (inbit->cell-id depth i)))
+  (incoming-bits-value [_]
+    (combined-bits-value subs bits-value*))
+  (source-of-incoming-bit [_ i]
+    (loop [sub-i 0
+           offset 0]
+      (when (< sub-i (count subs))
+        (let [sub (nth subs sub-i)
+              w (bit-width sub)]
+          (if (<= offset i (+ offset w -1))
+            [sub-i (source-of-bit sub (- i offset))]
+            (recur (inc sub-i) (+ offset (long w))))))))
   (feed-forward-step* [this learn?]
     (let [new-subs (map #(feed-forward-step* % learn?) subs)
           new-rgn (region-step region
