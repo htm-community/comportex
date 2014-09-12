@@ -63,12 +63,12 @@
    * `temporal-pooling-amp` - multiplier on the initial overlap score
      of temporal pooling columns; this increases the probability that
      TP cells will remain active."
-  {:ncol 400
-   :input-size 400
-   :potential-radius 80
+  {:input-size :define-me!
+   :ncol 2048
+   :potential-radius 128
    :potential-frac 0.5
-   :global-inhibition true
-   :activation-level 0.04
+   :global-inhibition false
+   :activation-level 0.02
    :sp-perm-inc 0.05
    :sp-perm-dec 0.01
    :sp-perm-connected 0.1
@@ -76,7 +76,7 @@
    :boost-overlap-duty-ratio 0.001
    :boost-active-duty-ratio 0.001
    :duty-cycle-period 1000
-   :max-boost 10.0
+   :max-boost 3.0
    :temporal-pooling-decay 0.9
    :temporal-pooling-amp 1.1
    })
@@ -464,7 +464,9 @@
          prev-tpm (:temporal-pooling-scores rgn {})
          om (merge-with max curr-om prev-tpm)
          as (active-columns rgn om)
-         tpm (temporal-pooling-scores rgn as signal-in-set prev-tpm curr-om)
+         tpm (if (seq signal-in-set)
+               (temporal-pooling-scores rgn as signal-in-set prev-tpm curr-om)
+               {})
          dcp (:duty-cycle-period (:spec rgn))
          boost? (and learn? (zero? (mod t dcp)))]
      (cond->

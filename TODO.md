@@ -1,9 +1,8 @@
 # TODO
 
 
-* support heirarchy of regions / layers
-
 * standardise naming
+  * ff-synapses
   * (CLA) region becomes layer?
 
 * unit tests
@@ -12,9 +11,15 @@
 
 ## pooling
 
-* allow columns arrayed in 2 dimensions
+* initialise ff synapses with only a small number connected;
+  the other potential connections having a triangular distribution
+
+* maintain an index from input bits to columns (by connected synapses).
+  (need to track which synapses become newly dis/connected.)
 
 * local inhibition selecting peaks over a moving average
+
+* allow columns arrayed in 2 dimensions (PTopology)
 
 ## sequence memory
 
@@ -33,7 +38,7 @@
 
 ## perf:
 * p/overlaps  (column-overlap)
-* p/column-update-in-synapses
-* sm/predictive-cells
+* p/active-columns-with-local-inhibition
 * p/active-columns (don't need full sort)
+* sm/predictive-cells
 

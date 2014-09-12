@@ -235,8 +235,7 @@
 
 (defn tree
   [build-region spec subs]
-  (-> (assoc spec :input-size (combined-bit-width subs)
-             :potential-radius (quot (combined-bit-width subs) 4)) ; TODO
+  (-> (assoc spec :input-size (combined-bit-width subs))
       (build-region)
       (region-tree subs)))
 

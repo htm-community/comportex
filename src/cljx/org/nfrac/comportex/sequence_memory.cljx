@@ -133,14 +133,15 @@
   [rgn pc]
   (let [pcids (keys pc)
         columns (:columns rgn)]
-    (reduce (fn [inb cid]
-              (let [col (columns cid)
-                    syns (:connected (:in-synapses col))]
-                (reduce (fn [inb i]
-                          (assoc inb i
-                                 (inc (inb i 0))))
-                        inb (keys syns))))
-            {} pcids)))
+    (->> pcids
+         (reduce (fn [m cid]
+                   (let [col (columns cid)
+                         syns (:connected (:in-synapses col))]
+                     (reduce (fn [m i]
+                               (assoc! m i (inc (get m i 0))))
+                             m (keys syns))))
+                 (transient {}))
+         (persistent!))))
 
 (defn predicted-bits
   "Returns the set of input bit indices which have at least `nmin`

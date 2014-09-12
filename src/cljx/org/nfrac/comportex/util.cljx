@@ -103,5 +103,5 @@
   "Transforms a map `m` applying function `f` to each value."
   [f m]
   (->> m
-       (mapv (juxt key (comp f val)))
+       (mapv (fn [[k v]] [k (f v)]))
        (into (empty m))))
