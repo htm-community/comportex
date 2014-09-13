@@ -90,7 +90,7 @@
 
 
 (comment
-  (require :reload 'org.nfrac.comportex.demos.mixed-gaps-1d)
+  (require :reload-all 'org.nfrac.comportex.demos.mixed-gaps-1d)
   (in-ns 'org.nfrac.comportex.demos.mixed-gaps-1d)
   (use 'clojure.repl)
 

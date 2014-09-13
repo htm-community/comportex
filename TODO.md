@@ -2,7 +2,6 @@
 
 
 * standardise naming
-  * ff-synapses
   * (CLA) region becomes layer?
 
 * unit tests
@@ -11,11 +10,7 @@
 
 ## pooling
 
-* initialise ff synapses with only a small number connected;
-  the other potential connections having a triangular distribution
-
-* maintain an index from input bits to columns (by connected synapses).
-  (need to track which synapses become newly dis/connected.)
+* restructure synapses to :connected :near :zero (so don't decrement zeros)?
 
 * local inhibition selecting peaks over a moving average
 
@@ -37,7 +32,6 @@
 
 
 ## perf:
-* p/overlaps  (column-overlap)
 * p/active-columns-with-local-inhibition
 * p/active-columns (don't need full sort)
 * sm/predictive-cells

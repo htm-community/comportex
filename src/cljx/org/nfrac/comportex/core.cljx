@@ -32,7 +32,7 @@
 
    * `:id` the column id, currently an integer index.
 
-   * `:in-synapses` storing the _feed-forward_ connections to this
+   * `:ff-synapses` storing the _feed-forward_ connections to this
      column, from the input source. Each connection has an associated
      _permanence_ value (between 0 and 1). For convenience the
      synapses are kept split between sub-keys `:connected` and

@@ -2,6 +2,10 @@
   (:require [cemerick.pprng :as rng])
   (:refer-clojure :exclude [rand rand-int rand-nth shuffle]))
 
+(defn abs
+  [x]
+  (if (neg? x) (- x) x))
+
 (defn round
   [x]
   (Math/round (double x)))
@@ -71,7 +75,8 @@
 
 (defn group-by-maps
   "Like the built-in group-by, but building maps instead of vectors
-   for the groups, and tuned for performance with many values per key."
+   for the groups, and tuned for performance with many values per key.
+   `f` is a function taking 2 arguments, the key and value."
   [f kvs]
   (->> kvs
        ;; create a transient map of transient maps
@@ -93,11 +98,13 @@
   "Transforms a map or vector `m` applying function `f` to the values
    under keys `ks`."
   [m ks f]
-  (->> ks
-       (reduce (fn [m k]
-                 (assoc! m k (f (get m k))))
-               (transient m))
-       (persistent!)))
+  (if-not (seq ks)
+    m
+    (->> ks
+         (reduce (fn [m k]
+                   (assoc! m k (f (get m k))))
+                 (transient m))
+         (persistent!))))
 
 (defn remap
   "Transforms a map `m` applying function `f` to each value."
