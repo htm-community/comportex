@@ -10,13 +10,17 @@
 
 ## pooling
 
-* restructure synapses to :connected :near :zero (so don't decrement zeros)?
+* don't need to store pred cells grouped by column (pcbc)
+
+* bias activation to columns with depolarised cells
 
 * local inhibition selecting peaks over a moving average
 
 * allow columns arrayed in 2 dimensions (PTopology)
 
 ## sequence memory
+
+* move predicted-bit-votes into pooling namespace
 
 * in choosing best-matching-segment-and-cell, break ties by permanence?
 
@@ -34,5 +38,4 @@
 ## perf:
 * p/active-columns-with-local-inhibition
 * p/active-columns (don't need full sort)
-* sm/predictive-cells
-
+* restructure synapses to :connected :near :zero (so don't decrement zeros)?

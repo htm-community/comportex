@@ -83,7 +83,7 @@
 
 ;;; ## Synapse indexing
 
-(defn build-ff-index
+(defn init-ff-index
   "Builds an internal index from each input bit to the set of columns
    connected to it. This speeds up overlaps calculations."
   [rgn]
@@ -121,11 +121,11 @@
                                        :down))
                                    (:disconnected syns))
         new-syns {:connected
-                  (merge (remap #(min (+ % pinc) 1.0) (:up g-conn))
+                  (merge (remap #(min (+ % pinc) 1.0) (:up g-conn {}))
                          (remap #(- % pdec) (:down g-conn))
                          (remap #(+ % pinc) (:promote g-disc)))
                   :disconnected
-                  (merge (remap #(max (- % pdec) 0.0) (:down g-disc))
+                  (merge (remap #(max (- % pdec) 0.0) (:down g-disc {}))
                          (remap #(+ % pinc) (:up g-disc))
                          (remap #(- % pdec) (:demote g-disc)))}
         new-ffi (-> (::ff-index rgn)
@@ -217,7 +217,7 @@
          :active-columns #{}
          :active-duty-cycles (vec (repeat (:ncol spec) 0))
          :overlap-duty-cycles (vec (repeat (:ncol spec) 0))}
-        (build-ff-index)
+        (init-ff-index)
         (update-neighbours))))
 
 ;;; ## Neighbouring columns

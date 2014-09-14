@@ -1,6 +1,7 @@
 (ns org.nfrac.comportex.sequence-memory
   "Sequence Memory as in the CLA (not temporal pooling!)."
-  (:require [org.nfrac.comportex.util :as util :refer [count-filter]]
+  (:require [org.nfrac.comportex.util :as util
+             :refer [count-filter remap]]
             [clojure.set :as set]))
 
 (def sequence-memory-defaults
@@ -41,7 +42,94 @@
    :punish? true
    })
 
-;; ## Construction
+;;; ## Synapse indexing
+
+(defn cell-uidx
+  [depth [cid ci]]
+  (+ ci (* cid depth)))
+
+(defn lateral-excitation-from
+  [rgn depth cell-id]
+  (let [uidx (cell-uidx depth cell-id)]
+    (get-in rgn [::lat-index uidx])))
+
+(defn init-lat-index
+  "Builds an internal index from each cell to the set of segments
+   `[cid ci si]` connected to it. This speeds up predictive cell
+   calculations."
+  [rgn]
+  (let [spec (:spec rgn)
+        depth (:depth spec)
+        n-cells (* depth (:ncol spec))]
+    (assoc rgn ::lat-index
+           (vec (repeat n-cells #{})))))
+
+(defn reinforce-lat-synapses
+  [rgn cid ci si skip? reinforce?]
+  (let [spec (:spec rgn)
+        pinc (:permanence-inc spec)
+        pdec (:permanence-dec spec)
+        pcon (:connected-perm spec)
+        syns (get-in rgn [:columns cid :cells ci :segments si :synapses])
+        sg (util/group-by-maps (fn [id2 p]
+                                 (if (skip? id2)
+                                   :skip
+                                   (if (reinforce? id2)
+                                     (if (>= p (- pcon pinc))
+                                       :promote :up)
+                                     (if (< p (+ pcon pdec))
+                                       :demote :down))))
+                               syns)
+        new-syns (merge (:skip sg)
+                        (remap #(min (+ % pinc) 1.0) (:up sg))
+                        (remap #(min (+ % pinc) 1.0) (:promote sg))
+                        (remap #(max (- % pdec) 0.0) (:down sg))
+                        (remap #(max (- % pdec) 0.0) (:demote sg)))
+        seg-path [cid ci si]
+        ->uidx (partial cell-uidx (:depth spec))
+        promote-uidxs (map ->uidx (keys (:promote sg)))
+        demote-uidxs (map ->uidx (keys (:demote sg)))
+        new-lati (-> (::lat-index rgn)
+                     (util/update-each promote-uidxs #(conj % seg-path))
+                     (util/update-each demote-uidxs #(disj % seg-path)))]
+    (-> rgn
+        (assoc-in [:columns cid :cells ci :segments si :synapses] new-syns)
+        (assoc ::lat-index new-lati))))
+
+(defn segment-reinforce
+  [rgn cid ci si active-cells]
+  (reinforce-lat-synapses rgn cid ci si (constantly false) active-cells))
+
+(defn segment-punish
+  [rgn cid ci si active-cells]
+  (reinforce-lat-synapses rgn cid ci si active-cells (constantly false)))
+
+(defn conj-lat-synapses
+  [rgn cid ci si syn-cell-ids]
+  (let [spec (:spec rgn)
+        pini (:initial-perm spec)
+        ->uidx (partial cell-uidx (:depth spec))
+        uidxs (map ->uidx syn-cell-ids)
+        seg-path [cid ci si]]
+    (-> rgn
+        (update-in [:columns cid :cells ci :segments si :synapses]
+                   merge (zipmap syn-cell-ids (repeat pini)))
+        (update-in [::lat-index]
+                   util/update-each uidxs #(conj % seg-path)))))
+
+(defn disj-lat-synapses
+  [rgn cid ci si syn-cell-ids]
+  (let [spec (:spec rgn)
+        ->uidx (partial cell-uidx (:depth spec))
+        uidxs (map ->uidx syn-cell-ids)
+        seg-path [cid ci si]]
+    (-> rgn
+        (update-in [:columns cid :cells ci :segments si :synapses]
+                   (fn [syns] (apply dissoc syns syn-cell-ids)))
+        (update-in [::lat-index]
+                   util/update-each uidxs #(disj % seg-path)))))
+
+;;; ## Construction
 
 (defn init-cell
   "Constructs a cell, initially without any dendrite segments, at
@@ -66,12 +154,13 @@
    `sequence-memory-defaults`."
   [rgn]
   (let [spec (merge sequence-memory-defaults (:spec rgn))]
-    (assoc rgn
-      :spec spec
-      :columns (mapv column-with-sequence-memory
-                     (:columns rgn) (repeat spec)))))
+    (-> (assoc rgn
+          :spec spec
+          :columns (mapv column-with-sequence-memory
+                         (:columns rgn) (repeat spec)))
+        (init-lat-index))))
 
-;; ## Activation
+;;; ## Activation
 
 (defn segment-activation
   "Returns the number of active cells to which the segment is
@@ -108,23 +197,21 @@
           true
           (recur (next segs)))))))
 
-(defn column-predictive-cells
-  [col active-cells spec]
-  (keep (fn [cell]
-          (when (cell-predictive? cell active-cells spec)
-            (:id cell)))
-        (:cells col)))
-
 (defn predictive-cells
-  "Returns all cell ids that are in the predictive state, in a map
-   grouped and keyed by column id."
+  "Returns the set of all cell ids that are in the predictive state
+   through lateral excitation."
   [rgn active-cells]
-  (->> (:columns rgn)
-       (keep (fn [col]
-               (let [cs (column-predictive-cells col active-cells (:spec rgn))]
-                 (when (seq cs)
-                   [(:id col) cs]))))
-       (into {})))
+  (let [spec (:spec rgn)
+        act-th (:activation-threshold spec)
+        depth (:depth spec)]
+    (->> active-cells
+         (mapcat (partial lateral-excitation-from rgn depth))
+         (frequencies)
+         (keep (fn [[k n]]
+                 (when (>= n act-th)
+                   (let [[cid ci _] k]
+                     [cid ci]))))
+         (into #{}))))
 
 (defn predicted-bit-votes
   "Returns a map from input bit index to the number of connections to
@@ -136,7 +223,7 @@
     (->> pcids
          (reduce (fn [m cid]
                    (let [col (columns cid)
-                         syns (:connected (:in-synapses col))]
+                         syns (:connected (:ff-synapses col))]
                      (reduce (fn [m i]
                                (assoc! m i (inc (get m i 0))))
                              m (keys syns))))
@@ -184,7 +271,7 @@
                   [i {:cell-ids cids :bursting? burst?}])))
          (into {}))))
 
-;; ## Learning
+;;; ## Learning
 
 (defn most-active-segment
   "Returns the index of the segment in the cell having the most active
@@ -221,95 +308,80 @@
       ;; no sufficient activation, return cell with fewest segments
       {:cell-id (:id (apply min-key (comp count :segments) cells))})))
 
-(defn segment-reinforce
-  [seg active-cells spec]
-  (let [pinc (:permanence-inc spec)
-        pdec (:permanence-dec spec)
-        syns (->> (:synapses seg)
-                  (map (fn [[id p]]
-                         (if (active-cells id)
-                           [id (min 1.0 (+ p pinc))]
-                           [id (max 0.0 (- p pdec))])))
-                  (into {}))]
-    (assoc seg :synapses syns)))
+(defn new-segment-id
+  [rgn cid ci]
+  (let [segs (get-in rgn [:columns cid :cells ci :segments])]
+    (or (some (fn [[si seg]]
+                (when (empty? (:synapses seg)) si))
+              (map-indexed vector segs))
+        (count segs))))
 
-(defn segment-punish
-  [seg active-cells spec]
-  (let [pdec (:permanence-dec spec)
-        syns (->> (:synapses seg)
-                  (map (fn [[id p]]
-                         (if (active-cells id)
-                           [id (max 0.0 (- p pdec))]
-                           [id p])))
-                  (into {}))]
-    (assoc seg :synapses syns)))
-
-(defn grow-new-synapses
-  [seg column-id learn-cells n spec]
-  (if-not (pos? n)
-    seg
-    (let [my-cols (->> (:synapses seg)
-                       (keys)
-                       (map first)
-                       (into #{column-id}))
-          cell-ids (->> learn-cells
-                        (remove (fn [[c _]] (my-cols c)))
-                        (util/shuffle)
-                        (take n))
-          syns (map vector cell-ids (repeat (:initial-perm spec)))]
-      (update-in seg [:synapses] into syns))))
+(defn- segment-new-synapse-cell-ids
+  [seg cid learn-cells n]
+  (let [syns (:synapses seg)
+        my-cols (->> (keys syns)
+                     (map first)
+                     (into #{cid}))]
+    (->> learn-cells
+         (remove (fn [[c _]] (my-cols c)))
+         (util/shuffle)
+         (take n))))
 
 (defn grow-new-segment
-  "Adds a new segment to the cell with synapses to a selection of the
+  "Adds a new segment on the cell with synapses to a selection of the
    learn cells from previous time step, unless there are too few to
    meet the minimum threshold."
-  [cell learn-cells spec]
-  (let [[column-id _] (:id cell)
+  [rgn cid ci learn-cells]
+  (let [spec (:spec rgn)
         n (:new-synapse-count spec)
-        seg0 {:synapses {}}
-        seg (grow-new-synapses seg0 column-id learn-cells n spec)]
-    (if (< (count (:synapses seg))
+        si (new-segment-id rgn cid ci)
+        seg (get-in rgn [:columns cid :cells ci :segments si])
+        syn-cell-ids (segment-new-synapse-cell-ids seg cid learn-cells n)]
+    (if (< (count syn-cell-ids)
            (:min-threshold spec))
-      cell
-      (update-in cell [:segments] conj seg))))
+      rgn
+      (conj-lat-synapses rgn cid ci si syn-cell-ids))))
 
 (defn segment-extend
-  [seg cid active-cells learn-cells spec]
-  (let [na (segment-activation seg active-cells 0.0) ;; include disconnected
-        n (- (:new-synapse-count spec) na)]
-    (grow-new-synapses seg cid learn-cells n spec)))
+  [rgn cid ci si active-cells learn-cells]
+  (let [seg [:columns cid :cells ci :segments si]
+        na (segment-activation seg active-cells 0.0) ;; include disconnected
+        n (- (:new-synapse-count (:spec rgn)) na)]
+    (if (pos? n)
+      (->> (segment-new-synapse-cell-ids seg cid learn-cells n)
+           (conj-lat-synapses rgn cid ci si))
+      rgn)))
 
-(defn segment-cull
+(defn cull-synapses
   "Remove synapses with zero permanence from the segment."
-  [seg]
-  (let [syns (:synapses seg)
-        new-syns (remove (comp zero? val) syns)]
-    (if (< (count new-syns) (count syns))
-      (assoc seg :synapses (into {} new-syns))
-      seg)))
+  [rgn cid ci si]
+  (let [seg (get-in rgn [:columns cid :cells ci :segments si])
+        syns (:synapses seg)
+        rm-ids (keep (fn [[id p]] (when (zero? p) id)) syns)]
+    (if (seq rm-ids)
+      (disj-lat-synapses rgn cid ci si rm-ids)
+      rgn)))
 
-(defn cell-punish
-  [cell prev-cells spec]
-  (let [th (:activation-threshold spec)
+(defn punish-cell
+  [rgn cid ci prev-cells]
+  (let [spec (:spec rgn)
+        th (:activation-threshold spec)
         pcon (:connected-perm spec)
-        as (cell-active-segments cell prev-cells th pcon)]
-    (reduce (fn [cell seg]
-              (let [i (:segment-idx seg)]
-                (update-in cell [:segments i]
-                           segment-punish prev-cells spec)))
-            cell as)))
+        cell (get-in rgn [:columns cid :cells ci])
+        asegs (cell-active-segments cell prev-cells th pcon)]
+    (reduce (fn [r seg]
+              (let [si (:segment-idx seg)]
+                (segment-punish r cid ci si prev-cells)))
+            rgn asegs)))
 
 (defn punish
   "Punish segments which predicted activation on cells which did
    not become active."
   [rgn active-cells prev-cells prev-pred-cells]
   (let [bad-cells (set/difference prev-pred-cells
-                                  active-cells)
-        spec (:spec rgn)]
-    (reduce (fn [r cell-id]
-              (let [[cid idx] cell-id]
-                (update-in r [:columns cid :cells idx]
-                           cell-punish prev-cells spec)))
+                                  active-cells)]
+    (reduce (fn [r [cid ci]]
+              (punish-cell r cid ci prev-cells))
             rgn bad-cells)))
 
 (defn column-learning-segments
@@ -324,36 +396,34 @@
         (assoc (most-active-segment cell prev-active pcon)
           :cell-id cell-id)))))
 
-(defn cell-cull-segments
-  "Removes any segments having less than the minimum number of
+(defn cull-segments
+  "Eliminates any segments having less than the minimum number of
    synapses required for activation."
-  [cell spec]
-  (let [th (:min-threshold spec)
-        csegs (remove (fn [s] (< (count (:synapses s)) th))
-                      (:segments cell))]
-    (if (< (count csegs)
-           (count (:segments cell)))
-      (assoc cell :segments (vec csegs))
-      cell)))
+  [rgn cid ci]
+  (let [th (:min-threshold (:spec rgn))
+        segs (get-in rgn [:columns cid :cells ci :segments])]
+    (reduce (fn [r [si seg]]
+              (let [syns (:synapses seg)
+                    n (count syns)]
+                (if (and (pos? n) (< n th))
+                  (disj-lat-synapses r cid ci si (keys syns))
+                  r)))
+            rgn
+            (map-indexed vector segs))))
 
-(defn cell-learn
-  ""
-  [cell seg-idx bursting? learn-cells prev-ac spec]
-  (let [[cid _] (:id cell)]
-    (if seg-idx
-      ;; there is a matching segment, reinforce and/or extend it
-      (update-in cell [:segments seg-idx]
-                 (fn [seg]
-                   (cond-> seg
-                           true (segment-cull)
-                           true (segment-reinforce prev-ac spec)
-                           bursting? (segment-extend cid prev-ac learn-cells
-                                                     spec))))
-      ;; no matching segment, create a new one
-      ;; (also remove any unused ones)
-      (-> cell
-          (cell-cull-segments spec)
-          (grow-new-segment learn-cells spec)))))
+(defn learn-on-segment
+  [rgn cid ci si bursting? learn-cells prev-ac]
+  (if si
+    ;; there is a matching segment, reinforce and/or extend it
+    (cond-> rgn
+            true (cull-synapses cid ci si)
+            true (segment-reinforce cid ci si prev-ac)
+            bursting? (segment-extend cid ci si prev-ac learn-cells))
+    ;; no matching segment, create a new one
+    ;; (also remove any unused ones)
+    (-> rgn
+        (cull-segments cid ci)
+        (grow-new-segment cid ci learn-cells))))
 
 (defn learn
   [rgn acbc ac burst-cols prev-ac prev-pc]
@@ -361,26 +431,23 @@
         spec (:spec rgn)
         rgn0 (assoc rgn :learn-cells #{})]
     (cond->
-     (reduce-kv (fn [r cid acm]
+     (reduce-kv (fn [r cid {col-ac :cell-ids}]
                   (let [col (get-in r [:columns cid])
                         bursting? (burst-cols cid)
                         scs (column-learning-segments
-                             col bursting? (:cell-ids acm) prev-ac
-                             spec)]
-                    (reduce (fn [r {seg-idx :segment-idx
-                                    [_ idx] :cell-id}]
-                              (-> r
-                                  (update-in [:columns cid :cells idx]
-                                             cell-learn seg-idx bursting? learn-cells
-                                             prev-ac spec)
-                                  (update-in [:learn-cells] conj [cid idx])))
+                             col bursting? col-ac prev-ac spec)]
+                    (reduce (fn [r {si :segment-idx
+                                   [_ ci] :cell-id}]
+                              (-> (learn-on-segment r cid ci si bursting?
+                                                    learn-cells prev-ac)
+                                  (update-in [:learn-cells] conj [cid ci])))
                             r scs)))
                 rgn0 acbc)
      ;; allow this phase of learning as an option
      (:punish? spec)
      (punish ac prev-ac prev-pc))))
 
-;; ## Orchestration
+;;; ## Orchestration
 
 (defn sequence-memory-step
   "Given a set of active columns (from the spatial pooling step),
@@ -408,8 +475,8 @@
         new-ac (set (mapcat :cell-ids (vals acbc)))
         signal-ac (set (mapcat :cell-ids
                                (vals (apply dissoc acbc burst-cols))))
-        pcbc (predictive-cells rgn new-ac)
-        pc (set (mapcat val pcbc))]
+        pc (predictive-cells rgn new-ac)
+        pcbc (util/group-by-sets first pc)]
     (cond->
      (assoc rgn
        :active-cells new-ac

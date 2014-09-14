@@ -74,9 +74,10 @@
           0 coll))
 
 (defn group-by-maps
-  "Like the built-in group-by, but building maps instead of vectors
-   for the groups, and tuned for performance with many values per key.
-   `f` is a function taking 2 arguments, the key and value."
+  "Like the built-in group-by, but taking key-value pairs and building
+   maps instead of vectors for the groups. It is tuned for performance
+   with many values per key. `f` is a function taking 2 arguments, the
+   key and value."
   [f kvs]
   (->> kvs
        ;; create a transient map of transient maps
@@ -84,6 +85,26 @@
                  (let [g (f k v)
                        items (get m g (transient {}))]
                    (assoc! m g (assoc! items k v))))
+               (transient {}))
+       ;; make the outer map persistent (can't seq it)
+       (persistent!)
+       ;; make the inner maps persistent within a transient outer map
+       (reduce (fn [m [g items]]
+                 (assoc! m g (persistent! items)))
+               (transient {}))
+       ;; make the outer map persistent
+       (persistent!)))
+
+(defn group-by-sets
+  "Like the built-in group-by, but building sets instead of vectors
+   for the groups, and tuned for performance with many values per key."
+  [f coll]
+  (->> coll
+       ;; create a transient map of transient sets
+       (reduce (fn [m x]
+                 (let [g (f x)
+                       items (get m g (transient #{}))]
+                   (assoc! m g (conj! items x))))
                (transient {}))
        ;; make the outer map persistent (can't seq it)
        (persistent!)
