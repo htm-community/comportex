@@ -62,7 +62,7 @@
   {:ncol 1000
    :potential-radius 128
    :activation-level 0.03
-   :global-inhibition true
+   :global-inhibition false
    :stimulus-threshold 3
    :sp-perm-inc 0.05
    :sp-perm-dec 0.01
@@ -107,7 +107,7 @@
        (remove :region)
        ;; for now, assume only one input)
        (first)))
-  
+
   (def m1k
     (->> (iterate core/feed-forward-step (model))
          (map (fn [m]

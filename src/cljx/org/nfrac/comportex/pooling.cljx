@@ -1,7 +1,7 @@
 (ns org.nfrac.comportex.pooling
   "Currently this implements Spatial Pooling as in the CLA."
   (:require [org.nfrac.comportex.util :as util
-             :refer [round mean count-filter remap]]))
+             :refer [abs round mean count-filter remap]]))
 
 (def spatial-pooler-defaults
   "Default parameter specification map for spatial pooling. Mostly
@@ -196,10 +196,9 @@
   [id spec]
   {:id id
    :ff-synapses (init-ff-synapses id spec)
-   :neighbours #{} ;; cache
    :boost 1.0})
 
-(declare update-neighbours)
+(declare update-neighbour-radius)
 
 (defn region
   "Constructs a region (as in the CLA) with the given specification
@@ -218,9 +217,18 @@
          :active-duty-cycles (vec (repeat (:ncol spec) 0))
          :overlap-duty-cycles (vec (repeat (:ncol spec) 0))}
         (init-ff-index)
-        (update-neighbours))))
+        (update-neighbour-radius))))
 
 ;;; ## Neighbouring columns
+
+(defn neighbours
+  "Returns the column ids within `outer-r`adius in column space of
+   this column `cid`, but excluding any within `inner-r`adius."
+  [cid outer-r inner-r ncol]
+  (concat (range (min (+ cid inner-r 1) ncol)
+                 (min (+ cid outer-r 1) ncol))
+          (range (max (- cid outer-r) 0)
+                 (max (- cid inner-r) 0))))
 
 (defn column-receptive-field-size
   "Returns the span over the input bit array to which this column has
@@ -235,30 +243,27 @@
   [rgn]
   (mean (map column-receptive-field-size (:columns rgn))))
 
-(defn neighbours
-  "Returns the set of column ids within radius `r` in column space of
-   this column `col-id`, not including itself."
-  [col-id ncol r]
-  (disj (set (range (max 0 (- col-id r))
-                    (min ncol (+ col-id r 1))))
-        col-id))
-
-(defn update-neighbours
-  "Recalculates the `:neighbours` of each column in the region, by
-   first recalculating the average receptive field size."
+(defn neighbour-radius
+  "The radius in column space defining neighbouring columns, based on
+   the average receptive field size. Specifically, neighbouring
+   columns are defined by sharing at least 30% of their receptive
+   fields, on average."
   [rgn]
   (let [spec (:spec rgn)
         nin (:input-size spec)
         ncol (:ncol spec)
+        shared-frac 0.3
         arfs (avg-receptive-field-size rgn)
-        diameter (round (* ncol (/ arfs nin)))
-        radius (quot diameter 2)
-        cols (mapv (fn [col]
-                     (assoc col :neighbours
-                            (neighbours (:id col) ncol radius)))
-                   (:columns rgn))]
-    (assoc rgn :columns cols
-           :avg-receptive-field-size radius)))
+        cols-diameter (round (* ncol (/ arfs nin)))
+        shared-diameter (* cols-diameter (- 1.0 shared-frac))]
+    ;; diameter -> radius
+    (-> (quot shared-diameter 2)
+        (round)
+        (max 1))))
+
+(defn update-neighbour-radius
+  [rgn]
+  (assoc rgn :neighbour-radius (neighbour-radius rgn)))
 
 ;;; ## Overlaps
 
@@ -294,55 +299,98 @@
 
 ;;; ## Activation
 
-(defn column-active-with-local-inhibition?
-  "Given the map of column overlap scores `om`, and the target
-   activation rate `level`, decides whether the column should become
-   active. A false value indicates that the column is supressed by
-   local inhibition from its neighbours."
-  [col om level]
-  (when-let [o-val (om (:id col))]
-    (let [ns (:neighbours col)
-          activity-limit (-> (* level (inc (count ns)))
-                             (round)
-                             (max 1))]
-      (if (< (count-filter om ns) activity-limit)
-        ;; no inhibition within neighbourhood
-        true
-        ;; inhibition within neighbourhood;
-        ;; check number of neighbouring columns dominating col
-        (let [o-val* (+ o-val (util/rand -0.1 0.1)) ;; break ties
-              n-over (count-filter #(> (om % 0) o-val*) ns)]
-          (< n-over activity-limit))))))
-
-(defn active-columns-with-local-inhibition
-  "Returns the set of column ids which should become active given the
-   map of column overlap scores `om`, and the target activation rate
-   `level`. Local inhibition is applied."
-  [rgn om level]
-  (->> (:columns rgn)
-       (keep (fn [col]
-               (when (column-active-with-local-inhibition? col om level)
-                 (:id col))))
-       (into #{})))
-
 (defn active-columns-with-global-inhibition
   "Returns the set of column ids which should become active given the
    map of column overlap scores `om`, and the target activation rate
    `level`. Global inhibition is applied, i.e. the top N columns by
    overlap score are selected."
   [rgn om level]
-  (let [activity-limit (-> (* level (count (:columns rgn)))
-                           (round)
-                           (max 1))]
-    (if (<= (count om) activity-limit)
-      ;; no inhibition
-      (set (keys om))
-      ;; inhibition
-      (->> om
-           (sort-by val >)
-           (take activity-limit)
-           (map first)
-           (set)))))
+  (let [n-on (-> (* level (count (:columns rgn)))
+                 (round)
+                 (max 1))]
+    (loop [oms (seq om)
+           am (sorted-map-by #(compare (om %1) (om %2)))
+           curr-min 1000000.0]
+      (if (empty? oms)
+        (set (keys am))
+        (let [[cid o] (first oms)]
+          (cond
+           ;; just initialising the set
+           (< (count am) n-on)
+           (recur (next oms)
+                  (assoc am cid o)
+                  (double (min curr-min o)))
+           ;; include this one, dominates previous min
+           (> o curr-min)
+           (let [new-am (-> (dissoc am (first (keys am)))
+                            (assoc cid o))]
+             (recur (next oms)
+                    new-am
+                    (double (first (vals new-am)))))
+           ;; exclude this one
+           :else
+           (recur (next oms) am curr-min)))))))
+
+(defn dominant-overlap-diff
+  [cid n-cid]
+  (let [away (util/abs (- cid n-cid))]
+   (-> away
+       (- 4) ; within this radius, there can be only one
+       (max 0)
+       (/ 2.0)))) ; for every 2 columns away, need one extra overlap to dominate
+
+(defn map->vec
+  [n m]
+  (mapv m (range n)))
+
+(defn vec->map
+  [v]
+  (persistent!
+   (reduce-kv (fn [m i x]
+                (if x
+                  (assoc! m i x)
+                  m))
+              (transient {}) v)))
+
+(defn apply-local-inhibition
+  [om rgn outer-radius inner-radius]
+  (let [cols (:columns rgn)
+        ncol (count cols)]
+    (loop [cids (keys om)
+           mask (transient (map->vec ncol om))]
+      (if-let [cid (first cids)]
+        (if-let [o (mask cid)]
+          (recur
+           (next cids)
+           ;; loop through neighbours and mask out any dominated
+           (loop [ns (neighbours cid outer-radius inner-radius ncol)
+                  mask mask]
+             (if-let [n-cid (first ns)]
+               (if-let [no (mask n-cid)]
+                 (let [odom (dominant-overlap-diff cid n-cid)]
+                   (cond
+                    ;; neighbour is dominated
+                    (>= o (+ no odom))
+                    (recur (next ns)
+                           (assoc! mask n-cid nil))
+                    ;; we are dominated by neighbour; abort
+                    (<= o (- no odom))
+                    (assoc! mask cid nil)
+                    ;; neither dominates
+                    :else
+                    (recur (next ns) mask)))
+                 ;; neighbour has no overlap or was eliminated
+                 (recur (next ns) mask))
+               ;; finished with neighbours
+               mask)))
+          ;; already eliminated, skip
+          (recur (next cids) mask))
+        ;; finished
+        (vec->map (persistent! mask))))))
+
+(defn perturb-overlaps
+  [om]
+  (remap #(+ % (util/rand 0 0.5)) om))
 
 (defn active-columns
   "Returns the set of column ids which should become active given the
@@ -350,10 +398,13 @@
    specification key `:global-inhibition`."
   [rgn om]
   (let [spec (:spec rgn)
-        level (:activation-level spec)]
-    (if (:global-inhibition spec)
-      (active-columns-with-global-inhibition rgn om level)
-      (active-columns-with-local-inhibition rgn om level))))
+        level (:activation-level spec)
+        do-local? (not (:global-inhibition spec))
+        radius (:neighbour-radius rgn)
+        omi (cond-> (perturb-overlaps om)
+                    do-local? (apply-local-inhibition rgn (quot radius 3) 0)
+                    do-local? (apply-local-inhibition rgn radius (quot radius 3)))]
+    (active-columns-with-global-inhibition rgn omi level)))
 
 ;;; ## Learning
 
@@ -381,14 +432,14 @@
         pcon (:sp-perm-connected (:spec rgn))
         ods (:overlap-duty-cycles rgn)
         ads (:active-duty-cycles rgn)
-        col (get-in rgn [:columns cid])
-        ns (:neighbours col)
+        ncol (count (:columns rgn))
+        ns (neighbours cid (:neighbour-radius rgn) 0 ncol)
         max-od (apply max 1 (vals (select-keys ods ns)))
         max-ad (apply max 1 (vals (select-keys ads ns)))
         crit-od (* o-th max-od)
         crit-ad (* a-th max-ad)
-        od (get ods (:id col))
-        ad (get ads (:id col))
+        od (get ods cid)
+        ad (get ads cid)
         nboost (-> (- maxb (* (- maxb 1)
                               (/ ad crit-ad)))
                    (max 1.0)
@@ -493,4 +544,4 @@
       learn? (update-in [:active-duty-cycles] update-duty-cycles as dcp)
       learn? (learn (filter curr-om as) in-set) ;; only learn if current input
       boost? (update-boosting)
-      boost? (update-neighbours)))))
+      boost? (update-neighbour-radius)))))

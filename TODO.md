@@ -14,8 +14,6 @@
 
 * bias activation to columns with depolarised cells
 
-* local inhibition selecting peaks over a moving average
-
 * allow columns arrayed in 2 dimensions (PTopology)
 
 ## sequence memory
@@ -34,8 +32,9 @@
 
 * limit lateral synapses to within a radius 
 
+* start small! (#cells / sequence length)
+
 
 ## perf:
-* p/active-columns-with-local-inhibition
-* p/active-columns (don't need full sort)
 * restructure synapses to :connected :near :zero (so don't decrement zeros)?
+* update-ff-synapses group-by-maps
