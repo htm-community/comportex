@@ -108,14 +108,16 @@
   [rgn cid ci si syn-cell-ids]
   (let [spec (:spec rgn)
         pini (:initial-perm spec)
+        pcon (:connected-perm spec)
         ->uidx (partial cell-uidx (:depth spec))
         uidxs (map ->uidx syn-cell-ids)
         seg-path [cid ci si]]
-    (-> rgn
-        (update-in [:columns cid :cells ci :segments si :synapses]
-                   merge (zipmap syn-cell-ids (repeat pini)))
-        (update-in [::lat-index]
-                   util/update-each uidxs #(conj % seg-path)))))
+    (cond->
+     (update-in rgn [:columns cid :cells ci :segments si :synapses]
+                merge (zipmap syn-cell-ids (repeat pini)))
+     (>= pini pcon)
+     (update-in [::lat-index]
+                util/update-each uidxs #(conj % seg-path)))))
 
 (defn disj-lat-synapses
   [rgn cid ci si syn-cell-ids]
@@ -255,7 +257,7 @@
   * `tp-cols` - the set of temporal pooling column ids.
 
   * `learn-cells` - the set of learn-state cells from the previous
-    step, i.e. the active cells but with bursting columns having a
+    step, i.e. the active cells, but with bursting columns having a
     single representative cell. These are the ones that continue to be
     active in temporal pooling."
   [rgn active-columns pred-cells tp-cols learn-cells]

@@ -254,10 +254,11 @@
         ncol (:ncol spec)
         shared-frac 0.3
         arfs (avg-receptive-field-size rgn)
-        cols-diameter (round (* ncol (/ arfs nin)))
-        shared-diameter (* cols-diameter (- 1.0 shared-frac))]
-    ;; diameter -> radius
-    (-> (quot shared-diameter 2)
+        ;; columns in this range will have some overlap of inputs
+        cols-diameter (* ncol (/ arfs nin))
+        cols-radius (quot cols-diameter 2)]
+    ;; to share a given fraction of receptive fields
+    (-> (* cols-radius (- 1.0 shared-frac))
         (round)
         (max 1))))
 
@@ -520,7 +521,7 @@
 
    The argument `signal-in-set` gives the subset of `in-set` that came
    from cells that correctly predicted their activation in lower
-   layers. This is used for temporal pooling. Set to `#{}` to disable."
+   layers. This is used for temporal pooling."
   ([rgn in-set learn?]
      (pooling-step rgn in-set #{} learn?))
   ([rgn in-set signal-in-set learn?]
