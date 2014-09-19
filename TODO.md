@@ -3,14 +3,44 @@
 
 * standardise naming
   * (CLA) region becomes layer?
+  * coli, celi, segi   cell-id
+
+* protocols to abstract over mess in region maps
+
+* rethink data structures
+  * if need column lookup, use a map {cid ci} rather than a set of [cid ci]
 
 * unit tests
 * property-based testing (clojure.test.check)
 * repeatability - store random seeds in objs?
 
+## core
+
+region-seq
+subtree-seq
+input-seq?
+
 ## pooling
 
-* don't need to store pred cells grouped by column (pcbc)
+* higher regions need a larger potential pool because the source
+  activation is so sparse.
+  * assuming activation is uniform:
+    * potential-span = n-local-active / (sparsity * potential-frac)
+    * so for n-local-active = 3, sparsity = 0.2%, potential-span = 3000
+  * it seems wrong to maintain such a big potential pool set
+    * use an implicit potential pool, same as lateral activation
+      * extending / shrinking the segment
+    * avoids the need to specify potential-radius
+
+* higher-levels regions only grow ff-synapses to learn-cells from below?
+  (otherwise typically grow to all cells of a bursting column)
+
+* don't need to store pred cells grouped by column (pcbc)?
+
+* local activation - start from closest, loop outwards
+* local activation - adapt inhibition strength (or stimulus threshold)  to tune activation level
+
+* turn off temporal pooling when no input
 
 * bias activation to columns with depolarised cells
 
@@ -18,23 +48,24 @@
 
 ## sequence memory
 
+* probably only one predicted cell per column will fire and inhibit others
+* only one learn cell per column
+
 * move predicted-bit-votes into pooling namespace
 
 * in choosing best-matching-segment-and-cell, break ties by permanence?
 
 * only update synapses when cells turn on/off? (not when continuing?)
 
-* limits
-  * fixed-size CLA; and/or
-  * global decay of segments       ;; avoid - long-term memory is good?
-* avoid over-saturated predictive states (almost bursting)
-* prediction confidence, based on duty cycle / permanences
+* limit number of synapses per segment
 
-* limit lateral synapses to within a radius 
+* limit number of segments
+
+* limit lateral synapses to within a radius
 
 * start small! (#cells / sequence length)
 
+## perf
 
-## perf:
-* restructure synapses to :connected :near :zero (so don't decrement zeros)?
-* update-ff-synapses group-by-maps
+* data.int-map
+* reducers

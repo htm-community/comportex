@@ -476,7 +476,7 @@
 ;; ## Temporal Pooling
 
 (defn temporal-pooling-scores
-  "Selects a set of columns to be in a temporal pooling state,
+  "Selects a subset of active columns to be in a temporal pooling state,
    returning a map from their column ids to an (adjusted) overlap
    score -- which is used to compete for activation next time step.
 
@@ -486,17 +486,18 @@
 
    `prev-tpm` - temporal pooling overlap scores from previous step.
 
-   `om` - overlap scores from current feedforward input."
-  [rgn as signal-in-set prev-tpm om]
+   `curr-om` - overlap scores from current feedforward input."
+  [rgn as signal-in-set prev-tpm curr-om]
   (let [amp (:temporal-pooling-amp (:spec rgn))
-        new-tpm (->> (all-overlaps rgn signal-in-set)
+        sig-om (all-overlaps rgn signal-in-set)
+        new-tpm (->> (select-keys sig-om as)
                      (remap (partial * amp)))
         ;; if a previous TP column received a new dominant input
         ;; then its TP status is interrupted (unless in new-tpm)
-        stopped-tps (keep (fn [[k v]] (when (> (om k 0) v) k))
+        stopped-tps (keep (fn [[k v]] (when (> (curr-om k 0) v) k))
                           prev-tpm)
-        ;; which of the previous TP columns became active?
-        ;; their TP status continues but overlap scores decay.
+        ;; which of the previous TP columns became (remained) active?
+        ;; their TP status continues, and overlap scores decay.
         decay (:temporal-pooling-decay (:spec rgn))
         kept-tpm (->> (apply disj as stopped-tps)
                       (select-keys prev-tpm)

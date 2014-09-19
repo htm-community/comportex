@@ -59,9 +59,7 @@
                       (enc/linear-encoder bit-width on-bits numb-domain))))
 
 (def spec
-  {:ncol 1000
-   :potential-radius 128
-   :activation-level 0.03
+  {:activation-level 0.02
    :global-inhibition false
    :stimulus-threshold 3
    :sp-perm-inc 0.05
@@ -83,8 +81,8 @@
 (defn ^:export model
   []
   (let [gen (core/input-generator (initial-input) input-transform encoder)]
-    (core/tree core/cla-region (assoc spec :ncol 500)
-               [(core/tree core/cla-region spec
+    (core/tree core/cla-region (assoc spec :ncol 1000, :potential-radius 800)
+               [(core/tree core/cla-region (assoc spec :ncol 1000 :potential-radius 50)
                            [gen])])))
 
 
