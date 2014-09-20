@@ -11,6 +11,10 @@
 
    * `depth` - number of cells per column.
 
+   * `max-segments` - maximum number of segments per cell.
+
+   * `max-synapse-count` - maximum number of synapses per segment.
+
    * `new-synapse-count` - number of synapses on a new dendrite
      segment.
 
@@ -32,6 +36,8 @@
    * `punish?` - whether to negatively reinforce synapses on segments
      incorrectly predicting activation."
   {:depth 8
+   :max-segments 5
+   :max-synapse-count 22
    :new-synapse-count 15
    :activation-threshold 12
    :min-threshold 8
@@ -75,16 +81,20 @@
                                  (if (skip? id2)
                                    :skip
                                    (if (reinforce? id2)
-                                     (if (>= p (- pcon pinc))
-                                       :promote :up)
-                                     (if (< p (+ pcon pdec))
-                                       :demote :down))))
+                                     (cond
+                                      (== p 1.0) :skip
+                                      (>= p (- pcon pinc)) :promote
+                                      :else :up)
+                                     (cond
+                                      (<= p pdec) :zero
+                                      (< p (+ pcon pdec)) :demote
+                                      :else :down))))
                                syns)
         new-syns (merge (:skip sg)
                         (remap #(min (+ % pinc) 1.0) (:up sg))
                         (remap #(min (+ % pinc) 1.0) (:promote sg))
-                        (remap #(max (- % pdec) 0.0) (:down sg))
-                        (remap #(max (- % pdec) 0.0) (:demote sg)))
+                        (remap #(- % pdec) (:down sg))
+                        (remap #(- % pdec) (:demote sg)))
         seg-path [cid ci si]
         ->uidx (partial cell-uidx (:depth spec))
         promote-uidxs (map ->uidx (keys (:promote sg)))
@@ -104,21 +114,6 @@
   [rgn cid ci si active-cells]
   (reinforce-lat-synapses rgn cid ci si active-cells (constantly false)))
 
-(defn conj-lat-synapses
-  [rgn cid ci si syn-cell-ids]
-  (let [spec (:spec rgn)
-        pini (:initial-perm spec)
-        pcon (:connected-perm spec)
-        ->uidx (partial cell-uidx (:depth spec))
-        uidxs (map ->uidx syn-cell-ids)
-        seg-path [cid ci si]]
-    (cond->
-     (update-in rgn [:columns cid :cells ci :segments si :synapses]
-                merge (zipmap syn-cell-ids (repeat pini)))
-     (>= pini pcon)
-     (update-in [::lat-index]
-                util/update-each uidxs #(conj % seg-path)))))
-
 (defn disj-lat-synapses
   [rgn cid ci si syn-cell-ids]
   (let [spec (:spec rgn)
@@ -130,6 +125,29 @@
                    (fn [syns] (apply dissoc syns syn-cell-ids)))
         (update-in [::lat-index]
                    util/update-each uidxs #(disj % seg-path)))))
+
+(defn conj-lat-synapses
+  [rgn cid ci si syn-cell-ids]
+  (let [spec (:spec rgn)
+        pini (:initial-perm spec)
+        pcon (:connected-perm spec)
+        max-syns (:max-synapse-count spec)
+        ->uidx (partial cell-uidx (:depth spec))
+        uidxs (map ->uidx syn-cell-ids)
+        seg-path [cid ci si]
+        osyns (get-in rgn [:columns cid :cells ci :segments si :synapses])
+        syns (merge osyns (zipmap syn-cell-ids (repeat pini)))]
+    (cond->
+     (assoc-in rgn [:columns cid :cells ci :segments si :synapses]
+               syns)
+     (>= pini pcon)
+     (update-in [::lat-index]
+                util/update-each uidxs #(conj % seg-path))
+     (> (count syns) max-syns)
+     (disj-lat-synapses cid ci si
+                        (->> (sort-by val syns)
+                             (keys)
+                             (take (- (count syns) max-syns)))))))
 
 ;;; ## Construction
 
@@ -305,12 +323,32 @@
       {:cell-id (:id (apply min-key (comp count :segments) cells))})))
 
 (defn new-segment-id
+  "Returns a segment index on the cell at which to grow a new segment.
+   It may refer to the end of the existing vector to append to it, or
+   it may refer to an existing segment that is to be culled before the
+   new one grows. If the maximum number of segments has been reached,
+   an existing one is chosen to be replaced based on having the fewest
+   connected synapses, or fewest synapses to break ties."
   [rgn cid ci]
-  (let [segs (get-in rgn [:columns cid :cells ci :segments])]
-    (or (some (fn [[si seg]]
-                (when (empty? (:synapses seg)) si))
-              (map-indexed vector segs))
-        (count segs))))
+  (let [spec (:spec rgn)
+        max-segs (:max-segments spec)
+        max-syns (:max-synapse-count spec)
+        min-syns (:min-threshold spec)
+        pcon (:connected-perm spec)
+        segs (get-in rgn [:columns cid :cells ci :segments])]
+    (if (>= (count segs) max-segs)
+      ;; select the one with fewest connected synapses or fewest synapses
+      (apply min-key (fn [si]
+                       (let [syns (:synapses (get segs si))]
+                         (+ (count-filter #(>= % pcon) (vals syns))
+                            (/ (count syns) max-syns))))
+             (range (count segs)))
+      ;; have not reached limit; choose any dead segment or append
+      (or (some (fn [[si seg]]
+                  (when (< (count (:synapses seg)) min-syns)
+                    si))
+                (map-indexed vector segs))
+          (count segs)))))
 
 (defn- segment-new-synapse-cell-ids
   [seg cid learn-cells n]
@@ -323,6 +361,10 @@
          (util/shuffle)
          (take n))))
 
+(defn new-segment
+  []
+  {:synapses {}})
+
 (defn grow-new-segment
   "Adds a new segment on the cell with synapses to a selection of the
    learn cells from previous time step, unless there are too few to
@@ -330,13 +372,17 @@
   [rgn cid ci learn-cells]
   (let [spec (:spec rgn)
         n (:new-synapse-count spec)
+        min-syns (:min-threshold spec)
         si (new-segment-id rgn cid ci)
-        seg (get-in rgn [:columns cid :cells ci :segments si])
-        syn-cell-ids (segment-new-synapse-cell-ids seg cid learn-cells n)]
-    (if (< (count syn-cell-ids)
-           (:min-threshold spec))
+        seg0 (new-segment)
+        syn-cell-ids (segment-new-synapse-cell-ids seg0 cid learn-cells n)]
+    (if (< (count syn-cell-ids) min-syns)
       rgn
-      (conj-lat-synapses rgn cid ci si syn-cell-ids))))
+      ;; clear out any existing synapses first
+      (let [osyns (get-in rgn [:columns cid :cells ci :segments si :synapses])]
+        (cond-> rgn
+                (seq osyns) (disj-lat-synapses cid ci si (keys osyns))
+                true (conj-lat-synapses cid ci si syn-cell-ids))))))
 
 (defn segment-extend
   [rgn cid ci si active-cells learn-cells]
@@ -346,16 +392,6 @@
     (if (pos? n)
       (->> (segment-new-synapse-cell-ids seg cid learn-cells n)
            (conj-lat-synapses rgn cid ci si))
-      rgn)))
-
-(defn cull-synapses
-  "Remove synapses with zero permanence from the segment."
-  [rgn cid ci si]
-  (let [seg (get-in rgn [:columns cid :cells ci :segments si])
-        syns (:synapses seg)
-        rm-ids (keep (fn [[id p]] (when (zero? p) id)) syns)]
-    (if (seq rm-ids)
-      (disj-lat-synapses rgn cid ci si rm-ids)
       rgn)))
 
 (defn punish-cell
@@ -398,34 +434,15 @@
           (assoc (most-active-segment cell prev-active pcon)
             :cell-id cell-id))))))
 
-(defn cull-segments
-  "Eliminates any segments having less than the minimum number of
-   synapses required for activation."
-  [rgn cid ci]
-  (let [th (:min-threshold (:spec rgn))
-        segs (get-in rgn [:columns cid :cells ci :segments])]
-    (reduce (fn [r [si seg]]
-              (let [syns (:synapses seg)
-                    n (count syns)]
-                (if (and (pos? n) (< n th))
-                  (disj-lat-synapses r cid ci si (keys syns))
-                  r)))
-            rgn
-            (map-indexed vector segs))))
-
 (defn learn-on-segment
   [rgn cid ci si bursting? learn-cells prev-ac]
   (if si
     ;; there is a matching segment, reinforce and/or extend it
     (cond-> rgn
-            true (cull-synapses cid ci si)
             true (segment-reinforce cid ci si prev-ac)
             bursting? (segment-extend cid ci si prev-ac learn-cells))
     ;; no matching segment, create a new one
-    ;; (also remove any unused ones)
-    (-> rgn
-        (cull-segments cid ci)
-        (grow-new-segment cid ci learn-cells))))
+    (grow-new-segment rgn cid ci learn-cells)))
 
 (defn learn
   [rgn acbc ac burst-cols prev-ac prev-pc tpcbc]

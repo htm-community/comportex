@@ -1,7 +1,8 @@
 (ns org.nfrac.comportex.pooling
   "Currently this implements Spatial Pooling as in the CLA."
   (:require [org.nfrac.comportex.util :as util
-             :refer [abs round mean count-filter remap]]))
+             :refer [abs round mean count-filter remap]]
+            [cljs-uuid.core :as uuid]))
 
 (def spatial-pooler-defaults
   "Default parameter specification map for spatial pooling. Mostly
@@ -65,7 +66,7 @@
      TP cells will remain active."
   {:input-size :define-me!
    :ncol 2048
-   :potential-radius 128
+   :potential-radius 256
    :potential-frac 0.5
    :global-inhibition false
    :activation-level 0.02
@@ -211,7 +212,8 @@
   [spec]
   (let [full-spec (merge spatial-pooler-defaults spec)
         ncol (:ncol full-spec)]
-    (-> {:columns (mapv column (range ncol) (repeat full-spec))
+    (-> {:uuid (uuid/make-random)
+         :columns (mapv column (range ncol) (repeat full-spec))
          :spec full-spec
          :active-columns #{}
          :active-duty-cycles (vec (repeat (:ncol spec) 0))
@@ -430,7 +432,6 @@
   (let [o-th (:boost-overlap-duty-ratio (:spec rgn))
         a-th (:boost-active-duty-ratio (:spec rgn))
         maxb (:max-boost (:spec rgn))
-        pcon (:sp-perm-connected (:spec rgn))
         ods (:overlap-duty-cycles rgn)
         ads (:active-duty-cycles rgn)
         ncol (count (:columns rgn))

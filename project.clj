@@ -6,7 +6,8 @@
   :source-paths ["src/clj" "src/cljx" "target/classes"]
   :test-paths ["target/test-classes"]
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [com.cemerick/pprng "0.0.2"]]
+                 [com.cemerick/pprng "0.0.2"]
+                 [cljs-uuid "0.0.4"]]
 
   :jar-exclusions [#"\.cljx"]
   :jvm-opts ["-server" "-Xmx2g"]

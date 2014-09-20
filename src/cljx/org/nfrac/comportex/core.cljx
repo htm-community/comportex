@@ -78,7 +78,8 @@
   (:require [org.nfrac.comportex.pooling :as p]
             [org.nfrac.comportex.sequence-memory :as sm]
             [org.nfrac.comportex.encoders :as enc]
-            [clojure.set :as set]))
+            [clojure.set :as set]
+            [clojure.zip :as zip]))
 
 (defprotocol PFeedForward
   "A feedforward input source with a bit set representation. Could be
@@ -238,6 +239,37 @@
   (-> (assoc spec :input-size (combined-bit-width subs))
       (build-region)
       (region-tree subs)))
+
+(defn region-tree-seq
+  [tree]
+  (->> (tree-seq :subs :subs tree)
+       (filter :region)
+       (reverse) ;; put in bottom to top order, for first path down tree
+       (vec)))
+
+(defn region-seq
+  [tree]
+  (map :region (region-tree-seq tree)))
+
+(defn inputs-seq
+  [tree]
+  (->> (tree-seq :subs :subs tree)
+       (remove :region)))
+
+(defn region-tree-zipper
+  [tree]
+  (zip/zipper :subs :subs (fn [x cs] (assoc x :subs cs)) tree))
+
+(defn update-by-uuid
+  [tree region-uuid f]
+  (loop [loc (region-tree-zipper tree)]
+    (if-let [rgn (:region (zip/node loc))]
+      (if (= region-uuid (:uuid rgn))
+        (-> (zip/edit loc #(update-in % [:region] f))
+            (zip/root))
+        (if (zip/end? loc)
+          nil ;; no matching UUID!
+          (recur (zip/next loc)))))))
 
 (defn column-state-freqs
   "Returns a map with the frequencies of columns in states `:active`,

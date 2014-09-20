@@ -14,13 +14,9 @@
 * property-based testing (clojure.test.check)
 * repeatability - store random seeds in objs?
 
-## core
-
-region-seq
-subtree-seq
-input-seq?
-
 ## pooling
+
+* boosting - apply every time step; periodically recalculate duty cycle thresholds
 
 * higher regions need a larger potential pool because the source
   activation is so sparse.
@@ -56,10 +52,6 @@ input-seq?
 * in choosing best-matching-segment-and-cell, break ties by permanence?
 
 * only update synapses when cells turn on/off? (not when continuing?)
-
-* limit number of synapses per segment
-
-* limit number of segments
 
 * limit lateral synapses to within a radius
 

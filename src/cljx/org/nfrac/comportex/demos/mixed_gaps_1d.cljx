@@ -18,7 +18,7 @@
    :saw-10-15 [10 12 11 13 12 14 13 15]})
 
 (def gap-range
-  (->> (vals patterns) (map count) (reduce +) (long)))
+  (->> (vals patterns) (map count) (reduce +) (long) (* 2)))
 
 (defn initial-input
   []
@@ -69,6 +69,8 @@
    :max-boost 2.0
    ;; sequence memory:
    :depth 8
+   :max-segments 5
+   :max-synapse-count 18
    :new-synapse-count 12
    :activation-threshold 9
    :min-threshold 7
@@ -91,20 +93,6 @@
   (require :reload-all 'org.nfrac.comportex.demos.mixed-gaps-1d)
   (in-ns 'org.nfrac.comportex.demos.mixed-gaps-1d)
   (use 'clojure.repl)
-
-(defn get-regions
-  [state]
-  (->> (tree-seq :subs :subs state)
-       (keep :region)
-       (reverse) ;; put in bottom to top order, for first path down tree
-       (vec)))
-
-(defn get-input
-  [state]
-  (->> (tree-seq :subs :subs state)
-       (remove :region)
-       ;; for now, assume only one input)
-       (first)))
 
   (def m1k
     (->> (iterate core/feed-forward-step (model))

@@ -12,10 +12,10 @@
 (deftest sm-perf-test
   (util/set-seed! 0)
   (let [m1 (-> (iterate core/feed-forward-step (demo/model))
-               (nth 200))]
+               (nth 300))]
     (crit/with-progress-reporting
       (crit/bench
        (do (util/set-seed! 0)
            (->> (iterate core/feed-forward-step m1)
-                (take 10)
+                (take 100)
                 (last)))))))
