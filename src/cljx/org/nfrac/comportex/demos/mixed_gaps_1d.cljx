@@ -12,9 +12,8 @@
   {:run-0-5 [0 1 2 3 4 5]
    :rev-5-1 [5 4 3 2 1]
    :run-6-10 [6 7 8 9 10]
+   :jump-6-12 [6 7 8 11 12]
    :twos [0 2 4 6 8 10 12 14]
-   :reps-0-5 [0 0 1 1 2 2 3 3 4 4 5 5]
-   :jump-7-11 [5 6 7 11 12]
    :saw-10-15 [10 12 11 13 12 14 13 15]})
 
 (def gap-range
@@ -94,56 +93,55 @@
   (in-ns 'org.nfrac.comportex.demos.mixed-gaps-1d)
   (use 'clojure.repl)
 
-  (def m1k
+  (def mts
     (->> (iterate core/feed-forward-step (model))
          (map (fn [m]
-                (let [[p1 p2] (get-regions m)]
-                  {:input (core/domain-value (get-input m))
+                (let [[p1 p2] (core/region-seq m)]
+                  {:input (core/domain-value (first (core/inputs-seq m)))
                    :p1-freqs (core/column-state-freqs p1)
                    :p2-freqs (core/column-state-freqs p2)
                    :p1-sac (:signal-cells p1)
                    :p1-ac (:active-cells p1)
                    :p2-ac (:active-cells p2)
-                   :p2-tpc (keys (:temporal-pooling-scores p2))})))
-         (take 1000)))
+                   :p2-tpc (:temporal-pooling-cells p2)})))
+         (take 2000)))
 
-  (time (count m1k))
+  (time (count mts))
 
   ;; check that numbers of correctly predicted columns are increasing
-  (use 'clojure.pprint)
-  (pprint
-   (for [layer [:p1-freqs :p2-freqs]
-         state [:active-predicted :active]]
-     (->> m1k
-          (map layer)
-          (map state)
-          (partition 100 100)
-          (map util/mean)
-          (vector layer state))))
+  (for [layer [:p1-freqs :p2-freqs]
+        state [:active-predicted :active]]
+    (->> mts
+         (map layer)
+         (map state)
+         (partition 100 100)
+         (map util/mean)
+         (vector layer state)))
 
   ;; check that input bits corresponding to tails of sequences are
   ;; predicted. i.e. ignore the input bits of the unpredictable head.
 
-  ;; shortcut: just ignore any time steps with a sequence head.
+  ;; shortcut: just ignore any time steps where a sequence is starting.
   (defn pattern-starting?
     [patt]
     (when-let [i (:index patt)] (zero? i)))
 
   (doseq [layer [:p1-freqs :p2-freqs]
           state [:active-predicted :active]]
-    (->> m10k
+    (->> mts
          (remove #(some pattern-starting? (:input %)))
          (map layer)
          (map state)
-         (partition 1000 1000)
+         (partition 100 100)
          (map util/mean)
          (vector layer state)
          (println)))
   
   ;; look for cells in p2 that correspond to specific input sequences
-  (def last1k (take-last 1000 m10k))
+  (def mtail (take-last 1000 mts))
 
-  (def patt-key (->> (first last1k)
+  ;; lookup from pattern keyword to its index in input vector
+  (def patt-key (->> (first mtail)
                      :input
                      (map :name)
                      (map-indexed (fn [i k] [k i]))
@@ -162,25 +160,31 @@
   (defn cells-in-out
     [ts k]
     (let [in-steps (filter #(in-body-of-pattern? k (:input %)) ts)
-          out-steps (filter #(out-of-pattern? k (:input %)) ts)]
+          out-steps (filter #(out-of-pattern? k (:input %)) ts)
+          tp-freqs-in (frequencies (mapcat :p2-tpc in-steps))
+          candidates (->> (sort-by val > tp-freqs-in)
+                          (take 5)
+                          (map (fn [[cell-id n]]
+                                 {:cell-id cell-id
+                                  :freq-in-tp n
+                                  :freq-in (count
+                                             (filter #(get (:p2-ac %) cell-id)
+                                                     in-steps))
+                                  :freq-out (count
+                                             (filter #(get (:p2-ac %) cell-id)
+                                                     out-steps))})))]
       {:name k
        :n-total (count ts)
        :n-in (count in-steps)
        :n-out (count out-steps)
-       :freqs-in (frequencies (mapcat :p2-ac in-steps))
-       :freqs-out (frequencies (mapcat :p2-ac out-steps))}
+       :candidates candidates}
       ))
 
-  (def run05 (cells-in-out last1k :run-0-5))
-  (def twos (cells-in-out last1k :twos))
-  (def saw1015 (cells-in-out last1k :saw-10-15))
-  (:n-in run05ns)
-  (:n-in twosns)
-  (:n-in saw1015)
-  (apply max-key val (:freqs-in run05ns))
-  (apply max-key val (:freqs-in twosns))
-  (apply max-key val (:freqs-in saw1015))
-  
+  (use 'clojure.pprint)
+
+  (pprint (cells-in-out mtail :run-0-5))
+  (pprint (cells-in-out mtail :twos))
+  (pprint (cells-in-out mtail :saw-10-15))
   
   
   )

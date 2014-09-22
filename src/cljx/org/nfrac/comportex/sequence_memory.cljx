@@ -272,10 +272,11 @@
   * `pred-cells` - the set of predicted cell ids from the previous
     iteration in a map keyed by column id.
 
-  * `tpcbc` - the set of temporal pooling cells in a map keyed by
-    column id."
-  [rgn active-columns pred-cells tpcbc]
-  (let [pred-on-cells (merge pred-cells tpcbc)]
+  * `ctpcbc` - the set of continuing temporal pooling cells in a map
+    keyed by column id. These override any predicted cells in the
+    column."
+  [rgn active-columns pred-cells ctpcbc]
+  (let [pred-on-cells (merge pred-cells ctpcbc)]
     (->> active-columns
          (map (fn [i]
                 (let [col (nth (:columns rgn) i)
@@ -419,7 +420,7 @@
 (defn column-learning-segments
   [col bursting? col-tpc cell-ids prev-active spec]
   (if col-tpc
-    ;; temporal pooling cell - choose a segment for the one cell
+    ;; continuing temporal pooling cell - choose a segment for the one cell
     (let [[cid ci] col-tpc
           cell (get (:cells col) ci)]
       (list (best-matching-segment-and-cell [cell] prev-active spec)))
@@ -445,7 +446,7 @@
     (grow-new-segment rgn cid ci learn-cells)))
 
 (defn learn
-  [rgn acbc ac burst-cols prev-ac prev-pc tpcbc]
+  [rgn acbc ac burst-cols prev-ac prev-pc ctpcbc]
   (let [learn-cells (:learn-cells rgn #{})
         spec (:spec rgn)
         rgn0 (assoc rgn :learn-cells #{} :learn-segments {})]
@@ -453,7 +454,7 @@
      (reduce-kv (fn [r cid {col-ac :cell-ids}]
                   (let [col (get-in r [:columns cid])
                         bursting? (burst-cols cid)
-                        col-tpc (first (tpcbc cid))
+                        col-tpc (first (ctpcbc cid))
                         scs (column-learning-segments
                              col bursting? col-tpc col-ac prev-ac spec)]
                     (reduce (fn [r {si :segment-idx
@@ -489,14 +490,15 @@
   (let [prev-ac (:active-cells rgn #{})
         prev-pc (:predictive-cells rgn #{})
         prev-pcbc (:predictive-cells-by-column rgn {})
-        tp-cols (set (keys (:temporal-pooling-scores rgn {})))
-        prev-lc (if learn? (:learn-cells rgn #{}) (:signal-cells rgn #{}))
-        tpcbc (-> (group-by (fn [[cid _]] (tp-cols cid)) prev-lc)
-                  (dissoc nil))
-        acbc (active-cells-by-column rgn active-columns prev-pcbc tpcbc)
+        prev-tpc (:temporal-pooling-cells rgn #{})
+        tp-cols (keys (:temporal-pooling-scores rgn {}))
+        ;; continuing temporal pooling cells, by column
+        ctpcbc (-> (group-by first prev-tpc)
+                   (select-keys tp-cols))
+        acbc (active-cells-by-column rgn active-columns prev-pcbc ctpcbc)
         burst-cols (set (keep (fn [[i m]] (when (:bursting? m) i)) acbc))
         ac (set (mapcat :cell-ids (vals acbc)))
-        tpc (set (apply concat (vals tpcbc)))
+        tpc (set (mapcat (comp :cell-ids acbc) tp-cols))
         signal-ac (set (mapcat :cell-ids
                                (vals (apply dissoc acbc burst-cols))))
         pc (predictive-cells rgn ac)
@@ -510,4 +512,4 @@
        :predictive-cells pc
        :predictive-cells-by-column pcbc
        :prev-predictive-cells-by-column prev-pcbc)
-     learn? (learn acbc ac burst-cols prev-ac prev-pc tpcbc))))
+     learn? (learn acbc ac burst-cols prev-ac prev-pc ctpcbc))))
