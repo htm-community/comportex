@@ -83,11 +83,13 @@
                                    (if (reinforce? id2)
                                      (cond
                                       (== p 1.0) :skip
-                                      (>= p (- pcon pinc)) :promote
+                                      (and (< p pcon)
+                                           (>= p (- pcon pinc))) :promote
                                       :else :up)
                                      (cond
-                                      (<= p pdec) :zero
-                                      (< p (+ pcon pdec)) :demote
+                                      (<= p pdec) :cull
+                                      (and (>= p pcon)
+                                           (< p (+ pcon pdec))) :demote
                                       :else :down))))
                                syns)
         new-syns (merge (:skip sg)
@@ -143,6 +145,7 @@
      (>= pini pcon)
      (update-in [::lat-index]
                 util/update-each uidxs #(conj % seg-path))
+     ;; if too many synapses, remove those with lowest permanence
      (> (count syns) max-syns)
      (disj-lat-synapses cid ci si
                         (->> (sort-by val syns)

@@ -16,19 +16,24 @@
    :twos [0 2 4 6 8 10 12 14]
    :saw-10-15 [10 12 11 13 12 14 13 15]})
 
+(def pattern-order (keys patterns))
+
 (def gap-range
   (->> (vals patterns) (map count) (reduce +) (long) (* 2)))
 
 (defn initial-input
   []
-  (mapv (fn [[k xs]]
-          {:name k, :seq xs, :index nil,
-           :gap-countdown (util/rand-int 0 gap-range)})
-        patterns))
+  (->> patterns
+       (util/remap
+        (fn [xs]
+          {:seq xs, :index nil,
+           :gap-countdown (util/rand-int 0 gap-range)}))))
 
 (defn input-transform
-  [ms]
-  (mapv (fn [m]
+  [input]
+  (->> input
+       (util/remap
+        (fn [m]
           (cond
            ;; reached end of sequence; begin gap
            (= (:index m) (dec (count (:seq m))))
@@ -44,25 +49,32 @@
            (assoc m :index 0)
            ;; in sequence
            :else
-           (update-in m [:index] inc)))
-        ms))
+           (update-in m [:index] inc))))))
 
 (defn current-value
   [m]
   (when (:index m)
     (get (:seq m) (:index m))))
 
+(defn current-values
+  [input]
+  (map current-value
+       (map input pattern-order)))
+
 (def encoder
-  (enc/ensplat
-   (enc/pre-transform current-value
+  (enc/pre-transform current-values
+                     (enc/ensplat
                       (enc/linear-encoder bit-width on-bits numb-domain))))
 
 (def spec
-  {:activation-level 0.02
+  {:ncol 1000
+   :potential-radius-frac 0.1
+   :activation-level 0.02
    :global-inhibition false
    :stimulus-threshold 3
    :sp-perm-inc 0.05
    :sp-perm-dec 0.01
+   :sp-perm-signal-inc 0.05
    :sp-perm-connected 0.20
    :duty-cycle-period 100000
    :max-boost 2.0
@@ -79,112 +91,17 @@
    :permanence-dec 0.01
    })
 
-(defn ^:export model
+(defn ^:export input-gen
   []
-  (let [gen (core/input-generator (initial-input) input-transform encoder)]
-    (core/tree core/cla-region (assoc spec :ncol 1000, :potential-radius 800)
-               [(core/tree core/cla-region (assoc spec :ncol 1000 :potential-radius 50)
-                           [gen])])))
+  (core/input-generator (initial-input) input-transform encoder))
 
-
-
-(comment
-  (require :reload-all 'org.nfrac.comportex.demos.mixed-gaps-1d)
-  (in-ns 'org.nfrac.comportex.demos.mixed-gaps-1d)
-  (use 'clojure.repl)
-
-  (def mts
-    (->> (iterate core/feed-forward-step (model))
-         (map (fn [m]
-                (let [[p1 p2] (core/region-seq m)]
-                  {:input (core/domain-value (first (core/inputs-seq m)))
-                   :p1-freqs (core/column-state-freqs p1)
-                   :p2-freqs (core/column-state-freqs p2)
-                   :p1-sac (:signal-cells p1)
-                   :p1-ac (:active-cells p1)
-                   :p2-ac (:active-cells p2)
-                   :p2-tpc (:temporal-pooling-cells p2)})))
-         (take 2000)))
-
-  (time (count mts))
-
-  ;; check that numbers of correctly predicted columns are increasing
-  (for [layer [:p1-freqs :p2-freqs]
-        state [:active-predicted :active]]
-    (->> mts
-         (map layer)
-         (map state)
-         (partition 100 100)
-         (map util/mean)
-         (vector layer state)))
-
-  ;; check that input bits corresponding to tails of sequences are
-  ;; predicted. i.e. ignore the input bits of the unpredictable head.
-
-  ;; shortcut: just ignore any time steps where a sequence is starting.
-  (defn pattern-starting?
-    [patt]
-    (when-let [i (:index patt)] (zero? i)))
-
-  (doseq [layer [:p1-freqs :p2-freqs]
-          state [:active-predicted :active]]
-    (->> mts
-         (remove #(some pattern-starting? (:input %)))
-         (map layer)
-         (map state)
-         (partition 100 100)
-         (map util/mean)
-         (vector layer state)
-         (println)))
-  
-  ;; look for cells in p2 that correspond to specific input sequences
-  (def mtail (take-last 1000 mts))
-
-  ;; lookup from pattern keyword to its index in input vector
-  (def patt-key (->> (first mtail)
-                     :input
-                     (map :name)
-                     (map-indexed (fn [i k] [k i]))
-                     (into {})))
-
-  (defn in-body-of-pattern?
-    [k input]
-    (let [patt (get input (patt-key k))]
-      (when-let [i (:index patt)] (pos? i))))
-  
-  (defn out-of-pattern?
-    [k input]
-    (let [patt (get input (patt-key k))]
-      (nil? (:index patt))))
-
-  (defn cells-in-out
-    [ts k]
-    (let [in-steps (filter #(in-body-of-pattern? k (:input %)) ts)
-          out-steps (filter #(out-of-pattern? k (:input %)) ts)
-          tp-freqs-in (frequencies (mapcat :p2-tpc in-steps))
-          candidates (->> (sort-by val > tp-freqs-in)
-                          (take 5)
-                          (map (fn [[cell-id n]]
-                                 {:cell-id cell-id
-                                  :freq-in-tp n
-                                  :freq-in (count
-                                             (filter #(get (:p2-ac %) cell-id)
-                                                     in-steps))
-                                  :freq-out (count
-                                             (filter #(get (:p2-ac %) cell-id)
-                                                     out-steps))})))]
-      {:name k
-       :n-total (count ts)
-       :n-in (count in-steps)
-       :n-out (count out-steps)
-       :candidates candidates}
-      ))
-
-  (use 'clojure.pprint)
-
-  (pprint (cells-in-out mtail :run-0-5))
-  (pprint (cells-in-out mtail :twos))
-  (pprint (cells-in-out mtail :saw-10-15))
-  
-  
-  )
+(defn ^:export n-region-model
+  ([n]
+     (n-region-model n spec))
+  ([n spec]
+     (->> (input-gen)
+          (iterate (fn [sub-model]
+                     (core/tree core/cla-region spec
+                                [sub-model])))
+          (take (inc n))
+          (last))))

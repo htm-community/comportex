@@ -7,8 +7,15 @@
   (if (neg? x) (- x) x))
 
 (defn round
-  [x]
-  (Math/round (double x)))
+  ([x]
+     (Math/round (double x)))
+  ([x n]
+     (let [z (Math/pow 10.0 n)]
+       (-> x
+           (* z)
+           (round)
+           (/ z)
+           (double)))))
 
 (defn mean
   [xs]
@@ -132,4 +139,4 @@
   [f m]
   (->> m
        (mapv (fn [[k v]] [k (f v)]))
-       (into (empty m))))
+       (into (or (empty m) {}))))

@@ -235,12 +235,29 @@
   (->RegionTree rgn subs))
 
 (defn tree
+  "A helper function to build a hierarchical network. The `subs`
+   should be a sequence of subtrees or input generators. The combined
+   bit width from these is calculated and used to set the
+   `:input-size` parameter in `spec`. If the parameter
+   `:potential-radius-frac` is defined it is used to calculate (and
+   override) the `:potential-radius` parameter as a fraction of the
+   input size.
+
+   The updated spec is passed to `build-region`. Returns a
+   RegionTree."
   [build-region spec subs]
-  (-> (assoc spec :input-size (combined-bit-width subs))
-      (build-region)
-      (region-tree subs)))
+  (let [width (combined-bit-width subs)
+        radius (if-let [x (:potential-radius-frac spec)]
+                 (long (* x width))
+                 (:potential-radius spec))]
+    (-> (assoc spec :input-size width
+               :potential-radius radius)
+        (build-region)
+        (region-tree subs))))
 
 (defn region-tree-seq
+  "A sequence of the sub region trees in a region tree (including
+  itself). The order is the same as `region-seq`."
   [tree]
   (->> (tree-seq :subs :subs tree)
        (filter :region)
@@ -248,10 +265,13 @@
        (vec)))
 
 (defn region-seq
+  "A sequence of the regions in a region tree. The order is the same
+   as `region-tree-seq`."
   [tree]
   (map :region (region-tree-seq tree)))
 
 (defn inputs-seq
+  "A seq of the input generators in a region tree."
   [tree]
   (->> (tree-seq :subs :subs tree)
        (remove :region)))
@@ -261,6 +281,8 @@
   (zip/zipper :subs :subs (fn [x cs] (assoc x :subs cs)) tree))
 
 (defn update-by-uuid
+  "Applies function `f` to the region in `tree` identified by its
+   UUID. Returns the modified region tree."
   [tree region-uuid f]
   (loop [loc (region-tree-zipper tree)]
     (if-let [rgn (:region (zip/node loc))]
@@ -268,7 +290,7 @@
         (-> (zip/edit loc #(update-in % [:region] f))
             (zip/root))
         (if (zip/end? loc)
-          nil ;; no matching UUID!
+          ::no-matching-UUID!
           (recur (zip/next loc)))))))
 
 (defn column-state-freqs

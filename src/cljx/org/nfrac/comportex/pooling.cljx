@@ -33,6 +33,10 @@
    * `sp-perm-dec` - amount to decrease a synapse's permanence value
      by when it is not reinforced.
 
+   * `sp-perm-signal-inc` - amount to increase a synapse's permanence
+     value by when it is reinforced by input from a correctly
+     predicted cell.
+
    * `sp-perm-connected` - permanence value at which a synapse is
      functionally connected. Permanence values are defined to be
      between 0 and 1.
@@ -72,6 +76,7 @@
    :activation-level 0.02
    :sp-perm-inc 0.05
    :sp-perm-dec 0.01
+   :sp-perm-signal-inc 0.50
    :sp-perm-connected 0.1
    :stimulus-threshold 3
    :boost-overlap-duty-ratio 0.001
@@ -104,34 +109,49 @@
    `reinforce?`, which is a function of the input id. Synapses may
    become newly connected or disconnected, in which case the internal
    feed-forward index is updated."
-  [rgn cid reinforce?]
-  (let [pinc (:sp-perm-inc (:spec rgn))
+  [rgn cid reinforce? signal?]
+  (let [pcon (:sp-perm-connected (:spec rgn))
+        pinc (:sp-perm-inc (:spec rgn))
         pdec (:sp-perm-dec (:spec rgn))
-        pcon (:sp-perm-connected (:spec rgn))
+        psiginc (:sp-perm-signal-inc (:spec rgn))
         syns (get-in rgn [:columns cid :ff-synapses])
         g-conn (util/group-by-maps (fn [i p]
                                      (if (reinforce? i)
-                                       :up
+                                       (if (signal? i)
+                                         :signal-up
+                                         :up)
                                        (if (< p (+ pcon pdec))
                                          :demote :down)))
                                    (:connected syns))
         g-disc (util/group-by-maps (fn [i p]
                                      (if (reinforce? i)
-                                       (if (>= p (- pcon pinc))
-                                         :promote :up)
+                                       (if (signal? i)
+                                         (if (>= p (- pcon psiginc))
+                                           :signal-promote :signal-up)
+                                         (if (>= p (- pcon pinc))
+                                           :promote :up))
                                        :down))
                                    (:disconnected syns))
         new-syns {:connected
-                  (merge (remap #(min (+ % pinc) 1.0) (:up g-conn {}))
-                         (remap #(- % pdec) (:down g-conn))
-                         (remap #(+ % pinc) (:promote g-disc)))
+                  (merge (remap #(min (+ % pinc) 1.0)
+                                (merge (:up g-conn)
+                                       (:promote g-disc)))
+                         (remap #(min (+ % psiginc) 1.0)
+                                (merge (:signal-up g-conn)
+                                       (:signal-promote g-disc)))
+                         (remap #(- % pdec) (:down g-conn)))
                   :disconnected
-                  (merge (remap #(max (- % pdec) 0.0) (:down g-disc {}))
+                  (merge (remap #(max (- % pdec) 0.0)
+                                (merge (:down g-disc)
+                                       (:demote g-conn)))
                          (remap #(+ % pinc) (:up g-disc))
-                         (remap #(- % pdec) (:demote g-disc)))}
+                         (remap #(+ % psiginc) (:signal-up g-disc)))}
+        to-promote (concat (keys (:promote g-disc))
+                           (keys (:signal-promote g-disc)))
+        to-demote (keys (:demote g-conn))
         new-ffi (-> (::ff-index rgn)
-                    (util/update-each (keys (:promote g-disc)) #(conj % cid))
-                    (util/update-each (keys (:demote g-conn)) #(disj % cid)))]
+                    (util/update-each to-promote #(conj % cid))
+                    (util/update-each to-demote #(disj % cid)))]
     (-> rgn
         (assoc-in [:columns cid :ff-synapses] new-syns)
         (assoc ::ff-index new-ffi))))
@@ -416,9 +436,9 @@
    patterns. Given the set of input bits `in-set`, adjusts the
    permanence values of all potential feed-forward synapses in each
    column in the region."
-  [rgn as in-set]
+  [rgn as in-set signal-in-set]
   (reduce (fn [rgn cid]
-            (update-ff-synapses rgn cid in-set))
+            (update-ff-synapses rgn cid in-set signal-in-set))
           rgn as))
 
 ;;; ## Boosting
@@ -447,7 +467,7 @@
                    (max 1.0)
                    (double))]
     (if (< od crit-od)
-      (update-ff-synapses rgn cid (constantly true))
+      (update-ff-synapses rgn cid (constantly true) (constantly false))
       (assoc-in rgn [:columns cid :boost] nboost))))
 
 (defn update-boosting
@@ -545,6 +565,7 @@
         :temporal-pooling-scores tpm)
       learn? (update-in [:overlap-duty-cycles] update-duty-cycles (keys om) dcp)
       learn? (update-in [:active-duty-cycles] update-duty-cycles as dcp)
-      learn? (learn (filter curr-om as) in-set) ;; only learn if current input
+      learn? (learn (filter curr-om as) ;; only learn on columns with current input
+                    in-set signal-in-set)
       boost? (update-boosting)
       boost? (update-neighbour-radius)))))
