@@ -1,4 +1,4 @@
-(defproject org.nfrac/comportex "0.0.2-SNAPSHOT"
+(defproject org.nfrac/comportex "0.0.2"
   :description "Functionally composable cortex, an implementation of Hierarchical Temporal Memory"
   :url "http://github.com/floybix/comportex/"
   :license {:name "Eclipse Public License"
@@ -18,7 +18,7 @@
                              [lein-cljsbuild "1.0.3"]
                              [com.cemerick/clojurescript.test "0.3.1"]
                              [com.cemerick/austin "0.1.4"]
-                             [lein-marginalia "0.7.1"]]
+                             [lein-marginalia "0.8.0"]]
                    :cljx {:builds [{:source-paths ["src/cljx"]
                                     :output-path "target/classes"
                                     :rules :clj}

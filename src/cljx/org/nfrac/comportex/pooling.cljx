@@ -485,9 +485,11 @@
    according to duty cycle period `period`. As in NuPIC, the formula
    is
 
-`y[t] = (period-1) * y[t-1]  +  1
+<pre>
+y[t] = (period-1) * y[t-1]  +  1
        --------------------------
-         period`"
+         period
+</pre>"
   [v is period]
   (let [d (/ 1.0 period)
         decay (* d (dec period))]
