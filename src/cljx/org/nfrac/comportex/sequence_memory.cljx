@@ -412,12 +412,13 @@
 
 (defn punish
   "Punish segments which predicted activation on cells which did
-   not become active."
-  [rgn active-cells prev-cells prev-pred-cells]
-  (let [bad-cells (set/difference prev-pred-cells
-                                  active-cells)]
+   not become active. Ignore any which are still predictive."
+  [rgn ac prev-ac pc prev-pc]
+  (let [bad-cells (set/difference prev-pc
+                                  ac
+                                  pc)]
     (reduce (fn [r [cid ci]]
-              (punish-cell r cid ci prev-cells))
+              (punish-cell r cid ci prev-ac))
             rgn bad-cells)))
 
 (defn column-learning-segments
@@ -449,7 +450,7 @@
     (grow-new-segment rgn cid ci learn-cells)))
 
 (defn learn
-  [rgn acbc ac burst-cols prev-ac prev-pc ctpcbc]
+  [rgn acbc ac burst-cols prev-ac pc prev-pc ctpcbc]
   (let [learn-cells (:learn-cells rgn #{})
         spec (:spec rgn)
         rgn0 (assoc rgn :learn-cells #{} :learn-segments {})]
@@ -470,7 +471,7 @@
                 rgn0 acbc)
      ;; allow this phase of learning as an option
      (:punish? spec)
-     (punish ac prev-ac prev-pc))))
+     (punish ac prev-ac pc prev-pc))))
 
 ;;; ## Orchestration
 
@@ -515,4 +516,4 @@
        :predictive-cells pc
        :predictive-cells-by-column pcbc
        :prev-predictive-cells-by-column prev-pcbc)
-     learn? (learn acbc ac burst-cols prev-ac prev-pc ctpcbc))))
+     learn? (learn acbc ac burst-cols prev-ac pc prev-pc ctpcbc))))

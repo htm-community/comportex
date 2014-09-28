@@ -2,7 +2,6 @@
 
 
 * standardise naming
-  * (CLA) region becomes layer?
   * coli, celi, segi   cell-id
 
 * protocols to abstract over mess in region maps
@@ -44,7 +43,9 @@
 
 ## sequence memory
 
-* probably only one predicted cell per column will fire and inhibit others
+* separate parameter for punishment permanence reduction
+
+* probably only one predicted cell per column will fire and inhibit others?
 * only one learn cell per column
 
 * move predicted-bit-votes into pooling namespace

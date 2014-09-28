@@ -255,6 +255,15 @@
         (build-region)
         (region-tree subs))))
 
+(defn regions-in-series
+  [build-region input-gen n spec]
+  (->> input-gen
+       (iterate (fn [sub-model]
+                  (tree build-region spec
+                        [sub-model])))
+       (take (inc n))
+       (last)))
+
 (defn region-tree-seq
   "A sequence of the sub region trees in a region tree (including
   itself). The order is the same as `region-seq`."
@@ -305,5 +314,5 @@
                           (zipmap hit-cids (repeat :active-predicted)))]
     (-> {:active 0, :predicted 0, :active-predicted 0}
         (merge (frequencies (vals col-states)))
-        (assoc :timestep (:timestep rgn)
+        (assoc :timestep (:timestep rgn 0)
                :ncol (count (:columns rgn))))))

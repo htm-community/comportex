@@ -1,4 +1,4 @@
-(ns org.nfrac.comportex.demos.mixed-gaps-1d
+(ns org.nfrac.comportex.demos.isolated-1d
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]))
@@ -18,38 +18,37 @@
 
 (def pattern-order (keys patterns))
 
-(def gap-range
-  (->> (vals patterns) (map count) (reduce +) (long) (* 2)))
-
 (defn initial-input
   []
-  (->> patterns
-       (util/remap
-        (fn [xs]
-          {:seq xs, :index nil,
-           :gap-countdown (util/rand-int 0 gap-range)}))))
+  (-> (util/remap (fn [xs]
+                    {:seq xs :index nil})
+                  patterns)
+      (assoc ::current-pattern-index 0)))
 
 (defn input-transform
   [input]
-  (->> input
-       (util/remap
-        (fn [m]
-          (cond
-           ;; reached end of sequence; begin gap
-           (= (:index m) (dec (count (:seq m))))
-           (assoc m :index nil
-                  :gap-countdown (util/rand-int 0 gap-range))
-           ;; in gap
-           (and (not (:index m))
-                (pos? (:gap-countdown m)))
-           (update-in m [:gap-countdown] dec)
-           ;; reached end of gap; restart sequence
-           (and (not (:index m))
-                (zero? (:gap-countdown m)))
-           (assoc m :index 0)
-           ;; in sequence
-           :else
-           (update-in m [:index] inc))))))
+  (let [i (::current-pattern-index input)
+        k (nth pattern-order i)
+        m (input k)
+        finished? (= (:index m) (dec (count (:seq m))))]
+    (-> input
+        (update-in [k]
+                   (fn [m]
+                     (cond
+                      ;; reached end of sequence
+                      finished?
+                      (assoc m :index nil)
+                      ;; starting sequence
+                      (not (:index m))
+                      (assoc m :index 0)
+                      ;; in sequence
+                      :else
+                      (update-in m [:index] inc))))
+        (update-in [::current-pattern-index]
+                   (fn [i]
+                     (if finished?
+                       (mod (inc i) (count patterns))
+                       i))))))
 
 (defn current-value
   [m]
