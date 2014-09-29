@@ -18,26 +18,32 @@
 
 (def pattern-order (keys patterns))
 
+(def gap-length 5)
+
 (defn initial-input
   []
   (-> (util/remap (fn [xs]
                     {:seq xs :index nil})
                   patterns)
-      (assoc ::current-pattern-index 0)))
+      (assoc ::current-pattern-index 0
+             ::gap-countdown nil)))
 
 (defn input-transform
   [input]
-  (let [i (::current-pattern-index input)
-        k (nth pattern-order i)
+  (let [k (nth pattern-order (::current-pattern-index input))
         m (input k)
-        finished? (= (:index m) (dec (count (:seq m))))]
+        at-end? (= (:index m) (dec (count (:seq m))))
+        in-gap? (::gap-countdown input)]
     (-> input
         (update-in [k]
                    (fn [m]
                      (cond
                       ;; reached end of sequence
-                      finished?
+                      at-end?
                       (assoc m :index nil)
+                      ;; in gap, wait
+                      in-gap?
+                      m
                       ;; starting sequence
                       (not (:index m))
                       (assoc m :index 0)
@@ -46,9 +52,23 @@
                       (update-in m [:index] inc))))
         (update-in [::current-pattern-index]
                    (fn [i]
-                     (if finished?
-                       (mod (inc i) (count patterns))
-                       i))))))
+                     (if at-end?
+                       (util/rand-int 0 (count patterns))
+                       i)))
+        (update-in [::gap-countdown]
+                   (fn [i]
+                     (cond
+                      ;; a pattern ended, start gap
+                      at-end?
+                      (dec gap-length)
+                      ;; continue gap
+                      (and in-gap? (pos? (dec i)))
+                      (dec i)
+                      ;; end of gap
+                      in-gap?
+                      nil
+                      :else
+                      i))))))
 
 (defn current-value
   [m]

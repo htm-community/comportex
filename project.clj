@@ -10,7 +10,7 @@
                  [cljs-uuid "0.0.4"]]
 
   :jar-exclusions [#"\.cljx"]
-  :jvm-opts ["-server" "-Xmx2g"]
+  :jvm-opts ["-server" "-Xmx2500m"]
 
   :profiles {:dev {:dependencies [[org.clojure/clojurescript "0.0-2234"]
                                   [criterium "0.4.3"]]
