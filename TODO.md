@@ -1,11 +1,5 @@
 # TODO
 
-
-* standardise naming
-  * coli, celi, segi   cell-id
-
-* protocols to abstract over mess in region maps
-
 * rethink data structures
   * if need column lookup, use a map {cid ci} rather than a set of [cid ci]
 
@@ -14,6 +8,10 @@
 * repeatability - store random seeds in objs?
 
 ## pooling
+
+* combined dimensions from multiple feed-forward sources
+
+* dimensions on encoders
 
 * boosting - apply every time step; periodically recalculate duty cycle thresholds
 
@@ -30,8 +28,6 @@
 * higher-levels regions only grow ff-synapses to learn-cells from below?
   (otherwise typically grow to all cells of a bursting column)
 
-* don't need to store pred cells grouped by column (pcbc)?
-
 * local activation - start from closest, loop outwards
 * local activation - adapt inhibition strength (or stimulus threshold)  to tune activation level
 
@@ -39,16 +35,12 @@
 
 * bias activation to columns with depolarised cells
 
-* allow columns arrayed in 2 dimensions (PTopology)
-
 ## sequence memory
 
 * separate parameter for punishment permanence reduction
 
 * probably only one predicted cell per column will fire and inhibit others?
 * only one learn cell per column
-
-* move predicted-bit-votes into pooling namespace
 
 * in choosing best-matching-segment-and-cell, break ties by permanence?
 
@@ -62,3 +54,4 @@
 
 * data.int-map
 * reducers
+* transducers

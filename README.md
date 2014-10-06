@@ -24,7 +24,7 @@ Get [Leiningen](http://leiningen.org/) first.
 Use git to clone this repository. Then:
 
 ```
-lein test
+lein repl
 ```
 
 The main API is in the namespace `org.nfrac.comportex.core`.

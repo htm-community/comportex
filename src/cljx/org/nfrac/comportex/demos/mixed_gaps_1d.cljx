@@ -67,36 +67,35 @@
                       (enc/linear-encoder bit-width on-bits numb-domain))))
 
 (def spec
-  {:ncol 1000
-   :potential-radius-frac 0.1
-   :activation-level 0.02
+  {:column-dimensions [1000]
+   :ff-potential-radius-frac 0.1
+   :ff-perm-inc 0.05
+   :ff-perm-dec 0.01
+   :ff-perm-connected 0.20
+   :ff-stimulus-threshold 3
    :global-inhibition false
-   :stimulus-threshold 3
-   :sp-perm-inc 0.05
-   :sp-perm-dec 0.01
-   :sp-perm-signal-inc 0.05
-   :sp-perm-connected 0.20
+   :activation-level 0.02
    :duty-cycle-period 100000
    :max-boost 2.0
    ;; sequence memory:
    :depth 8
    :max-segments 5
-   :max-synapse-count 18
-   :new-synapse-count 12
-   :activation-threshold 9
-   :min-threshold 7
-   :connected-perm 0.20
-   :initial-perm 0.16
-   :permanence-inc 0.05
-   :permanence-dec 0.01
+   :seg-max-synapse-count 18
+   :seg-new-synapse-count 12
+   :seg-stimulus-threshold 9
+   :seg-learn-threshold 7
+   :distal-perm-connected 0.20
+   :distal-perm-inc 0.05
+   :distal-perm-dec 0.01
+   :distal-perm-init 0.16
    })
 
 (defn ^:export input-gen
   []
-  (core/input-generator (initial-input) input-transform encoder))
+  (core/sensory-input (initial-input) input-transform encoder))
 
 (defn ^:export n-region-model
   ([n]
      (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/cla-region (input-gen) n spec)))
+     (core/regions-in-series core/sensory-region (input-gen) n spec)))

@@ -1,8 +1,8 @@
 (ns org.nfrac.comportex.sequence-memory-test
   (:require [org.nfrac.comportex.core :as core]
+            [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
-            [org.nfrac.comportex.parameters]
             #+clj [clojure.test :as t
                    :refer (is deftest testing run-tests)]
             #+cljs [cemerick.cljs.test :as t])
@@ -34,38 +34,70 @@
   (enc/pre-transform #(get-in patterns %)
                      (enc/category-encoder bit-width items)))
 
+(def spec
+  {:column-dimensions [300]
+   :input-dimensions [200]
+   :ff-potential-radius 100
+   :ff-perm-inc 0.04
+   :ff-perm-dec 0.01
+   :ff-perm-connected 0.1
+   :ff-stimulus-threshold 2
+   :global-inhibition true
+   :activation-level 0.06
+   :duty-cycle-period 1000
+   :max-boost 2.0
+   ;; sequence memory:
+   :depth 5
+   :seg-new-synapse-count 10
+   :seg-stimulus-threshold 7
+   :seg-learn-threshold 5
+   :distal-perm-connected 0.20
+   :distal-perm-inc 0.04
+   :distal-perm-dec 0.01
+   :distal-perm-init 0.16
+   })
+
 (defn model
   []
-  (let [gen (core/input-generator initial-input input-transform encoder)
-        spec org.nfrac.comportex.parameters/small]
-    (core/tree core/cla-region spec [gen])))
+  (let [input (core/sensory-input initial-input input-transform encoder)]
+    (core/tree core/sensory-region spec
+               [input])))
 
 (deftest sm-test
   (util/set-seed! 0)
-  (testing "CLA with sequence memory runs"
-   (let [m1 (-> (iterate core/feed-forward-step (model))
+  (testing "Sequence memory"
+   (let [m1 (-> (iterate p/feed-forward-step (model))
                 (nth 500))
-         r (:region m1)
-         sums (->> m1
-                   (iterate core/feed-forward-step)
-                   (take 100)
-                   (map :region)
-                   (map core/column-state-freqs)
-                   (apply merge-with +))]
-     (let [depth (:depth (:spec r))
-           ncells (map (comp count :cells) (:columns r))]
-       (is (every? #(= depth %) ncells)
-           "All columns have the specified number of cells."))
-     (let [nsegs (map (fn [c] (count (mapcat :segments (:cells c))))
-                      (:columns r))]
-       (is (pos? (util/quantile nsegs 0.6))
-           "At least 40% of columns have grown dendrite segments."))
-     (is (> (:active-predicted sums) (:active sums))
-         "Most column activations are predicted.")
-     (is (> (:predicted sums) 0)
-         "Some columns were predicted but are not active.")
-     (is (< (+ (:active sums)
-               (:active-predicted sums)
-               (:predicted sums))
-            (* (:ncol sums) 0.25))
-         "Less than 25% of columns are active or predicted."))))
+         rgn (:region m1)]
+     (let [ncols (p/size (p/topology rgn))
+           lyr (:layer rgn)
+           depth (p/layer-depth lyr)
+           distal-sg (:distal-sg lyr)
+           nsegs-by-cell (for [col (range ncols)
+                               ci (range depth)]
+                           (->> (p/cell-segments distal-sg [col ci])
+                                (filter seq)
+                                (count)))]
+       (is (>= (apply max nsegs-by-cell) 1)
+           "Some cells have grown lateral dendrite segments.")
+       (is (pos? (util/quantile nsegs-by-cell 0.90))
+           "At least 10% of cells have grown lateral dendrite segments.")
+       (is (>= (apply max nsegs-by-cell) 2)
+           "Some cells have grown multiple lateral dendrite segments."))
+     (let [sums (->> m1
+                     (iterate p/feed-forward-step)
+                     (take 100)
+                     (map :region)
+                     (map core/column-state-freqs)
+                     (apply merge-with +))]
+       (is (> (:active-predicted sums) 0)
+           "Some column activations are predicted.")
+       (is (> (:active-predicted sums) (:active sums))
+           "Most column activations are predicted.")
+       (is (> (:predicted sums) 0)
+           "Some columns were predicted but are not active.")
+       (is (< (+ (:active sums)
+                 (:active-predicted sums)
+                 (:predicted sums))
+              (* (:size sums) 0.25))
+           "Less than 25% of columns are active or predicted.")))))
