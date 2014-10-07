@@ -1,11 +1,9 @@
 (ns org.nfrac.comportex.encoders
   "Methods of encoding data as distributed bit sets, for feeding as
    input to a cortical region."
-  (:require [clojure.set :as set]))
-
-(defprotocol PEncoder
-  (encoder-bit-width [this])
-  (encode [this offset x]))
+  (:require [org.nfrac.comportex.protocols :as p]
+            [org.nfrac.comportex.topology :as topology]
+            [clojure.set :as set]))
 
 (defn linear-encoder
   "Returns a simple encoder for a single number. It encodes a
@@ -21,10 +19,15 @@
   * `[lower upper]` gives the numeric range to cover. The input number
     will be clamped to this range."
   [bit-width on-bits [lower upper]]
-  (let [span (double (- upper lower))]
-    (reify PEncoder
-      (encoder-bit-width [_] bit-width)
-      (encode [_ offset x]
+  (let [topo (topology/make-topology [bit-width])
+        span (double (- upper lower))]
+    (reify
+      p/PTopological
+      (topology [_]
+        topo)
+      p/PEncodable
+      (encode
+        [_ offset x]
         (if x
           (let [x (-> x (max lower) (min upper))
                 z (/ (- x lower) span)
@@ -39,23 +42,29 @@
         on-bits (/ bit-width n)
         val-to-int (zipmap values (range))
         int-e (linear-encoder bit-width on-bits [0 (dec n)])]
-    (reify PEncoder
-      (encoder-bit-width [_]
-        bit-width)
-      (encode [_ offset x]
-        (encode int-e offset (val-to-int x))))))
+    (reify
+      p/PTopological
+      (topology [_]
+        (p/topology int-e))
+      p/PEncodable
+      (encode
+        [_ offset x]
+        (p/encode int-e offset (val-to-int x))))))
 
 (defn ensplat
   "Returns a higher-level encoder for a sequence of values. The given
    encoder will be applied to each value, and the resulting encodings
    overlaid (splatted together), taking the union of the sets of bits."
   [e]
-  (reify PEncoder
-    (encoder-bit-width [_]
-      (encoder-bit-width e))
-    (encode [_ offset xs]
+  (reify
+    p/PTopological
+    (topology [_]
+      (p/topology e))
+    p/PEncodable
+    (encode
+      [_ offset xs]
       (->> xs
-           (map (fn [x] (encode e offset x)))
+           (map (fn [x] (p/encode e offset x)))
            (apply set/union)))))
 
 (defn encat
@@ -66,25 +75,36 @@
    are given they will be applied to corresponding elements of the
    input collection."
   ([n e]
-     (let [w1 (encoder-bit-width e)]
-       (reify PEncoder
-         (encoder-bit-width [_]
-           (* n w1))
-         (encode [_ offset xs]
+     (let [e-dim (p/dims-of e)
+           e-w (p/size-of e)
+           dim (update-in e-dim [0] * n)
+           topo (topology/make-topology dim)]
+       (reify
+         p/PTopological
+         (topology [_]
+           topo)
+         p/PEncodable
+         (encode
+           [_ offset xs]
            (->> xs
                 (map-indexed (fn [i x]
-                               (encode e (+ offset (* i w1)) x)))
+                               (p/encode e (+ offset (* i e-w)) x)))
                 (apply set/union))))))
   ([n e & more]
      (let [es (list* e more)
-           ws (map encoder-bit-width es)
-           os (list* 0 (reductions + ws))]
-       (reify PEncoder
-         (encoder-bit-width [_]
-           (apply + ws))
-         (encode [_ offset xs]
+           ws (map p/size-of es)
+           os (list* 0 (reductions + ws))
+           dim (apply topology/combined-dimensions (map p/dims-of es))
+           topo (topology/make-topology dim)]
+       (reify
+         p/PTopological
+         (topology [_]
+           topo)
+         p/PEncodable
+         (encode
+           [_ offset xs]
            (->> (map (fn [e o x]
-                       (encode e (+ offset o) x))
+                       (p/encode e (+ offset o) x))
                      es os xs)
                 (apply set/union)))))))
 
@@ -92,6 +112,11 @@
   "Returns an encoder wrapping another encoder `e`, where the function
    `f` is applied to input values prior to encoding by `e`."
   [f e]
-  (reify PEncoder
-    (encoder-bit-width [_] (encoder-bit-width e))
-    (encode [_ offset x] (encode e offset (f x)))))
+  (reify
+    p/PTopological
+    (topology [_]
+      (p/topology e))
+    p/PEncodable
+    (encode
+      [_ offset x]
+      (p/encode e offset (f x)))))

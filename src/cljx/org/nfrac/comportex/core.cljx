@@ -3,9 +3,9 @@
    represents a field of neurons arranged in columns, responding to
    an input bit array."
   (:require [org.nfrac.comportex.protocols :as p]
+            [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.pooling :as pooling]
             [org.nfrac.comportex.sequence-memory :as sm]
-            [org.nfrac.comportex.encoders :as enc]
             [cljs-uuid.core :as uuid]
             [clojure.set :as set]
             [clojure.zip :as zip]))
@@ -62,10 +62,8 @@
 (defrecord SensoryInput
     [init-value value transform encoder]
   p/PFeedForward
-  (bit-width [_]
-    (enc/encoder-bit-width encoder))
   (bits-value* [_ offset]
-    (enc/encode encoder offset value))
+    (p/encode encoder offset value))
   (signal-bits-value* [_ offset]
     #{})
   (source-of-bit [_ i]
@@ -76,6 +74,9 @@
     [0 (p/source-of-bit this i)])
   (feed-forward-step* [this _]
     (assoc this :value (transform value)))
+  p/PTopological
+  (topology [_]
+    (p/topology encoder))
   p/PSensoryInput
   (domain-value [_] value)
   (state-labels [_] #{})
@@ -89,18 +90,12 @@
   [init-value transform encoder]
   (->SensoryInput init-value init-value transform encoder))
 
-(defn combined-bit-width
-  "Returns the total bit width from a collection of
-   sources (satisfying PFeedForward)."
-  [ffs]
-  (reduce + (map p/bit-width ffs)))
-
 (defn combined-bits-value
   "Returns the total bit set from a collection of sources (satisfying
-   PFeedForward). `bits-fn` should be `p/bits-value*` or
-   `p/signal-bits-value*`."
+   PFeedForward and PTopological). `bits-fn` should be `p/bits-value*`
+   or `p/signal-bits-value*`."
   [ffs bits-fn]
-  (let [ws (map p/bit-width ffs)
+  (let [ws (map p/size-of ffs)
         os (list* 0 (reductions + ws))]
     (->> (map bits-fn ffs os)
          (apply set/union))))
@@ -117,9 +112,6 @@
 (defrecord RegionTree
     [region subs]
   p/PFeedForward
-  (bit-width [_]
-    (* (p/ff-cells-per-column region)
-       (p/size (p/topology region))))
   (bits-value*
     [_ offset]
     (let [depth (p/ff-cells-per-column region)]
@@ -144,7 +136,7 @@
            offset 0]
       (when (< sub-i (count subs))
         (let [sub (nth subs sub-i)
-              w (p/bit-width sub)]
+              w (p/size-of sub)]
           (if (<= offset i (+ offset w -1))
             [sub-i (p/source-of-bit sub (- i offset))]
             (recur (inc sub-i) (+ offset (long w))))))))
@@ -157,6 +149,10 @@
                                  #{} ;; TODO extra-distal
                                  learn?)]
       (assoc this :region new-rgn :subs new-subs)))
+  p/PTopological
+  (topology [_]
+    (topology/make-topology (conj (p/dims-of region)
+                                  (p/ff-cells-per-column region))))
   p/PTemporal
   (timestep [_]
     (p/timestep region))
@@ -172,19 +168,20 @@
 
 (defn tree
   "A helper function to build a hierarchical network. The `subs`
-   should be a sequence of subtrees or input generators. The combined
-   bit width from these is calculated and used to set the
-   `:input-dimensions` parameter in `spec`. If the parameter
-   `:ff-potential-radius-frac` is defined it is used to calculate (and
-   override) the `:ff-potential-radius` parameter as a fraction of the
-   input size. The updated spec is passed to `build-region`. Returns a
-   RegionTree."
+   should be a sequence of subtrees or sensory inputs (things
+   satisfying PFeedForward and PTopological). The combined dimensions
+   of these is calculated and used to set the `:input-dimensions`
+   parameter in `spec`. If the parameter `:ff-potential-radius-frac`
+   is defined it is used to calculate (and override) the
+   `:ff-potential-radius` parameter as a fraction of the largest
+   single dimension. The updated spec is passed to `build-region`.
+   Returns a RegionTree."
   [build-region spec subs]
-  (let [width (combined-bit-width subs)
+  (let [dims (apply topology/combined-dimensions (map p/dims-of subs))
         radius (if-let [x (:ff-potential-radius-frac spec)]
-                 (long (* x width))
+                 (long (* x (apply max dims)))
                  (:ff-potential-radius spec))]
-    (-> (assoc spec :input-dimensions [width]
+    (-> (assoc spec :input-dimensions dims
                :ff-potential-radius radius)
         (build-region)
         (region-tree subs))))

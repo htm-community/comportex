@@ -35,7 +35,7 @@
              (enc/linear-encoder numb-bits numb-on-bits numb-domain)))
 
 (deftest pooling-test
-  (let [efn (partial enc/encode encoder 0)
+  (let [efn (partial p/encode encoder 0)
         cf (pooling/column-field spec)
         ncol (p/size (p/topology cf))
         cf1k (reduce (fn [cf in]

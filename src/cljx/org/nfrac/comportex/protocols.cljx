@@ -12,10 +12,18 @@
   (neighbours* [this coord outer-r inner-r])
   (coord-distance [this coord-a coord-b]))
 
+(defn dims-of
+  [x]
+  (dimensions (topology x)))
+
 (defn size
-  "Returns the total number of elements representable in a topology."
+  "The total number of elements indexed in a topology."
   [topo]
   (apply * (dimensions topo)))
+
+(defn size-of
+  [x]
+  (size (topology x)))
 
 (defn neighbours
   "Returns the coordinates within `outer-r`adius in of the given
@@ -34,6 +42,9 @@
      (->> (neighbours* topo (coordinates-of-index topo idx)
                        outer-r inner-r)
           (map (partial index-of-coordinates topo)))))
+
+(defprotocol PEncodable
+  (encode [this offset x]))
 
 (defprotocol PParameterised
   (params [this]))
@@ -91,7 +102,6 @@
   "A feedforward input source with a bit set representation. Could be
    sensory input, or a collection of regions feeding forward to a
    higher-level region."
-  (bit-width [this])
   (bits-value* [this offset])
   (signal-bits-value* [this offset])
   (source-of-bit [this i])

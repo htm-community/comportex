@@ -1,17 +1,15 @@
 # TODO
 
-* rethink data structures
-  * if need column lookup, use a map {cid ci} rather than a set of [cid ci]
+  (column-field [this])
+  (layer-3 [this])
+  (layer-4 [this])
+
 
 * unit tests
 * property-based testing (clojure.test.check)
 * repeatability - store random seeds in objs?
 
 ## pooling
-
-* combined dimensions from multiple feed-forward sources
-
-* dimensions on encoders
 
 * boosting - apply every time step; periodically recalculate duty cycle thresholds
 
