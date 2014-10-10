@@ -35,15 +35,13 @@
                      (enc/category-encoder bit-width items)))
 
 (def spec
-  {:column-dimensions [300]
+  {:column-dimensions [400]
    :input-dimensions [200]
    :ff-potential-radius 100
    :ff-perm-inc 0.04
    :ff-perm-dec 0.01
    :ff-perm-connected 0.1
    :ff-stimulus-threshold 2
-   :global-inhibition true
-   :activation-level 0.06
    :duty-cycle-period 1000
    :max-boost 2.0
    ;; sequence memory:
@@ -55,6 +53,8 @@
    :distal-perm-inc 0.04
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
+   :global-inhibition true
+   :activation-level 0.04
    })
 
 (defn model
@@ -65,39 +65,40 @@
 
 (deftest sm-test
   (util/set-seed! 0)
-  (testing "Sequence memory"
-   (let [m1 (-> (iterate p/feed-forward-step (model))
-                (nth 500))
-         rgn (:region m1)]
-     (let [ncols (p/size (p/topology rgn))
-           lyr (:layer rgn)
-           depth (p/layer-depth lyr)
-           distal-sg (:distal-sg lyr)
-           nsegs-by-cell (for [col (range ncols)
-                               ci (range depth)]
-                           (->> (p/cell-segments distal-sg [col ci])
-                                (filter seq)
-                                (count)))]
-       (is (>= (apply max nsegs-by-cell) 1)
-           "Some cells have grown lateral dendrite segments.")
-       (is (pos? (util/quantile nsegs-by-cell 0.90))
-           "At least 10% of cells have grown lateral dendrite segments.")
-       (is (>= (apply max nsegs-by-cell) 2)
-           "Some cells have grown multiple lateral dendrite segments."))
-     (let [sums (->> m1
-                     (iterate p/feed-forward-step)
-                     (take 100)
-                     (map :region)
-                     (map core/column-state-freqs)
-                     (apply merge-with +))]
-       (is (> (:active-predicted sums) 0)
-           "Some column activations are predicted.")
-       (is (> (:active-predicted sums) (:active sums))
-           "Most column activations are predicted.")
-       (is (> (:predicted sums) 0)
-           "Some columns were predicted but are not active.")
-       (is (< (+ (:active sums)
-                 (:active-predicted sums)
-                 (:predicted sums))
-              (* (:size sums) 0.25))
-           "Less than 25% of columns are active or predicted.")))))
+  (let [m1 (-> (iterate p/feed-forward-step (model))
+               (nth 500))
+        rgn (:region m1)]
+    (testing "Numbers of lateral dendrite segments"
+      (let [n-cols (p/size (p/topology rgn))
+            lyr (:layer-3 rgn)
+            depth (p/layer-depth lyr)
+            distal-sg (:distal-sg lyr)
+            nsegs-by-cell (for [col (range n-cols)
+                                ci (range depth)]
+                            (->> (p/cell-segments distal-sg [col ci])
+                                 (filter seq)
+                                 (count)))]
+        (is (>= (apply max nsegs-by-cell) 1)
+            "Some cells have grown lateral dendrite segments.")
+        (is (pos? (util/quantile nsegs-by-cell 0.90))
+            "At least 10% of cells have grown lateral dendrite segments.")
+        (is (>= (apply max nsegs-by-cell) 2)
+            "Some cells have grown multiple lateral dendrite segments.")))
+    (testing "Column / cell activation"
+      (let [sums (->> m1
+                      (iterate p/feed-forward-step)
+                      (take 100)
+                      (map :region)
+                      (map core/column-state-freqs)
+                      (apply merge-with +))]
+        (is (> (:active-predicted sums) 0)
+            "Some column activations are predicted.")
+        (is (> (:active-predicted sums) (:active sums))
+            "Most column activations are predicted.")
+        (is (> (:predicted sums) 0)
+            "Some columns were predicted but are not active.")
+        (is (< (+ (:active sums)
+                  (:active-predicted sums)
+                  (:predicted sums))
+               (* (:size sums) 0.25))
+            "Less than 25% of columns are active or predicted.")))))

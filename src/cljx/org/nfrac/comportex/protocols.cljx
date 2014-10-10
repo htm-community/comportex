@@ -26,10 +26,10 @@
   (size (topology x)))
 
 (defn neighbours
-  "Returns the coordinates within `outer-r`adius in of the given
-   `coord`, but excluding any within `inner-r`adius."
+  "Returns the coordinates away from `coord` at distances
+  `inner-r` (exclusive) out to `outer-r` (inclusive) ."
   ([topo coord radius]
-     (neighbours* topo coord radius 1)) ;; CHECK 0 or 1
+     (neighbours* topo coord radius 0))
   ([topo coord outer-r inner-r]
      (neighbours* topo coord outer-r inner-r)))
 
@@ -37,7 +37,7 @@
   "Same as `neighbours` but taking and returning indices instead of
    coordinates."
   ([topo idx radius]
-     (neighbours-indices topo idx radius 1))
+     (neighbours-indices topo idx radius 0))
   ([topo idx outer-r inner-r]
      (->> (neighbours* topo (coordinates-of-index topo idx)
                        outer-r inner-r)
@@ -50,7 +50,7 @@
   (params [this]))
 
 (defprotocol PRegion
-  (region-step* [this ff-bits signal-ff-bits extra-distal learn?])
+  (region-step* [this ff-bits signal-ff-bits distal-bits learn?])
   (ff-cells-per-column [this])
   (ff-active-cells [this])
   (ff-signal-cells [this])
@@ -60,19 +60,23 @@
 (defn region-step
   ([this ff-bits signal-ff-bits]
      (region-step* this ff-bits signal-ff-bits #{} true))
-  ([this ff-bits signal-ff-bits extra-distal learn?]
-     (region-step* this ff-bits signal-ff-bits extra-distal learn?)))
+  ([this ff-bits signal-ff-bits distal-bits learn?]
+     (region-step* this ff-bits signal-ff-bits distal-bits learn?)))
 
 (defprotocol PColumnField
-  (columns-step [this ff-bits signal-ff-bits cell-depolarisation learn?])
-  (active-columns [this])
-  (temporal-pooling-columns [this])
-  (column-overlaps [this]))
+  (columns-step [this ff-bits signal-ff-bits])
+  (columns-learn [this ff-bits signal-ff-bits a-cols])
+  (inhibition-radius [this])
+  (column-overlaps [this]) ;; proximal excitation
+  (column-signal-overlaps [this]))
 
 (defprotocol PLayerOfCells
-  (layer-step [this a-cols tp-cols extra-distal learn?])
+  (layer-step [this prox-exc prox-sig-exc inh-radius])
+  (layer-learn [this prior-ac prior-lc])
+  (layer-depolarise [this distal-bits])
   (layer-depth [this])
   (bursting-columns [this])
+  (active-columns [this])
   (active-cells [this])
   (learnable-cells [this])
   (signal-cells [this])
@@ -104,10 +108,19 @@
    higher-level region."
   (bits-value* [this offset])
   (signal-bits-value* [this offset])
-  (source-of-bit [this i])
-  (incoming-bits-value [this])
-  (source-of-incoming-bit [this i])
+  (motor-bits-value* [this offset])
   (feed-forward-step* [this learn?]))
+
+(defprotocol PMotorTopological
+  (motor-topology [this]))
+
+(defn motor-dims-of
+  [x]
+  (dimensions (motor-topology x)))
+
+(defprotocol PFeedForwardComposite
+  (source-of-bit [this i])
+  (source-of-incoming-bit [this i]))
 
 (defn bits-value
   ([this] (bits-value* this 0))

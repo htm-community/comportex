@@ -140,3 +140,36 @@
   (->> m
        (mapv (fn [[k v]] [k (f v)]))
        (into (or (empty m) {}))))
+
+(defn top-n-keys-by-value
+  "Like `(reverse (take n (keys (sort-by val > m))))` but faster."
+  [n m]
+  (if-not (pos? n)
+    ()
+    (loop [ms (seq m)
+           am (sorted-map-by #(compare [(m %1) %1] [(m %2) %2]))
+           curr-min -1.0]
+      (if (empty? ms)
+        (keys am)
+        (let [[k v] (first ms)]
+          (cond
+           ;; just initialising the set
+           (empty? am)
+           (recur (next ms)
+                  (assoc am k v)
+                  (double v))
+           ;; filling up the set
+           (< (count am) n)
+           (recur (next ms)
+                  (assoc am k v)
+                  (double (min curr-min v)))
+           ;; include this one, dominates previous min
+           (> v curr-min)
+           (let [new-am (-> (dissoc am (first (keys am)))
+                            (assoc k v))]
+             (recur (next ms)
+                    new-am
+                    (double (first (vals new-am)))))
+           ;; exclude this one
+           :else
+           (recur (next ms) am curr-min)))))))

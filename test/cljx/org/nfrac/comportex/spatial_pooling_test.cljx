@@ -1,6 +1,6 @@
-(ns org.nfrac.comportex.pooling-test
+(ns org.nfrac.comportex.spatial-pooling-test
   (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.pooling :as pooling]
+            [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.set :as set]
@@ -20,51 +20,62 @@
 (def initial-input
   (repeat n-in-items (quot numb-max 2)))
 
-(defn gen-ins
-  []
+(defn input-transform
+  "Ignore previous value, generate new random one."
+  [_]
   (repeatedly n-in-items #(util/rand-int 0 numb-max)))
 
 (def spec {:column-dimensions [1000]
            :input-dimensions [bit-width]
            :ff-potential-radius (quot bit-width 2)
            :global-inhibition true
-           :duty-cycle-period 600})
+           :duty-cycle-period 600
+           :depth 1
+           :max-segments 1
+           :lateral-synapses? false
+           })
 
 (def encoder
   (enc/encat n-in-items
              (enc/linear-encoder numb-bits numb-on-bits numb-domain)))
 
-(deftest pooling-test
-  (let [efn (partial p/encode encoder 0)
-        cf (pooling/column-field spec)
-        ncol (p/size (p/topology cf))
-        cf1k (reduce (fn [cf in]
-                       (-> cf
-                           (assoc-in [:active-columns-at (p/timestep cf)]
-                                     (p/active-columns cf))
-                           (p/columns-step in #{} {} true)))
-                     cf
-                     (map efn (repeatedly 1000 gen-ins)))]
-    
+(defn model
+  []
+  (let [input (core/sensory-input initial-input input-transform encoder)]
+    (core/tree core/sensory-region spec
+               [input])))
+
+(deftest sp-test
+  (util/set-seed! 0)
+  (let [model1 (->> (iterate (fn [m]
+                           (-> (p/feed-forward-step m)
+                               (assoc-in [:active-columns-at (p/timestep m)]
+                                         (p/active-columns (:layer-3 (:region m))))))
+                         (model))
+                (take 500)
+                (last))
+        rgn (:region model1)
+        cf (:column-field rgn)
+        n-cols (p/size-of cf)]
     (testing "Column activation is distributed and moderated."
-      (is (pos? (util/quantile (:overlap-duty-cycles cf1k) 0.01))
+      (is (pos? (util/quantile (:overlap-duty-cycles cf) 0.01))
           "At least 99% of columns have overlapped with input at least once.")
-      (is (pos? (util/quantile (:active-duty-cycles cf1k) 0.8))
-          "At least 20% of columns have been active.")
-      (let [nactive-ts (for [t (range 900 1000)]
-                         (count (get-in cf1k [:active-columns-at t])))]
-        (is (every? #(< % (* ncol 0.2)) nactive-ts)
+      (is (pos? (util/quantile (:active-duty-cycles cf) 0.9))
+          "At least 10% of columns have been active.")
+      (let [nactive-ts (for [t (range 400 500)]
+                         (count (get-in model1 [:active-columns-at t])))]
+        (is (every? #(< % (* n-cols 0.20)) nactive-ts)
             "Inhibition limits active columns in each time step."))
-      (let [sg (:ff-sg cf1k)
-            nsyns (for [col (range ncol)]
+      (let [sg (:ff-sg cf)
+            nsyns (for [col (range n-cols)]
                     (count (p/sources-connected-to sg col)))]
         (is (>= (apply min nsyns) 1)
             "All columns have at least one connected input synapse."))
-      (let [bs (:boosts cf1k)]
+      (let [bs (:boosts cf)]
         (is (== 1.0 (util/quantile bs 0.1))
             "At least 10% of columns are unboosted.")))
 
-    (testing "Spatial pooler acts as a Locality Sensitive Hashing function."
+    (testing "Column activation acts as a Locality Sensitive Hashing function."
       (let [in (repeat n-in-items 50)
             m (->>
                (for [[k d] [[:orig 0]
@@ -72,8 +83,8 @@
                             [:mid 8]
                             [:far 25]]
                      :let [this-in (mapv (partial + d) in)
-                           cf2 (p/columns-step cf1k (efn this-in) #{} {} true)]]
-                 [k (p/active-columns cf2)])
+                           rgn2 (p/region-step rgn (p/encode encoder 0 this-in) #{})]]
+                 [k (p/active-columns (:layer-3 rgn2))])
                (into {}))]
         (is (> (count (set/intersection (:orig m) (:near m)))
                (* (count (:orig m)) 0.5))

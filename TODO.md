@@ -1,15 +1,11 @@
 # TODO
 
-  (column-field [this])
-  (layer-3 [this])
-  (layer-4 [this])
-
+* allow motor/top-down distal inputs to distal synapses
+  * lateral synapses as an option
 
 * unit tests
 * property-based testing (clojure.test.check)
 * repeatability - store random seeds in objs?
-
-## pooling
 
 * boosting - apply every time step; periodically recalculate duty cycle thresholds
 
@@ -30,12 +26,6 @@
 * local activation - adapt inhibition strength (or stimulus threshold)  to tune activation level
 
 * turn off temporal pooling when no input
-
-* bias activation to columns with depolarised cells
-
-## sequence memory
-
-* separate parameter for punishment permanence reduction
 
 * probably only one predicted cell per column will fire and inhibit others?
 * only one learn cell per column

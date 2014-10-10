@@ -6,6 +6,8 @@
   (if (neg? x) (- x) x))
 
 (defn one-d-ring
+  "Returns the indices away from `i` at distances
+  `inner-r` (exclusive) out to `outer-r` (inclusive) ."
   [n i outer-r inner-r]
   (concat (range (min (+ i inner-r 1) n)
                  (min (+ i outer-r 1) n))
@@ -106,6 +108,7 @@
   [dims]
   (let [[w h d q] dims]
     (case (count dims)
+      0 (one-d-topology 0)
       1 (one-d-topology w)
       2 (two-d-topology w h)
       3 (three-d-topology w h d)
@@ -129,6 +132,9 @@
         ;; ensure higher dimensional one comes first
         (> d2 d1)
         (recur dims2 dims1)
+        ;; any empty
+        (or (zero? d2) (some zero? dims2))
+        dims1
         ;; 1D & 1D
         (and (== 1 d1) (== 1 d2))
         [(+ x1 x2)]

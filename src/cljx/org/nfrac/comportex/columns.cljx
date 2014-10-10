@@ -1,8 +1,7 @@
-(ns org.nfrac.comportex.pooling
-  "Selection of the set of columns in a region to become active, by
-   excitation and inhibition. This process produces spatial
-   pooling (pattern memory) over feed-forward inputs, and temporal
-   pooling over recognised sequences.
+(ns org.nfrac.comportex.columns
+  "Handling of column excitation through proximal dendrite segment
+   synapses. This process produces spatial pooling (pattern memory)
+   over feed-forward inputs.
 
    **Argument name conventions:**
 
@@ -14,27 +13,19 @@
 "
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.synapses :as syn]
+            [org.nfrac.comportex.inhibition :as inh]
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util
              :refer [abs round mean count-filter remap]]))
 
-(def parameter-defaults
+(def columns-parameter-defaults
   "Default parameter specification map.
 
-   * `input-dimensions` - size of input bit array, either one
+   * `input-dimensions` - size of input bit grid as a vector, one
+     dimensional `[size]`, two dimensional `[width height]`, etc.
+
+   * `column-dimensions` - size of column field as a vector, one
      dimensional `[size]` or two dimensional `[width height]`.
-
-   * `column-dimensions` - size of column field, either one
-     dimensional `[size]` or two dimensional `[width height]`.
-
-   * `global-inhibition` - whether to use the faster global algorithm
-     for column inhibition (just keep those with highest overlap
-     scores), or to apply inhibition only within a column's
-     neighbours.
-
-   * `activation-level` - fraction of columns that can be
-     active (either locally or globally); inhibition kicks in to
-     reduce it to this level.
 
    * `ff-potential-radius` - range of potential feed-forward synapse
      connections; a distance in input bits. See also `core/tree`.
@@ -69,16 +60,7 @@
      updates.
 
    * `max-boost` - ceiling on the column boosting factor used to
-     increase activation frequency.
-
-   * `temporal-pooling-decay` - multiplier on the continuing overlap
-     score of temporal pooling columns; as this reduces a temporal
-     pooling cell is more likely to be interrupted by competing
-     columns.
-
-   * `temporal-pooling-amp` - multiplier on the initial overlap score
-     of temporal pooling columns; this increases the probability that
-     TP cells will remain active."
+     increase activation frequency."
   {:input-dimensions [:define-me!]
    :column-dimensions [2048]
    :ff-potential-radius 256
@@ -87,19 +69,11 @@
    :ff-perm-dec 0.01
    :ff-perm-connected 0.1
    :ff-stimulus-threshold 3
-   :global-inhibition false
-   :activation-level 0.02
    :boost-overlap-duty-ratio 0.001
    :boost-active-duty-ratio 0.001
    :duty-cycle-period 1000
    :max-boost 3.0
-   :temporal-pooling-decay 0.9
-   :temporal-pooling-amp 1.1
    })
-
-(defn n-columns
-  [cf]
-  (p/size (p/topology cf)))
 
 (defn uniform-ff-synapses
   "Generates feed-forward synapses connecting to the given column
@@ -162,54 +136,6 @@
                   (+ p-lo (* z (- p-hi p-lo)))))]
     (zipmap ids perms)))
 
-;;; ## Neighbouring columns
-
-(defn numeric-span
-  [xs]
-  (- (apply max xs) (apply min xs)))
-
-(defn column-receptive-field-size
-  "Returns the span over the input bit array to which this column has
-   connected synapses. Takes the maximum span in any one dimension."
-  [ff-sg itopo col]
-  (let [ids (p/sources-connected-to ff-sg col)
-        coords (map (partial p/coordinates-of-index itopo) ids)]
-    (if (seq coords)
-      (if (number? (first coords))
-        (numeric-span coords)
-        (let [m (count (p/dimensions itopo))]
-          (->> (for [j (range m)]
-                 (numeric-span (map #(nth % j) coords)))
-               (apply max))))
-      0)))
-
-(defn avg-receptive-field-size
-  [cf]
-  (let [n-cols (n-columns cf)
-        itopo (:input-topology cf)
-        ff-sg (:ff-sg cf)]
-    (-> (map (partial column-receptive-field-size ff-sg itopo)
-             (range n-cols))
-        (mean))))
-
-(defn inhibition-radius
-  "The radius in column space defining neighbouring columns, based on
-   the average receptive field size. Specifically, neighbouring
-   columns are defined by sharing at least 30% of their receptive
-   fields, on average."
-  [cf]
-  (let [shared-frac 0.3
-        n-cols (n-columns cf)
-        n-inbits (p/size (:input-topology cf))
-        arfs (avg-receptive-field-size cf)
-        ;; columns in this range will have some overlap of inputs
-        cols-diameter (* n-cols (/ arfs n-inbits))
-        cols-radius (quot cols-diameter 2)]
-    ;; to share a given fraction of receptive fields
-    (-> (* cols-radius (- 1.0 shared-frac))
-        (round)
-        (max 1))))
-
 ;;; ## Overlaps
 
 (defn compute-overlaps
@@ -229,114 +155,6 @@
                           (assoc! om col (* x boost)))))
                     (transient {}))
          (persistent!))))
-
-;;; ## Activation
-
-(defn active-columns-with-global-inhibition
-  "Returns the set of column ids which should become active given the
-   map of column overlap scores `om`, and the target activation rate
-   `level`. Global inhibition is applied, i.e. the top N columns by
-   overlap score are selected."
-  [om level n-cols]
-  (let [n-on (max 1 (round (* level n-cols)))]
-    (loop [oms (seq om)
-           am (sorted-map-by #(compare (om %1) (om %2)))
-           curr-min 1000000.0]
-      (if (empty? oms)
-        (set (keys am))
-        (let [[col o] (first oms)]
-          (cond
-           ;; just initialising the set
-           (< (count am) n-on)
-           (recur (next oms)
-                  (assoc am col o)
-                  (double (min curr-min o)))
-           ;; include this one, dominates previous min
-           (> o curr-min)
-           (let [new-am (-> (dissoc am (first (keys am)))
-                            (assoc col o))]
-             (recur (next oms)
-                    new-am
-                    (double (first (vals new-am)))))
-           ;; exclude this one
-           :else
-           (recur (next oms) am curr-min)))))))
-
-(defn dominant-overlap-diff
-  [dist]
-  (-> dist
-      (- 4) ; within this radius, there can be only one
-      (max 0)
-      (/ 2.0))) ; for every 2 columns away, need one extra overlap to dominate
-
-(defn map->vec
-  [n m]
-  (mapv m (range n)))
-
-(defn vec->map
-  [v]
-  (persistent!
-   (reduce-kv (fn [m i x]
-                (if x
-                  (assoc! m i x)
-                  m))
-              (transient {}) v)))
-
-(defn apply-local-inhibition
-  [om cf outer-radius inner-radius]
-  (let [topo (p/topology cf)]
-    (loop [cols (keys om)
-           mask (transient (map->vec (n-columns cf) om))]
-      (if-let [col (first cols)]
-        (if-let [o (mask col)]
-          (recur
-           (next cols)
-           ;; loop through neighbours and mask out any dominated
-           (let [coord (p/coordinates-of-index topo col)]
-             (loop [nbs (p/neighbours topo coord outer-radius inner-radius)
-                    mask mask]
-               (if-let [nb-coord (first nbs)]
-                 (let [nb-col (p/index-of-coordinates topo nb-coord)]
-                   (if-let [nb-o (mask nb-col)]
-                     (let [dist (p/coord-distance topo coord nb-coord)
-                           odom (dominant-overlap-diff dist)]
-                       (cond
-                        ;; neighbour is dominated
-                        (>= o (+ nb-o odom))
-                        (recur (next nbs)
-                               (assoc! mask nb-col nil))
-                        ;; we are dominated by neighbour; abort
-                        (<= o (- nb-o odom))
-                        (assoc! mask col nil)
-                        ;; neither dominates
-                        :else
-                        (recur (next nbs) mask)))
-                     ;; neighbour has no overlap or was eliminated
-                     (recur (next nbs) mask)))
-                 ;; finished with neighbours
-                 mask))))
-          ;; already eliminated, skip
-          (recur (next cols) mask))
-        ;; finished
-        (vec->map (persistent! mask))))))
-
-(defn perturb-overlaps
-  [om]
-  (remap #(+ % (util/rand 0 0.5)) om))
-
-(defn select-active-columns
-  "Returns the set of column ids which should become active given the
-   map of column overlap scores `om`. The method used depends on the
-   specification key `:global-inhibition`."
-  [cf om]
-  (let [spec (:spec cf)
-        level (:activation-level spec)
-        do-local? (not (:global-inhibition spec))
-        radius (:inh-radius cf)
-        omi (cond-> (perturb-overlaps om)
-                    do-local? (apply-local-inhibition cf (quot radius 3) 0)
-                    do-local? (apply-local-inhibition cf radius (quot radius 3)))]
-    (active-columns-with-global-inhibition omi level (n-columns cf))))
 
 ;;; ## Learning
 
@@ -395,7 +213,7 @@
   increasing its boost factor)."
   [cf]
   (reduce update-column-boosting
-          cf (range (n-columns cf))))
+          cf (range (p/size-of cf))))
 
 (defn update-duty-cycles
   "Records a set of events with indices `is` in the vector `v`
@@ -448,40 +266,41 @@ y[t] = (period-1) * y[t-1]  +  1
 
 (defn update-inhibition-radius
   [cf]
-  (assoc cf :inh-radius (inhibition-radius cf)))
+  (assoc cf :inh-radius (inh/inhibition-radius (:ff-sg cf) (:topology cf)
+                                               (:input-topology cf))))
 
 (defrecord ColumnField
-    [spec ff-sg topology input-topology inh-radius
-     overlaps active-cols tp-scores
-     boosts active-duty-cycles overlap-duty-cycles]
+    [spec ff-sg topology input-topology overlaps sig-overlaps
+     inh-radius boosts active-duty-cycles overlap-duty-cycles]
   p/PColumnField
   (columns-step
-    [this ff-bits signal-ff-bits cell-depolarisation learn?]
-    (let [curr-om (compute-overlaps this ff-bits)
-          om (merge-with max curr-om tp-scores)
-          a-cols (select-active-columns this om)
-          tpm (temporal-pooling-scores this a-cols signal-ff-bits tp-scores curr-om)
-          dcp (:duty-cycle-period spec)
-          t (inc (:timestep this 0))
-          boost? (and learn? (zero? (mod t dcp)))]
+    [this ff-bits signal-ff-bits]
+    (let [om (compute-overlaps this ff-bits)
+          sig-om (compute-overlaps this signal-ff-bits)]
       (cond->
        (assoc this
-         :timestep t
+         :timestep (inc (:timestep this 0))
          :overlaps om
-         :active-cols a-cols
-         :tp-scores tpm)
-       learn? (update-in [:overlap-duty-cycles] update-duty-cycles (keys om) dcp)
-       learn? (update-in [:active-duty-cycles] update-duty-cycles a-cols dcp)
-       learn? (learn (filter curr-om a-cols) ;; only learn on columns with current input
-                     ff-bits signal-ff-bits)
-       boost? (update-boosting)
-       boost? (update-inhibition-radius))))
-  (active-columns [_]
-    active-cols)
-  (temporal-pooling-columns [_]
-    (set (keys tp-scores)))
+         :sig-overlaps sig-om))))
+  (columns-learn
+    [this ff-bits signal-ff-bits a-cols]
+    (let [dcp (:duty-cycle-period spec)
+          t (:timestep this)
+          boost? (zero? (mod t dcp))]
+      ;; TODO: only learn on columns with current input?
+      (cond-> (learn this a-cols ff-bits signal-ff-bits)
+              true (update-in [:overlap-duty-cycles] update-duty-cycles
+                              (keys overlaps) dcp)
+              true (update-in [:active-duty-cycles] update-duty-cycles
+                              a-cols dcp)
+              boost? (update-boosting)
+              boost? (update-inhibition-radius))))
+  (inhibition-radius [_]
+    inh-radius)
   (column-overlaps [_]
     overlaps)
+  (column-signal-overlaps [_]
+    sig-overlaps)
   p/PTemporal
   (timestep [this]
     (:timestep this 0))
@@ -494,7 +313,7 @@ y[t] = (period-1) * y[t-1]  +  1
 
 (defn column-field
   [spec]
-  (let [spec (merge parameter-defaults spec)
+  (let [spec (merge columns-parameter-defaults spec)
         input-dim (:input-dimensions spec)
         col-dim (:column-dimensions spec)
         input-topo (topology/make-topology input-dim)
@@ -513,8 +332,7 @@ y[t] = (period-1) * y[t-1]  +  1
        :input-topology input-topo
        :inh-radius 1
        :overlaps {}
-       :active-cols #{}
-       :tp-scores {}
+       :sig-overlaps {}
        :boosts (vec (repeat n-cols 1.0))
        :active-duty-cycles (vec (repeat n-cols 0.0))
        :overlap-duty-cycles (vec (repeat n-cols 0.0))
