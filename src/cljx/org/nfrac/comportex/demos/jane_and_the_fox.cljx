@@ -4,10 +4,19 @@
             [org.nfrac.comportex.util :as util]
             [clojure.string :as str]))
 
-(def separator "...then...")
+(def terminator "(end)")
 
 (def sentences
-  [
+  [;;warmup to refine feed-forward synapse fields
+   "Jane"
+   "saw"
+   "something"
+   "the_fox"
+   "it"
+   "ate"
+   "Chifung"
+   "is"
+   
    "Jane saw something"
    "Jane saw the_fox"
    "Jane saw it"
@@ -74,9 +83,9 @@
   (mapv #(str/split % #" ") sentences))
 
 (def words
-  (->> split-sentences
-       (apply concat)
-       (into #{separator})))
+  (-> (apply concat split-sentences)
+      (concat [terminator])
+      (distinct)))
 
 (def bit-width 400)
 
@@ -89,8 +98,9 @@
   [[i j rep]]
   (let [sen (get split-sentences i)
         n-sen (count split-sentences)]
-    (if (== j (count sen))
-      ;; reached the end of a sentence (+ 1 for separator)
+    ;; check end of a sentence (+ 1 for terminator, +1 for gap)
+    (if (== j (inc (count sen)))
+      ;; reached the end of a sentence
       (if (== rep (dec n-repeats))
         ;; finished repeating this sentence, move on
         [(mod (inc i) n-sen)
@@ -105,10 +115,9 @@
 
 (def encoder
   (enc/pre-transform (fn [[i j _]]
-                       (let [sen (get split-sentences i)]
-                         (if (== j (count sen)) ;; end of sentence:
-                           separator
-                           (get sen j))))
+                       (let [sen (-> (get split-sentences i)
+                                     (conj terminator))]
+                         (get sen j)))
                      (enc/category-encoder bit-width words)))
 
 (def spec
@@ -123,7 +132,7 @@
    :duty-cycle-period 100000
    :max-boost 2.0
    ;; sequence memory:
-   :depth 16
+   :depth 8
    :max-segments 5
    :seg-max-synapse-count 18
    :seg-new-synapse-count 12
