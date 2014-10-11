@@ -5,7 +5,8 @@
 
 (defprotocol PTopology
   "Operating on a regular grid of certain dimensions, where each
-   coordinate is a vector and also has a unique integer index."
+   coordinate is an n-tuple vector---or integer for 1D---and also has
+   a unique integer index."
   (dimensions [this])
   (coordinates-of-index [this idx])
   (index-of-coordinates [this coord])
@@ -13,15 +14,17 @@
   (coord-distance [this coord-a coord-b]))
 
 (defn dims-of
+  "The dimensions of a PTopological as an n-tuple vector."
   [x]
   (dimensions (topology x)))
 
 (defn size
-  "The total number of elements indexed in a topology."
+  "The total number of elements indexed in the topology."
   [topo]
   (apply * (dimensions topo)))
 
 (defn size-of
+  "The total number of elements in a PTopological."
   [x]
   (size (topology x)))
 
@@ -44,12 +47,22 @@
           (map (partial index-of-coordinates topo)))))
 
 (defprotocol PEncodable
-  (encode [this offset x]))
+  "Encoders need to extend this together with PTopological."
+  (encode [this offset x]
+    "Encodes `x` as a set of integers which are the on-bits, starting
+     from the given offset.")
+  (decode [this bits n]
+    "Finds `n` domain values matching the given bit set in a sequence
+     of maps with keys `{:value, :coverage, :precision}`, ordered by
+     coverage decreasing."))
 
 (defprotocol PParameterised
-  (params [this]))
+  (params [this]
+    "A parameter set as map with keyword keys."))
 
 (defprotocol PRegion
+  "Cortical regions need to extend this together with PTopological,
+   PTemporal, PParameterised."
   (region-step* [this ff-bits signal-ff-bits distal-bits learn?])
   (ff-cells-per-column [this])
   (ff-active-cells [this])
@@ -109,6 +122,7 @@
   (bits-value* [this offset])
   (signal-bits-value* [this offset])
   (motor-bits-value* [this offset])
+  (source-of-bit [this i])
   (feed-forward-step* [this learn?]))
 
 (defprotocol PMotorTopological
@@ -119,7 +133,6 @@
   (dimensions (motor-topology x)))
 
 (defprotocol PFeedForwardComposite
-  (source-of-bit [this i])
   (source-of-incoming-bit [this i]))
 
 (defn bits-value

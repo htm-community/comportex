@@ -154,11 +154,14 @@
   (signal-bits-value*
     [_ offset]
     #{})
-  (feed-forward-step* [this _]
-    (assoc this :value (transform value)))
   (motor-bits-value*
     [this offset]
     #{})
+  (source-of-bit
+    [_ i]
+    [i])
+  (feed-forward-step* [this _]
+    (assoc this :value (transform value)))
   p/PTopological
   (topology [_]
     (p/topology encoder))
@@ -187,6 +190,9 @@
   (motor-bits-value*
     [_ offset]
     (p/encode motor-encoder offset value))
+  (source-of-bit
+    [_ i]
+    [i])
   (feed-forward-step* [this _]
     (assoc this :value (transform value)))
   p/PTopological
@@ -259,6 +265,10 @@
     [_ offset]
     ;; TODO
     #{})
+  (source-of-bit
+    [_ i]
+    (let [depth (p/ff-cells-per-column region)]
+      (inbit->cell-id depth i)))
   (feed-forward-step*
     [this learn?]
     (let [new-subs (map #(p/feed-forward-step % learn?) subs)
@@ -269,12 +279,8 @@
                                  learn?)]
       (assoc this :region new-rgn :subs new-subs)))
   p/PFeedForwardComposite
-  (source-of-bit
-    [_ i]
-    (let [depth (p/ff-cells-per-column region)]
-      (inbit->cell-id depth i)))
   (source-of-incoming-bit
-    [_ i]
+    [this i]
     (loop [sub-i 0
            offset 0]
       (when (< sub-i (count subs))

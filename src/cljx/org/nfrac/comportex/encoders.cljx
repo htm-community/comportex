@@ -6,6 +6,20 @@
             [org.nfrac.comportex.util :as util]
             [clojure.set :as set]))
 
+(defn decode-by-brute-force
+  [e try-values bits]
+  (->> try-values
+       (map (fn [x]
+              (let [x-bits (p/encode e 0 x)
+                    o-bits (set/intersection x-bits bits)]
+                {:value x
+                 :coverage (/ (count o-bits)
+                              (count x-bits))
+                 :precision (/ (count o-bits)
+                               (count bits))})))
+       (filter (comp pos? :coverage))
+       (sort-by (juxt :coverage :precision) >)))
+
 (defn pre-transform
   "Returns an encoder wrapping another encoder `e`, where the function
    `f` is applied to input values prior to encoding by `e`."
@@ -17,13 +31,17 @@
     p/PEncodable
     (encode
       [_ offset x]
-      (p/encode e offset (f x)))))
+      (p/encode e offset (f x)))
+    (decode
+      [_ bits n]
+      (p/decode e bits n))))
 
 (defn ensplat
   "A higher-level encoder for a sequence of values. The given encoder
    will be applied to each value, and the resulting encodings
    overlaid (splatted together), taking the union of the sets of
-   bits." [e]
+   bits."
+  [e]
   (reify
     p/PTopological
     (topology [_]
@@ -105,7 +123,14 @@
                 i (long (* z (- bit-width on-bits)))]
             (set (range (+ offset i)
                         (+ offset i on-bits))))
-          #{})))))
+          #{}))
+      (decode
+        [this bits n]
+        (let [values (range lower upper (if (< 5 span 250)
+                                          1
+                                          (/ span 50)))]
+          (->> (decode-by-brute-force this values bits)
+               (take n)))))))
 
 (defn category-encoder
   [bit-width values]
@@ -120,7 +145,11 @@
       p/PEncodable
       (encode
         [_ offset x]
-        (p/encode int-e offset (val-to-int x))))))
+        (p/encode int-e offset (val-to-int x)))
+      (decode
+        [this bits n]
+        (->> (decode-by-brute-force this values bits)
+             (take n))))))
 
 (defn unique-encoder
   "This encoder gives a unique, persistent bit set to any value when
@@ -139,4 +168,8 @@
         (if (nil? x)
           #{}
           (or (get @x-bits x)
-              (get (swap! x-bits assoc x (gen)) x)))))))
+              (get (swap! x-bits assoc x (gen)) x))))
+      (decode
+        [this bits n]
+        (->> (decode-by-brute-force this (keys @x-bits) bits)
+             (take n))))))
