@@ -1,13 +1,16 @@
 # TODO
 
+* move proximal synapses into layer?
+
+* back-flow bursting to mix proximal input fields?
+
+* separate parameter for punishment permanence decrement
+
+* sensory input should be a channel
+* then e.g. concat, take, filter, interpose
+
 * allow motor/top-down distal inputs to distal synapses
   * lateral synapses as an option
-
-* unit tests
-* property-based testing (clojure.test.check)
-* repeatability - store random seeds in objs?
-
-* boosting - apply every time step; periodically recalculate duty cycle thresholds
 
 * higher regions need a larger potential pool because the source
   activation is so sparse.
@@ -18,6 +21,7 @@
     * use an implicit potential pool, same as lateral activation
       * extending / shrinking the segment
     * avoids the need to specify potential-radius
+  * STARTUP TIME FOR 2-REGION 1000 COL PROX FIELDS??
 
 * higher-levels regions only grow ff-synapses to learn-cells from below?
   (otherwise typically grow to all cells of a bursting column)
@@ -37,6 +41,12 @@
 * limit lateral synapses to within a radius
 
 * start small! (#cells / sequence length)
+
+* unit tests
+* property-based testing (clojure.test.check)
+* repeatability - store random seeds in objs?
+
+* boosting - apply every time step; periodically recalculate duty cycle thresholds
 
 ## perf
 

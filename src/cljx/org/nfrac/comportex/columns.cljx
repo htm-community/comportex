@@ -28,7 +28,8 @@
      dimensional `[size]` or two dimensional `[width height]`.
 
    * `ff-potential-radius` - range of potential feed-forward synapse
-     connections; a distance in input bits. See also `core/tree`.
+     connections, as a fraction of the longest single dimension in the
+     input space.
 
    * `ff-potential-frac` - fraction of inputs within range that will be
      part of the potentially connected set.
@@ -63,7 +64,7 @@
      increase activation frequency."
   {:input-dimensions [:define-me!]
    :column-dimensions [2048]
-   :ff-potential-radius 256
+   :ff-potential-radius 0.3
    :ff-potential-frac 0.5
    :ff-perm-inc 0.05
    :ff-perm-dec 0.01
@@ -80,9 +81,10 @@
    from the input array.
 
    Connections are made locally by scaling the input space to the
-   column space. Potential synapses are chosen within a radius
-   `ff-potential-radius` of input bits, and of those, a fraction
-   `ff-potential-frac` are chosen from a uniform random distribution.
+   column space. Potential synapses are chosen within a radius in
+   input space of `ff-potential-radius` fraction of the longest single
+   dimension, and of those, `ff-potential-frac` are chosen from a
+   uniform random distribution.
 
    Initial permanence values are uniformly distributed between one
    increment above the connected threshold, down to two increments
@@ -90,7 +92,9 @@
   [col n-cols itopo spec]
   (let [pcon (:ff-perm-connected spec)
         pinc (:ff-perm-inc spec)
-        radius (:ff-potential-radius spec) ;; in input space
+        ;; radius in input space, fraction of longest dimension
+        radius (long (* (:ff-potential-radius spec)
+                        (apply max (p/dimensions itopo))))
         frac (:ff-potential-frac spec)
         input-size (p/size itopo)
         focus-i (round (* input-size (/ col n-cols)))
@@ -107,9 +111,10 @@
    from the input array.
 
    Connections are made locally by scaling the input space to the
-   column space. Potential synapses are chosen within a radius
-   `ff-potential-radius` of input bits, and of those, a fraction
-   `ff-potential-frac` are chosen from a uniform random distribution.
+   column space. Potential synapses are chosen within a radius in
+   input space of `ff-potential-radius` fraction of the longest
+   single dimension, and of those, `ff-potential-frac` are chosen from
+   a uniform random distribution.
 
    Initial permanence values are triangular distributed between one
    increment above the connected threshold, down to two increments
@@ -117,7 +122,9 @@
   [col n-cols itopo spec]
   (let [pcon (:ff-perm-connected spec)
         pinc (:ff-perm-inc spec)
-        radius (:ff-potential-radius spec) ;; in input space
+        ;; radius in input space, fraction of longest dimension
+        radius (long (* (:ff-potential-radius spec)
+                        (apply max (p/dimensions itopo))))
         frac (:ff-potential-frac spec)
         input-size (p/size itopo)
         focus-i (round (* input-size (/ col n-cols)))

@@ -7,18 +7,26 @@
             [clojure.set :as set]))
 
 (defn decode-by-brute-force
-  [e try-values bits]
-  (->> try-values
-       (map (fn [x]
-              (let [x-bits (p/encode e 0 x)
-                    o-bits (set/intersection x-bits bits)]
-                {:value x
-                 :coverage (/ (count o-bits)
-                              (count x-bits))
-                 :precision (/ (count o-bits)
-                               (count bits))})))
-       (filter (comp pos? :coverage))
-       (sort-by (juxt :coverage :precision) >)))
+  [e try-values bit-votes]
+  (let [total-votes (apply + (vals bit-votes))]
+    (when (pos? total-votes)
+      (->> try-values
+           (map (fn [x]
+                  (let [x-bits (p/encode e 0 x)
+                        o-votes (select-keys bit-votes x-bits)
+                        total-o-votes (apply + (vals o-votes))
+                        o-bits (keys o-votes)]
+                    {:value x
+                     :bit-coverage (/ (count o-bits)
+                                      (count x-bits))
+                     :bit-precision (/ (count o-bits)
+                                       (count bit-votes))
+                     :votes-frac (/ total-o-votes
+                                    total-votes)
+                     :votes-per-bit (/ total-o-votes
+                                       (count x-bits))})))
+           (filter (comp pos? :votes-frac))
+           (sort-by (juxt :votes-frac :bit-coverage :bit-precision) >)))))
 
 (defn pre-transform
   "Returns an encoder wrapping another encoder `e`, where the function
@@ -33,8 +41,8 @@
       [_ offset x]
       (p/encode e offset (f x)))
     (decode
-      [_ bits n]
-      (p/decode e bits n))))
+      [_ bit-votes n]
+      (p/decode e bit-votes n))))
 
 (defn ensplat
   "A higher-level encoder for a sequence of values. The given encoder
@@ -125,11 +133,11 @@
                         (+ offset i on-bits))))
           #{}))
       (decode
-        [this bits n]
+        [this bit-votes n]
         (let [values (range lower upper (if (< 5 span 250)
                                           1
                                           (/ span 50)))]
-          (->> (decode-by-brute-force this values bits)
+          (->> (decode-by-brute-force this values bit-votes)
                (take n)))))))
 
 (defn category-encoder
@@ -147,8 +155,8 @@
         [_ offset x]
         (p/encode int-e offset (val-to-int x)))
       (decode
-        [this bits n]
-        (->> (decode-by-brute-force this values bits)
+        [this bit-votes n]
+        (->> (decode-by-brute-force this values bit-votes)
              (take n))))))
 
 (defn unique-encoder
@@ -170,6 +178,6 @@
           (or (get @x-bits x)
               (get (swap! x-bits assoc x (gen)) x))))
       (decode
-        [this bits n]
-        (->> (decode-by-brute-force this (keys @x-bits) bits)
+        [this bit-votes n]
+        (->> (decode-by-brute-force this (keys @x-bits) bit-votes)
              (take n))))))

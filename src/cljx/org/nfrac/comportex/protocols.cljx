@@ -51,10 +51,13 @@
   (encode [this offset x]
     "Encodes `x` as a set of integers which are the on-bits, starting
      from the given offset.")
-  (decode [this bits n]
+  (decode [this bit-votes n]
     "Finds `n` domain values matching the given bit set in a sequence
-     of maps with keys `{:value, :coverage, :precision}`, ordered by
-     coverage decreasing."))
+     of maps with keys `:value`, `:votes-frac`, `:votes-per-bit`,
+     `:bit-coverage`, `:bit-precision`, ordered by votes fraction
+     decreasing. The argument `bit-votes` is a map from encoded bit
+     index to a number of votes, typically the number of synapse
+     connections from predictive cells."))
 
 (defprotocol PParameterised
   (params [this]

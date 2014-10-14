@@ -311,20 +311,13 @@
    should be a sequence of subtrees or sensory inputs (things
    satisfying PFeedForward and PTopological). The combined dimensions
    of these is calculated and used to set the `:input-dimensions`
-   parameter in `spec`. If the parameter `:ff-potential-radius-frac`
-   is defined it is used to calculate (and override) the
-   `:ff-potential-radius` parameter as a fraction of the largest
-   single dimension. The updated spec is passed to `build-region`.
+   parameter in `spec`. The updated spec is passed to `build-region`.
    Returns a RegionTree."
   [build-region spec subs]
   (let [dims (apply topology/combined-dimensions (map p/dims-of subs))
-        mdims (apply topology/combined-dimensions (map p/motor-dims-of subs))
-        radius (if-let [x (:ff-potential-radius-frac spec)]
-                 (long (* x (apply max dims)))
-                 (:ff-potential-radius spec))]
+        mdims (apply topology/combined-dimensions (map p/motor-dims-of subs))]
     (-> (assoc spec :input-dimensions dims
-               :extra-distal-size (apply * mdims)
-               :ff-potential-radius radius)
+               :extra-distal-size (apply * mdims))
         (build-region)
         (region-tree subs))))
 

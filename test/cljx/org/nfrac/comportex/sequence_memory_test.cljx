@@ -37,7 +37,7 @@
 (def spec
   {:column-dimensions [400]
    :input-dimensions [200]
-   :ff-potential-radius 100
+   :ff-potential-radius 0.5
    :ff-perm-inc 0.04
    :ff-perm-dec 0.01
    :ff-perm-connected 0.1

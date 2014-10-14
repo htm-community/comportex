@@ -22,7 +22,7 @@
             [org.nfrac.comportex.inhibition :as inh]
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util
-             :refer [count-filter remap]]
+             :refer [count-filter remap round]]
             [clojure.set :as set]))
 
 (def cells-parameter-defaults
@@ -86,6 +86,21 @@
      active (either locally or globally); inhibition kicks in to
      reduce it to this level.
 
+   * `proximal-vs-distal-weight` - scaling to apply to the number of
+     active proximal synapses before adding to the number of active
+     distal synapses (on the winning segment), when selecting active
+     cells.
+
+   * `spontaneous-activation?` - if true, cells may become active with
+     sufficient distal synapse excitation, even in the absence of any
+     proximal synapse excitation.
+
+   * `alternative-learning?` - if true, an extra learning step
+     happens. Alternative predictions (i.e. depolarised cells) are
+     carried forward an extra time step (as if the predicted cells
+     were active); these forward-predicted cells learn on distal
+     segments in the current context (as if they were active).
+
    * `temporal-pooling-decay` - multiplier on the continuing
      excitation score of temporal pooling cells; as this reduces a
      temporal pooling cell is more likely to be interrupted by
@@ -96,9 +111,9 @@
      that TP cells will remain active."
   {:lateral-synapses? true
 ;   :extra-distal-size 0
-   :sensory-distal-size 0
-   :motor-distal-size 0
-   :topdown-distal-size 0
+;   :sensory-distal-size 0
+;   :motor-distal-size 0
+;   :topdown-distal-size 0
    :column-dimensions [2048]
    :depth 16
    :max-segments 5
@@ -115,6 +130,9 @@
    :inhibition-base-distance 4
    :inhibition-speed 2
    :activation-level 0.02
+   :proximal-vs-distal-weight 2.0
+   :spontaneous-activation? false
+   :alternative-learning? false
    :temporal-pooling-decay 0.9
    :temporal-pooling-amp 1.1
    })
@@ -145,33 +163,39 @@
                 cell-segs))
 
 (defn cell-depolarisation
-  "Returns the degree of cell depolarisation, i.e. the total number
-   of active synapses on distal dendrite segments above the threshold
-   `th`, in a map keyed by cell id."
+  "Returns the degree of cell depolarisation: the greatest number of
+   active synapses on any one distal dendrite segment, as long as it
+   is above the threshold `th`, in a map keyed by cell id."
   [seg-exc th]
   (->> seg-exc
        (reduce-kv (fn [m k n]
                     (if (< n th)
                       m                 ;; below threshold, ignore.
                       (let [id (pop k)] ;; seg-id to cell-id: [col ci _]
-                        (assoc! m id (+ (- n th)
-                                        (get m id 1)))))) ;; 1 at threshold
+                        (assoc! m id (max n
+                                          ;; also add 1 for every extra segment
+                                          (inc (get m id 0)))))))
                   (transient {}))
        (persistent!)))
 
 (defn total-excitations
-  "Combine the proximal and distal excitations -- only considering
-  columns with proximal input -- in a map of column id to excitation,
-  being the sum of proximal and distal values for the most active cell
-  in the column."
-  [prox-exc distal-exc-by-col]
-  (->> prox-exc
+  "Combine the proximal and distal excitations in a map of column id
+   to excitation, being the sum of proximal and distal values for the
+   most active cell in the column. See `cell-depolarisation`. Normally
+   only columns with proximal input are considered, but if
+   `spontaneous-activation?` is true, this is not enforced."
+  [prox-exc distal-exc-by-col proximal-weight spontaneous-activation?]
+  (->> (if spontaneous-activation?
+         (merge (zipmap (keys distal-exc-by-col) (repeat 0))
+                prox-exc)
+         prox-exc)
        (reduce-kv (fn [m col pexc]
-                    (if-let [dexcs (vals (distal-exc-by-col col))]
-                      (let [dexc (apply max dexcs)]
-                        (assoc! m col (+ dexc pexc)))
-                      ;; no distal excitation
-                      (assoc! m col pexc)))
+                    (let [pexc (* pexc proximal-weight)]
+                      (if-let [dexcs (vals (distal-exc-by-col col))]
+                        (let [dexc (apply max dexcs)]
+                          (assoc! m col (+ dexc pexc)))
+                        ;; no distal excitation
+                        (assoc! m col pexc))))
                   (transient {}))
        (persistent!)))
 
@@ -182,10 +206,11 @@
   [prox-exc distal-exc topo inh-radius spec]
   (let [distal-exc-by-col (util/group-by-maps (fn [[col _] _] col)
                                               distal-exc)
-        exc (total-excitations prox-exc distal-exc-by-col)
-        do-global? (:global-inhibition spec)
+        exc (total-excitations prox-exc distal-exc-by-col
+                               (:proximal-vs-distal-weight spec)
+                               (:spontaneous-activation? spec))
         level (:activation-level spec)
-        a-cols (if do-global?
+        a-cols (if (:global-inhibition spec)
                  (inh/ac-inhibit-globally exc level (p/size topo))
                  (keys (inh/inhibit-locally exc topo inh-radius
                                             (:inhibition-base-distance spec)
@@ -363,8 +388,8 @@
             distal-sg
             bad-cells)))
 
-(defn select-learning-cells
-  [a-cols b-cols acbc distal-sg prior-ac spec]
+(defn select-learning-segs
+  [acbc b-cols distal-sg prior-ac spec]
   (let [pcon (:distal-perm-connected spec)]
     (loop [acbc (seq acbc)
            lc (transient #{})
@@ -382,13 +407,47 @@
             ;; predicted column - the active cell is the learning cell
             (let [cell (first cells)
                   cell-segs (p/cell-segments distal-sg cell)
-                  sc (most-active-segment cell-segs prior-ac pcon)]
+                  sc (most-active-segment cell-segs prior-ac pcon)
+                  ;; if not depolarised by current active cells
+                  ;; (e.g. alternative) then fall back to bursting-like
+                  sc (if (:segment-idx sc)
+                       sc
+                       (most-active-segment cell-segs prior-ac 0))]
               (recur (next acbc)
                      (conj! lc cell)
                      (assoc! lsegs cell (:segment-idx sc))))))
         ;; finished
         {:learn-cells (persistent! lc)
          :learn-segs (persistent! lsegs)}))))
+
+(defn alternative-segs
+  "Carry forward predictions so the current context can learn them, as
+   if by analogy, rather than having to experience those alternative
+   paths directly.
+
+   Taking all prior depolarised cells (filtered to those which could
+   have predicted the current input). Find segments--and thereby
+   cells--potentially excited by them. These are the alternative
+   cells. Choose a segment on each to learn on."
+  [distal-sg ac burst-cols
+   prior-pred-cells prior-ac distal-exc topo inh-radius spec]
+  (let [analogy-cells (->> (set/difference prior-pred-cells prior-ac)
+                           (filter (fn [cell]
+                                     (some ac (p/targets-connected-from distal-sg
+                                                                        cell)))))]
+    (if (empty? analogy-cells)
+      {}
+      ;; find cells forward-predicted from analogy cells
+      (let [flow-seg-exc (syn/excitations distal-sg analogy-cells)
+            flow-cell-exc (cell-depolarisation flow-seg-exc
+                                               (:seg-stimulus-threshold spec))
+            flow-cols (set (map first (keys flow-cell-exc)))
+            flow-prox-exc (zipmap flow-cols (repeat 1.0))
+            {flow-cbc :active-cells-by-col
+             f-b-cols :burst-cols} (select-active-cells flow-prox-exc flow-cell-exc
+                                                        topo inh-radius spec)]
+        (-> (select-learning-segs flow-cbc f-b-cols distal-sg prior-ac spec)
+            (assoc :learn-cols (set (keys flow-cbc))))))))
 
 ;;; ## Orchestration
 
@@ -420,17 +479,27 @@
     [this prior-ac prior-lc]
     (let [acbc (:active-cells-by-col this)
           {lc :learn-cells
-           lsegs :learn-segs} (select-learning-cells active-cols burst-cols
-                                                     acbc distal-sg prior-ac
-                                                     spec)
+           lsegs :learn-segs} (select-learning-segs acbc burst-cols distal-sg
+                                                    prior-ac spec)
+          {alt-cols :learn-cols
+           alt-c :learn-cells
+           alt-segs :learn-segs} (when (:alternative-learning? spec)
+                                   (alternative-segs distal-sg active-cells burst-cols
+                                                     prior-pred-cells prior-ac
+                                                     distal-exc topology 5 spec))
           new-sg (cond->
                   (learn-distal distal-sg lsegs burst-cols prior-ac prior-lc
                                 spec)
                   ;; allow this phase of learning as an option
                   (:distal-punish? spec)
                   (punish-distal active-cells prior-ac pred-cells
-                                 prior-pred-cells spec))]
+                                 prior-pred-cells spec)
+                  ;; experimental: back-flow bursting to depolarised cells
+                  (and (:alternative-learning? spec) alt-segs)
+                  (learn-distal alt-segs alt-cols prior-ac prior-lc spec))]
       (assoc this
+        :alternative-cells alt-c
+        :alternative-segments alt-segs
         :learn-cells lc
         :learn-segments lsegs
         :distal-sg new-sg)))

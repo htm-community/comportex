@@ -104,9 +104,9 @@
 
 (defn excitations
   "Computes a map of target ids to their degree of excitation: the
-   number of sources in `active-set` they are connected to."
-  [syns active-set]
-  (->> active-set
+   number of sources in `active-sources` they are connected to."
+  [syns active-sources]
+  (->> active-sources
        (reduce (fn [exc ai]
                  (reduce (fn [exc id]
                            (assoc! exc id (inc (get exc id 0))))
