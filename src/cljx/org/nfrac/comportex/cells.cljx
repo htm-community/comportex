@@ -109,7 +109,8 @@
    * `temporal-pooling-amp` - multiplier on the initial excitation
      score of temporal pooling cells; this increases the probability
      that TP cells will remain active."
-  {:lateral-synapses? true
+  {
+;   :lateral-synapses? true
 ;   :extra-distal-size 0
 ;   :sensory-distal-size 0
 ;   :motor-distal-size 0
@@ -133,8 +134,8 @@
    :proximal-vs-distal-weight 2.0
    :spontaneous-activation? false
    :alternative-learning? false
-   :temporal-pooling-decay 0.9
-   :temporal-pooling-amp 1.1
+;   :temporal-pooling-decay 0.9
+;   :temporal-pooling-amp 1.1
    })
 
 ;;; ## Activation
@@ -256,20 +257,26 @@
    There must be at least `:seg-learn-threshold` synapses (note that
    this is lower than the usual `:seg-stimulus-threshold`). Returns
    indices of the segment and its containing cell in a map with keys
-   `:segment-idx` and `:cell-id`. If no such segments exist, returns
-   the cell with the fewest segments, and `:segment-idx` nil."
+   `:segment-idx` and `:cell-id`. If no such segments exist, returns a
+   random cell, and `:segment-idx` nil. If there are no active cells,
+   we can not learn but still want to present a consistent
+   representation, so always return the first cell. This is a sequence
+   reset mechanism."
   [distal-sg cell-ids ac spec]
-  (let [maxs (map (fn [cell-id]
-                    (let [segs (p/cell-segments distal-sg cell-id)]
-                      (assoc (most-active-segment segs ac 0.0)
-                        :cell-id cell-id)))
-                  cell-ids)
-        best (apply max-key :activation maxs)]
-    (if (>= (:activation best)
-            (:seg-learn-threshold spec))
-      best
-      ;; no sufficient activation, return random cell
-      {:cell-id (util/rand-nth cell-ids)})))
+  ;; special case if no activity at all previously: sequence reset.
+  (if (empty? ac)
+    {:cell-id (first cell-ids)}
+    (let [maxs (map (fn [cell-id]
+                      (let [segs (p/cell-segments distal-sg cell-id)]
+                        (assoc (most-active-segment segs ac 0.0)
+                          :cell-id cell-id)))
+                    cell-ids)
+          best (apply max-key :activation maxs)]
+      (if (>= (:activation best)
+              (:seg-learn-threshold spec))
+        best
+        ;; no sufficient activation, return random cell
+        {:cell-id (util/rand-nth cell-ids)}))))
 
 (defn new-segment-id
   "Returns a segment index on the cell at which to grow a new segment.

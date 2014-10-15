@@ -14,14 +14,14 @@ Jane has a head.
 Jane has a mouth.
 Jane has a brain.
 Jane has a book.
-Jane has no friends.
+Jane has no friend.
 
 Chifung has eyes.
 Chifung has a head.
 Chifung has a mouth.
 Chifung has a brain.
 Chifung has no book.
-Chifung has friends.
+Chifung has a friend.
 
 Jane is something.
 Jane is alive.
@@ -37,24 +37,24 @@ Chifung can talk.
 Chifung can walk.
 Chifung can eat.
 
-a fox has eyes.
-a fox has a head.
-a fox has a mouth.
-a fox has a brain.
-a fox has a tail.
-a fox is something.
-a fox is alive.
-a fox is no person.
-a fox can no talk.
-a fox can walk.
-a fox can eat.
+fox has eyes.
+fox has a head.
+fox has a mouth.
+fox has a brain.
+fox has a tail.
+fox is something.
+fox is alive.
+fox is no person.
+fox can no talk.
+fox can walk.
+fox can eat.
 
 does Jane have eyes ? yes.
 does Jane have a head ? yes.
 does Jane have a mouth ? yes.
 does Jane have a brain ? yes.
 does Jane have a book ? yes.
-does Jane have friends ? no.
+does Jane have a friend ? no.
 does Jane have a tail ? no.
 
 does Chifung have eyes ? yes.
@@ -62,16 +62,16 @@ does Chifung have a head ? yes.
 does Chifung have a mouth ? yes.
 does Chifung have a brain ? yes.
 does Chifung have a book ? no.
-does Chifung have friends ? yes.
+does Chifung have a friend ? yes.
 does Chifung have a tail ? no.
 
-does a fox have eyes ? yes.
-does a fox have a head ? yes.
-does a fox have a mouth ? yes.
-does a fox have a brain ? yes.
-does a fox have a book ? no.
-does a fox have friends ? no.
-does a fox have a tail ? yes.
+does fox have eyes ? yes.
+does fox have a head ? yes.
+does fox have a mouth ? yes.
+does fox have a brain ? yes.
+does fox have a book ? no.
+does fox have a friend ? no.
+does fox have a tail ? yes.
 
 Jane has no tail.
 Chifung has no tail.
@@ -105,9 +105,7 @@ Chifung has no tail.
   [text]
   (->> (str/split (str/trim text) #"\s*\.\s*")
        (mapv #(str/split % #"\s+"))
-       ;; need a starting state, otherwise first word always bursts
-       ;; and can't learn (no prior cells) so no consistency.
-       ;; need an ending state so it can be learned to be predicted.
+       ;; add a start token, to avoid bursting the first word.
        (mapv #(vec (concat [">"] % ["."])))))
 
 (defn sensory-input-from-text
