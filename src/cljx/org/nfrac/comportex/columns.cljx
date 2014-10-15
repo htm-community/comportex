@@ -77,8 +77,8 @@
    })
 
 (defn uniform-ff-synapses
-  "Generates feed-forward synapses connecting to the given column
-   from the input array.
+  "Generates feed-forward synapses connecting columns to the input bit
+   array.
 
    Connections are made locally by scaling the input space to the
    column space. Potential synapses are chosen within a radius in
@@ -89,59 +89,28 @@
    Initial permanence values are uniformly distributed between one
    increment above the connected threshold, down to two increments
    below. So about one third will be initially connected."
-  [col n-cols itopo spec]
+  [n-cols itopo spec]
   (let [pcon (:ff-perm-connected spec)
         pinc (:ff-perm-inc spec)
+        p-hi (-> (+ pcon (* 1.0 pinc)) (min 1.0))
+        p-lo (-> (- pcon (* 2.0 pinc)) (max 0.0))
         ;; radius in input space, fraction of longest dimension
         radius (long (* (:ff-potential-radius spec)
                         (apply max (p/dimensions itopo))))
         frac (:ff-potential-frac spec)
-        input-size (p/size itopo)
-        focus-i (round (* input-size (/ col n-cols)))
-        all-ids (p/neighbours-indices itopo focus-i radius)
-        n (round (* frac (count all-ids)))
-        ids (take n (util/shuffle all-ids))
-        p-hi (-> (+ pcon (* 1.0 pinc)) (min 1.0))
-        p-lo (-> (- pcon (* 2.0 pinc)) (max 0.0))
-        perms (repeatedly n #(util/rand p-lo p-hi))]
-    (zipmap ids perms)))
-
-(defn triangular-ff-synapses
-  "Generates feed-forward synapses connecting to the given column
-   from the input array.
-
-   Connections are made locally by scaling the input space to the
-   column space. Potential synapses are chosen within a radius in
-   input space of `ff-potential-radius` fraction of the longest
-   single dimension, and of those, `ff-potential-frac` are chosen from
-   a uniform random distribution.
-
-   Initial permanence values are triangular distributed between one
-   increment above the connected threshold, down to two increments
-   below. So about one third will be initially connected."
-  [col n-cols itopo spec]
-  (let [pcon (:ff-perm-connected spec)
-        pinc (:ff-perm-inc spec)
-        ;; radius in input space, fraction of longest dimension
-        radius (long (* (:ff-potential-radius spec)
-                        (apply max (p/dimensions itopo))))
-        frac (:ff-potential-frac spec)
-        input-size (p/size itopo)
-        focus-i (round (* input-size (/ col n-cols)))
-        focus-c (p/coordinates-of-index itopo focus-i)
-        all-coords (p/neighbours itopo focus-c radius)
-        n (round (* frac (count all-coords)))
-        coords (take n (util/shuffle all-coords))
-        ids (map (partial p/index-of-coordinates itopo) coords)
-        p-hi (-> (+ pcon (* 1.0 pinc)) (min 1.0))
-        p-lo (-> (- pcon (* 2.0 pinc)) (max 0.0))
-        ;; triangular:
-        perms (for [c coords]
-                ;; z is 1 at input focus, down to 0 linearly at radius
-                (let [z (- 1.0 (/ (p/coord-distance itopo focus-c c)
-                                  radius))]
-                  (+ p-lo (* z (- p-hi p-lo)))))]
-    (zipmap ids perms)))
+        input-size (p/size itopo)]
+    (->> (range n-cols)
+         (reduce (fn [v col]
+                   (let [focus-i (round (* input-size (/ col n-cols)))
+                         all-ids (vec (p/neighbours-indices itopo focus-i radius))
+                         n (round (* frac (count all-ids)))
+                         ids (if (< frac 0.5) ;; for performance:
+                               (repeatedly n #(util/rand-nth all-ids)) ;; ignore dups
+                               (take n (util/shuffle all-ids)))
+                         perms (repeatedly n #(util/rand p-lo p-hi))]
+                     (conj! v (zipmap ids perms))))
+                 (transient []))
+         (persistent!))))
 
 ;;; ## Overlaps
 
@@ -327,8 +296,7 @@ y[t] = (period-1) * y[t-1]  +  1
         col-topo (topology/make-topology col-dim)
         n-inbits (p/size input-topo)
         n-cols (p/size col-topo)
-        all-syns (mapv #(uniform-ff-synapses % n-cols input-topo spec)
-                       (range n-cols))]
+        all-syns (uniform-ff-synapses n-cols input-topo spec)]
     (->
      (map->ColumnField
       {:spec spec
