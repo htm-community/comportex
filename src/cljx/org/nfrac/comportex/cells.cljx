@@ -122,10 +122,10 @@
    :seg-new-synapse-count 15
    :seg-stimulus-threshold 12
    :seg-learn-threshold 8
-   :distal-perm-inc 0.10
-   :distal-perm-dec 0.10
-   :distal-perm-connected 0.50
-   :distal-perm-init 0.11
+   :distal-perm-inc 0.05
+   :distal-perm-dec 0.01
+   :distal-perm-connected 0.20
+   :distal-perm-init 0.16
    :distal-punish? true
    :global-inhibition false
    :inhibition-base-distance 4

@@ -87,6 +87,7 @@
 
 (def spec
   {:column-dimensions [1000]
+   :ff-init-frac 0.3
    :ff-potential-radius 0.1
    :ff-perm-inc 0.05
    :ff-perm-dec 0.01

@@ -122,10 +122,10 @@ Chifung has no tail.
 
 (def spec
   {:column-dimensions [1000]
+   :ff-init-frac 0.3
    :ff-potential-radius 1.0
-   :ff-potential-frac 0.3
    :ff-perm-inc 0.05
-   :ff-perm-dec 0.01
+   :ff-perm-dec 0.005
    :ff-perm-connected 0.20
    :ff-stimulus-threshold 3
    :global-inhibition false
@@ -147,8 +147,8 @@ Chifung has no tail.
    })
 
 (defn ^:export n-region-model
-  ([text n]
-     (n-region-model text n spec))
+  ([n]
+     (n-region-model input-text 3 n spec))
   ([text n-repeats n spec]
      (let [inp (sensory-input-from-text text n-repeats bits-per-word)]
        (core/regions-in-series core/sensory-region inp n spec))))

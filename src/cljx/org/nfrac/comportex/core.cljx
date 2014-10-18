@@ -28,7 +28,7 @@
           prior-lc (p/learnable-cells layer-3)
           step-cf (p/columns-step column-field ff-bits signal-ff-bits)
           next-lyr (cond-> (p/layer-step layer-3
-                                         (p/column-overlaps step-cf)
+                                         (p/column-excitation step-cf)
                                          (p/column-signal-overlaps step-cf)
                                          (p/inhibition-radius step-cf))
                            learn? (p/layer-learn prior-ac prior-lc)
@@ -88,7 +88,7 @@
           prior-lc (p/learnable-cells layer-3)
           step-cf (p/columns-step column-field ff-bits signal-ff-bits)
           next-l4 (cond-> (p/layer-step layer-4
-                                        (p/column-overlaps step-cf)
+                                        (p/column-excitation step-cf)
                                         (p/column-signal-overlaps step-cf)
                                         (p/inhibition-radius step-cf))
                           learn? (p/layer-learn #{} #{}) ;; TODO ??

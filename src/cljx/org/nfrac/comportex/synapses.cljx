@@ -3,13 +3,6 @@
             [org.nfrac.comportex.util :as util
              :refer [remap]]))
 
-(defn update-each
-  [m ks f & args]
-  (reduce (fn [x k]
-            (apply update-in x [k] f args))
-          m
-          ks))
-
 (defrecord SynapseGraph
     [syns-by-target targets-by-source pcon max-syns cull-zeros?]
   p/PSynapseGraph
@@ -50,19 +43,20 @@
       (-> this
           (assoc-in [:syns-by-target target-id] new-syns)
           (update-in [:targets-by-source]
-                     update-each (keys (:promote sg)) conj target-id)
+                     util/update-each (keys (:promote sg)) #(conj % target-id))
           (update-in [:targets-by-source]
-                     update-each (keys (:demote sg)) disj target-id))))
+                     util/update-each (keys (:demote sg)) #(disj % target-id)))))
   (conj-synapses
     [this target-id syn-source-ids p]
     (let [osyns (p/in-synapses this target-id)
-          syns (merge osyns (zipmap syn-source-ids (repeat p)))]
+          nsyns (zipmap syn-source-ids (repeat p))
+          syns (merge osyns nsyns)]
       (cond->
        (assoc-in this [:syns-by-target target-id] syns)
        ;; record connection if initially connected
        (>= p pcon)
        (update-in [:targets-by-source]
-                  update-each syn-source-ids conj target-id)
+                  util/update-each syn-source-ids #(conj % target-id))
        ;; if too many synapses, remove those with lowest permanence
        (> (count syns) max-syns)
        (p/disj-synapses target-id
@@ -75,7 +69,7 @@
         (update-in [:syns-by-target target-id]
                    (fn [syns] (apply dissoc syns syn-source-ids)))
         (update-in [:targets-by-source]
-                   update-each syn-source-ids disj target-id))))
+                   util/update-each syn-source-ids #(disj % target-id)))))
 
 (defn empty-synapse-graph
   [n-targets n-sources pcon max-syns cull-zeros?]
@@ -92,7 +86,7 @@
         (reduce-kv (fn [v tid syns]
                      (let [sids (keep (fn [[k p]]
                                         (when (>= p pcon) k)) syns)]
-                       (update-each v sids conj tid)))
+                       (util/update-each v sids #(conj % tid))))
                    (vec (repeat n-sources #{}))
                    syns-by-target)]
     (map->SynapseGraph

@@ -83,7 +83,8 @@
   (columns-step [this ff-bits signal-ff-bits])
   (columns-learn [this ff-bits signal-ff-bits a-cols])
   (inhibition-radius [this])
-  (column-overlaps [this]) ;; proximal excitation
+  (column-excitation [this])
+  (column-overlaps [this])
   (column-signal-overlaps [this]))
 
 (defprotocol PLayerOfCells

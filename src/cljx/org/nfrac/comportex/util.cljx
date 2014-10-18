@@ -21,6 +21,8 @@
   [xs]
   (/ (apply + xs) (double (count xs))))
 
+;; convenience wrappers for RNG. actually should associate RNG with models?
+
 (def RNG (rng/rng))
 
 (defn set-seed!
@@ -85,22 +87,24 @@
    maps instead of vectors for the groups. It is tuned for performance
    with many values per key. `f` is a function taking 2 arguments, the
    key and value."
-  [f kvs]
-  (->> kvs
-       ;; create a transient map of transient maps
-       (reduce (fn [m [k v]]
-                 (let [g (f k v)
-                       items (get m g (transient {}))]
-                   (assoc! m g (assoc! items k v))))
-               (transient {}))
-       ;; make the outer map persistent (can't seq it)
-       (persistent!)
-       ;; make the inner maps persistent within a transient outer map
-       (reduce (fn [m [g items]]
-                 (assoc! m g (persistent! items)))
-               (transient {}))
-       ;; make the outer map persistent
-       (persistent!)))
+  ([f kvs]
+     (group-by-maps f kvs {}))
+  ([f kvs init-m]
+     (->> kvs
+          ;; create a transient map of transient maps
+          (reduce (fn [m [k v]]
+                    (let [g (f k v)
+                          items (get m g (transient init-m))]
+                      (assoc! m g (assoc! items k v))))
+                  (transient {}))
+          ;; make the outer map persistent (can't seq it)
+          (persistent!)
+          ;; make the inner maps persistent within a transient outer map
+          (reduce (fn [m [g items]]
+                    (assoc! m g (persistent! items)))
+                  (transient {}))
+          ;; make the outer map persistent
+          (persistent!))))
 
 (defn group-by-sets
   "Like the built-in group-by, but building sets instead of vectors

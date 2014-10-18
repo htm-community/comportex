@@ -31,8 +31,8 @@
      connections, as a fraction of the longest single dimension in the
      input space.
 
-   * `ff-potential-frac` - fraction of inputs within range that will be
-     part of the potentially connected set.
+   * `ff-init-frac` - fraction of inputs within radius that will be
+     part of the initially connected set.
 
    * `ff-perm-inc` - amount to increase a synapse's permanence value
      by when it is reinforced.
@@ -44,9 +44,16 @@
      functionally connected. Permanence values are defined to be
      between 0 and 1.
 
+   * `ff-perm-init` - initial permanence values on new synapses.
+
    * `ff-stimulus-threshold` - minimum number of active input connections
      for a column to be _overlapping_ the input (i.e. active prior to
      inhibition).
+
+   * `ff-grow-up-to-count` - target number of active synapses; active columns
+     grow new synapses to inputs to reach this each time step.
+
+   * `ff-max-synapse-count` - maximum number of synapses on the column.
 
    * `boost-overlap-duty-ratio` - when a column's overlap frequency is
      below this proportion of the _highest_ of its neighbours, its
@@ -65,11 +72,16 @@
   {:input-dimensions [:define-me!]
    :column-dimensions [2048]
    :ff-potential-radius 0.3
-   :ff-potential-frac 0.5
+   ;:ff-potential-frac 0.5
+   :ff-init-frac 0.3
    :ff-perm-inc 0.05
-   :ff-perm-dec 0.01
-   :ff-perm-connected 0.1
+   :ff-perm-dec 0.005
+   :ff-perm-connected 0.2
+   :ff-perm-init 0.16
    :ff-stimulus-threshold 3
+   :ff-grow-and-die? false
+   :ff-grow-up-to-count 15
+   :ff-max-synapse-count 1000
    :boost-overlap-duty-ratio 0.001
    :boost-active-duty-ratio 0.001
    :duty-cycle-period 1000
@@ -83,7 +95,7 @@
    Connections are made locally by scaling the input space to the
    column space. Potential synapses are chosen within a radius in
    input space of `ff-potential-radius` fraction of the longest single
-   dimension, and of those, `ff-potential-frac` are chosen from a
+   dimension, and of those, `ff-init-frac` are chosen from a
    uniform random distribution.
 
    Initial permanence values are uniformly distributed between one
@@ -97,10 +109,10 @@
         ;; radius in input space, fraction of longest dimension
         radius (long (* (:ff-potential-radius spec)
                         (apply max (p/dimensions itopo))))
-        frac (:ff-potential-frac spec)
+        frac (:ff-init-frac spec)
         input-size (p/size itopo)]
     (->> (range n-cols)
-         (reduce (fn [v col]
+         (mapv (fn [col]
                    (let [focus-i (round (* input-size (/ col n-cols)))
                          all-ids (vec (p/neighbours-indices itopo focus-i radius))
                          n (round (* frac (count all-ids)))
@@ -108,45 +120,91 @@
                                (repeatedly n #(util/rand-nth all-ids)) ;; ignore dups
                                (take n (util/shuffle all-ids)))
                          perms (repeatedly n #(util/rand p-lo p-hi))]
-                     (conj! v (zipmap ids perms))))
-                 (transient []))
-         (persistent!))))
+                     (zipmap ids perms)))))))
 
 ;;; ## Overlaps
 
-(defn compute-overlaps
-  "Given a column field `cf` and the set of active input bits
-   `ff-bits`, finds the columns with an overlap count above parameter
-   `ff-stimulus-threshold`, and returns a map of their column ids to
-   overlap scores. That is, the number of input bits connected to,
-   multiplied by the column boosting factor."
-  [cf ff-bits]
-  (let [om-raw (syn/excitations (:ff-sg cf) ff-bits)
-        th (:ff-stimulus-threshold (:spec cf))]
+(defn apply-overlap-boosting
+  "Given a map `om` of the raw overlap counts, finds the columns with
+  an overlap count above parameter `ff-stimulus-threshold`, and
+  returns a map of their column ids to excitations. That is, the
+  number of input bits connected to, multiplied by the column boosting
+  factor."
+  [om-raw boosts spec]
+  (let [th (:ff-stimulus-threshold spec)]
     (->> om-raw
          (reduce-kv (fn [om col x]
                       (if (< x th)
                         om
-                        (let [boost (get-in cf [:boosts col])]
-                          (assoc! om col (* x boost)))))
+                        (let [b (get boosts col)]
+                          (assoc! om col (* x b)))))
                     (transient {}))
          (persistent!))))
 
 ;;; ## Learning
+
+(defn ff-new-synapse-ids
+  [ff-bits curr-ids-set col itopo focus-coord radius n-grow]
+  (loop [ids ()
+         on-bits (util/shuffle ff-bits)]
+    (if (or (empty? on-bits)
+            (>= (count ids) n-grow))
+      ids
+      (let [id (first ff-bits)]
+        (if (curr-ids-set id)
+          ;; already have this synapse
+          (recur ids (next on-bits))
+          ;; check distance
+          (let [coord (p/coordinates-of-index itopo id)
+                dist (p/coord-distance itopo coord focus-coord)]
+            (if (< dist radius)
+              ;; ok, choose this for a new synapse
+              ;; TODO - ff-potential-frac
+              (recur (conj ids id) (next on-bits))
+              ;; out of radius
+              (recur ids (next on-bits)))))))))
+
+(defn grow-new-synapses
+  [ff-sg col ff-bits itopo radius n-cols n-grow pinit]
+  (let [input-size (p/size itopo)
+        focus-i (round (* input-size (/ col n-cols)))
+        focus-coord (p/coordinates-of-index itopo focus-i)
+        new-ids (ff-new-synapse-ids ff-bits
+                                    (p/in-synapses ff-sg col)
+                                    col itopo
+                                    focus-coord
+                                    radius n-grow)]
+    (p/conj-synapses ff-sg col new-ids pinit)))
 
 (defn learn
   "Adapt feed-forward synapses to focus on observed input patterns.
    Given the set of input bits `ff-bits`, adjusts the permanence
    values of all potential feed-forward synapses in the active columns
    `a-cols`."
-  [cf a-cols ff-bits signal-ff-bits]
-  (let [pinc (:ff-perm-inc (:spec cf))
-        pdec (:ff-perm-dec (:spec cf))]
+  [cf a-cols ff-bits signal-ff-bits om]
+  (let [itopo (:input-topology cf)
+        spec (:spec cf)
+        pinc (:ff-perm-inc spec)
+        pdec (:ff-perm-dec spec)
+        pinit (:ff-perm-init spec)
+        grow-and-die? (:ff-grow-and-die? spec)
+        grow-up-to (:ff-grow-up-to-count spec)
+        max-syns (:ff-max-synapse-count spec)
+        ;; radius in input space, fraction of longest dimension
+        radius (long (* (:ff-potential-radius spec)
+                        (apply max (p/dimensions itopo))))
+        n-cols (p/size-of cf)]
     (update-in cf [:ff-sg]
                (fn [ff-sg]
-                 (reduce (fn [ff col]
-                           (p/reinforce-in-synapses ff col (constantly false)
-                                                    ff-bits pinc pdec))
+                 (reduce (fn [sg col]
+                           (let [n-on (om col)
+                                 n-grow (max 0 (- grow-up-to n-on))]
+                             (cond->
+                              (p/reinforce-in-synapses sg col (constantly false)
+                                                       ff-bits pinc pdec)
+                              (and grow-and-die? (pos? n-grow))
+                              (grow-new-synapses col ff-bits itopo radius n-cols
+                                                 n-grow pinit))))
                          ff-sg a-cols)))))
 
 ;;; ## Boosting
@@ -207,37 +265,6 @@ y[t] = (period-1) * y[t-1]  +  1
     (-> (mapv #(* % decay) v)
         (util/update-each is #(+ % d)))))
 
-;; ## Temporal Pooling
-
-(defn temporal-pooling-scores
-  "Selects a subset of active columns to be in a temporal pooling state,
-   returning a map from their column ids to an (adjusted) overlap
-   score -- which is used to compete for activation next time step.
-
-   `a-cols` - set of active column ids.
-
-   `signal-ff-bits` - input set from predicted cells.
-
-   `prev-tpm` - temporal pooling overlap scores from previous step.
-
-   `curr-om` - overlap scores from current feedforward input."
-  [cf a-cols signal-ff-bits prev-tpm curr-om]
-  (let [amp (:temporal-pooling-amp (:spec cf))
-        decay (:temporal-pooling-decay (:spec cf))
-        sig-om (compute-overlaps cf signal-ff-bits)
-        new-tpm (->> (select-keys sig-om a-cols)
-                     (remap (partial * amp)))
-        ;; if a previous TP column received a new dominant input
-        ;; then its TP status is interrupted (unless in new-tpm)
-        stopped-tps (keep (fn [[k v]] (when (> (curr-om k 0) v) k))
-                          prev-tpm)
-        ;; which of the previous TP columns became (remained) active?
-        ;; their TP status continues, and overlap scores decay.
-        kept-tpm (->> (apply disj a-cols stopped-tps)
-                      (select-keys prev-tpm)
-                      (remap (partial * decay)))]
-    (merge-with max new-tpm kept-tpm)))
-
 ;;; ## Orchestration
 
 (defn update-inhibition-radius
@@ -246,16 +273,18 @@ y[t] = (period-1) * y[t-1]  +  1
                                                (:input-topology cf))))
 
 (defrecord ColumnField
-    [spec ff-sg topology input-topology overlaps sig-overlaps
+    [spec ff-sg topology input-topology overlaps sig-overlaps prox-exc
      inh-radius boosts active-duty-cycles overlap-duty-cycles]
   p/PColumnField
   (columns-step
     [this ff-bits signal-ff-bits]
-    (let [om (compute-overlaps this ff-bits)
-          sig-om (compute-overlaps this signal-ff-bits)]
+    (let [om (syn/excitations ff-sg ff-bits)
+          exc (apply-overlap-boosting om boosts spec)
+          sig-om (syn/excitations ff-sg signal-ff-bits)]
       (cond->
        (assoc this
          :timestep (inc (:timestep this 0))
+         :prox-exc exc
          :overlaps om
          :sig-overlaps sig-om))))
   (columns-learn
@@ -263,16 +292,17 @@ y[t] = (period-1) * y[t-1]  +  1
     (let [dcp (:duty-cycle-period spec)
           t (:timestep this)
           boost? (zero? (mod t dcp))]
-      ;; TODO: only learn on columns with current input?
-      (cond-> (learn this a-cols ff-bits signal-ff-bits)
+      (cond-> (learn this a-cols ff-bits signal-ff-bits overlaps)
               true (update-in [:overlap-duty-cycles] update-duty-cycles
-                              (keys overlaps) dcp)
+                              (keys prox-exc) dcp)
               true (update-in [:active-duty-cycles] update-duty-cycles
                               a-cols dcp)
               boost? (update-boosting)
               boost? (update-inhibition-radius))))
   (inhibition-radius [_]
     inh-radius)
+  (column-excitation [_]
+    prox-exc)
   (column-overlaps [_]
     overlaps)
   (column-signal-overlaps [_]
@@ -302,10 +332,12 @@ y[t] = (period-1) * y[t-1]  +  1
       {:spec spec
        :ff-sg (syn/synapse-graph all-syns n-inbits
                                  (:ff-perm-connected spec)
-                                 1000000 false)
+                                 (:ff-max-synapse-count spec)
+                                 (:ff-grow-and-die? spec))
        :topology col-topo
        :input-topology input-topo
        :inh-radius 1
+       :prox-exc {}
        :overlaps {}
        :sig-overlaps {}
        :boosts (vec (repeat n-cols 1.0))

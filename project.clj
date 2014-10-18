@@ -1,4 +1,4 @@
-(defproject org.nfrac/comportex "0.0.4"
+(defproject org.nfrac/comportex "0.0.5-SNAPSHOT"
   :description "Functionally composable cortex, an implementation of Hierarchical Temporal Memory"
   :url "http://github.com/floybix/comportex/"
   :license {:name "Eclipse Public License"
@@ -7,6 +7,7 @@
   :test-paths ["target/test-classes"]
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [com.cemerick/pprng "0.0.2"]
+                 [org.clojure/data.int-map "0.1.0"]
                  [cljs-uuid "0.0.4"]]
 
   :jar-exclusions [#"\.cljx"]
