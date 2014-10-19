@@ -5,15 +5,6 @@
   [x]
   (if (neg? x) (- x) x))
 
-(defn one-d-ring
-  "Returns the indices away from `i` at distances
-  `inner-r` (exclusive) out to `outer-r` (inclusive) ."
-  [n i outer-r inner-r]
-  (concat (range (min (+ i inner-r 1) n)
-                 (min (+ i outer-r 1) n))
-          (range (max (- i outer-r) 0)
-                 (max (- i inner-r) 0))))
-
 (defrecord OneDTopology
     [size]
   p/PTopology
@@ -25,7 +16,10 @@
     coord)
   (neighbours*
     [this coord outer-r inner-r]
-    (one-d-ring size coord outer-r inner-r))
+    (concat (range (min (+ coord inner-r 1) size)
+                   (min (+ coord outer-r 1) size))
+            (range (max (- coord outer-r) 0)
+                   (max (- coord inner-r) 0))))
   (coord-distance
     [_ coord-a coord-b]
     (abs (- coord-b coord-a))))
@@ -52,8 +46,12 @@
     [this coord outer-r inner-r]
     (let [[cx cy] coord]
       ;; Manhattan distance
-      (for [x (one-d-ring width cx outer-r inner-r)
-            y (one-d-ring height cy outer-r inner-r)]
+      (for [x (range (max (- cx outer-r) 0)
+                     (min (+ cx outer-r 1) width))
+            y (range (max (- cy outer-r) 0)
+                     (min (+ cy outer-r 1) height))
+            :when (or (> (abs (- x cx)) inner-r)
+                      (> (abs (- y cy)) inner-r))]
         [x y])))
   (coord-distance
     [_ coord-a coord-b]
@@ -87,9 +85,15 @@
     [this coord outer-r inner-r]
     (let [[cx cy cz] coord]
       ;; Manhattan distance
-      (for [x (one-d-ring width cx outer-r inner-r)
-            y (one-d-ring height cy outer-r inner-r)
-            z (one-d-ring depth cz outer-r inner-r)]
+      (for [x (range (max (- cx outer-r) 0)
+                     (min (+ cx outer-r 1) width))
+            y (range (max (- cy outer-r) 0)
+                     (min (+ cy outer-r 1) height))
+            z (range (max (- cz outer-r) 0)
+                     (min (+ cz outer-r 1) depth))
+            :when (or (> (abs (- x cx)) inner-r)
+                      (> (abs (- y cy)) inner-r)
+                      (> (abs (- y cz)) inner-r))]
         [x y z])))
   (coord-distance
     [_ coord-a coord-b]

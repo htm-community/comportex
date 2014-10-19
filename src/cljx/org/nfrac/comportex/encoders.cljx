@@ -161,9 +161,10 @@
 
 (defn unique-encoder
   "This encoder gives a unique, persistent bit set to any value when
-   it is encountered."
-  [bit-width on-bits]
-  (let [topo (topology/make-topology [bit-width])
+   it is encountered. `input-size` is the dimensions as a vector."
+  [input-size on-bits]
+  (let [topo (topology/make-topology input-size)
+        bit-width (p/size topo)
         x-bits (atom {})
         gen #(set (take on-bits (util/shuffle (range bit-width))))]
     (reify
@@ -181,3 +182,52 @@
         [this bit-votes n]
         (->> (decode-by-brute-force this (keys @x-bits) bit-votes)
              (take n))))))
+
+(defn linear-2d-encoder
+  "Returns a simple encoder for a pair of numbers. It encodes each
+   number by its position on a continuous scale within a numeric
+   range.
+
+  * `input-size` is the number of bits along [x y] axes.
+
+  * `on-bits` is the number of bits to be active.
+
+  * `[x-max y-max]` gives the numeric range to cover. The input number
+    will be clamped to this range."
+  [input-size on-bits [x-max y-max]]
+  (let [topo (topology/make-topology input-size)
+        [w h] input-size]
+    (reify
+      p/PTopological
+      (topology [_]
+        topo)
+      p/PEncodable
+      (encode
+        [_ offset [x y]]
+        (if x
+          (let [x (-> x (max 0) (min x-max))
+                y (-> y (max 0) (min y-max))
+                xz (/ x x-max)
+                yz (/ y y-max)
+                xi (long (* xz w))
+                yi (long (* yz h))
+                coord [xi yi]
+                idx (p/index-of-coordinates topo coord)]
+            (->> [#{idx} 1]
+                 (iterate (fn [[bits radius]]
+                            [(into bits
+                                   (p/neighbours-indices topo idx radius (dec radius)))
+                             (inc radius)]))
+                 (take-while #(< (count %) on-bits))
+                 (take 10)
+                 (last)
+                 (first))) ;; take set, drop radius
+          #{}))
+      (decode
+        [this bit-votes n]
+        (let [values (for [x (range x-max)
+                           y (range y-max)]
+                       [x y])]
+          (->> (decode-by-brute-force this values bit-votes)
+               (take n)))))))
+
