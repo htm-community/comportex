@@ -103,8 +103,8 @@ Chifung has no tail.
 
 (defn split-sentences
   [text]
-  (->> (str/split (str/trim text) #"\s*\.\s*")
-       (mapv #(str/split % #"\s+"))
+  (->> (str/split (str/trim text) #"[^\w]*\.+[^\w]*")
+       (mapv #(str/split % #"[^\w']+"))
        ;; add a start token, to avoid bursting the first word.
        (mapv #(vec (concat [">"] % ["."])))))
 

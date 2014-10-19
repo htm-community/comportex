@@ -165,7 +165,7 @@
   [input-size on-bits]
   (let [topo (topology/make-topology input-size)
         bit-width (p/size topo)
-        x-bits (atom {})
+        cached-bits (atom {})
         gen #(set (take on-bits (util/shuffle (range bit-width))))]
     (reify
       p/PTopological
@@ -176,11 +176,11 @@
         [_ offset x]
         (if (nil? x)
           #{}
-          (or (get @x-bits x)
-              (get (swap! x-bits assoc x (gen)) x))))
+          (or (get @cached-bits x)
+              (get (swap! cached-bits assoc x (gen)) x))))
       (decode
         [this bit-votes n]
-        (->> (decode-by-brute-force this (keys @x-bits) bit-votes)
+        (->> (decode-by-brute-force this (keys @cached-bits) bit-votes)
              (take n))))))
 
 (defn linear-2d-encoder

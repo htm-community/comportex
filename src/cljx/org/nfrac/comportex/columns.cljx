@@ -118,11 +118,11 @@
         [iw ih] (p/dimensions itopo)]
     (->> (range n-cols)
          (mapv (fn [col]
-                 (let [[cx cy] (p/coordinates-of-index topo col)
-                       focus-i (if one-d?
+                 (let [focus-i (if one-d?
                                  (round (* input-size (/ col n-cols)))
-                                 (p/index-of-coordinates itopo [(round (* iw (/ cx cw)))
-                                                                (round (* ih (/ cy ch)))]))
+                                 (let [[cx cy] (p/coordinates-of-index topo col)]
+                                   (p/index-of-coordinates itopo [(round (* iw (/ cx cw)))
+                                                                  (round (* ih (/ cy ch)))])))
                        all-ids (vec (p/neighbours-indices itopo focus-i radius))
                        n (round (* frac (count all-ids)))
                        ids (if (< frac 0.5) ;; for performance:

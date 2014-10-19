@@ -108,7 +108,7 @@
    :distal-perm-inc 0.05
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
-   :inhibition-base-distance 3
+   :inhibition-base-distance 2
    :inhibition-speed 0.25
    })
 
