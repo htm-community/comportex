@@ -213,15 +213,11 @@
                 yi (long (* yz h))
                 coord [xi yi]
                 idx (p/index-of-coordinates topo coord)]
-            (->> [#{idx} 1]
-                 (iterate (fn [[bits radius]]
-                            [(into bits
-                                   (p/neighbours-indices topo idx radius (dec radius)))
-                             (inc radius)]))
-                 (take-while #(< (count %) on-bits))
-                 (take 10)
-                 (last)
-                 (first))) ;; take set, drop radius
+            (->> (range 10)
+                 (mapcat (fn [radius]
+                        (p/neighbours-indices topo idx radius (dec radius))))
+                 (take on-bits)
+                 (set)))
           #{}))
       (decode
         [this bit-votes n]

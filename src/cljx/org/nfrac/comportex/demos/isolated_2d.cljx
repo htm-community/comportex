@@ -4,12 +4,13 @@
             [org.nfrac.comportex.util :as util]))
 
 (def input-size [50 50])
-(def on-bits 50)
+(def on-bits 64)
 (def numb-domain [10 10])
 
 (def patterns
   {:down-1 (mapv vector (repeat 1) (range 10))
-   :down-5 (mapv vector (repeat 5) (range 10))
+   :down-right (into (mapv vector (repeat 1) (range 5))
+                     (mapv vector (range 1 10 2) (repeat 5)))
    :diag-tl-br (mapv vector (range 10) (range 10))
    :rand-10 (vec (repeatedly 10 #(vector (util/rand 0 10)
                                          (util/rand 0 10))))
@@ -85,7 +86,7 @@
                       (enc/linear-2d-encoder input-size on-bits numb-domain))))
 
 (def spec
-  {:column-dimensions [10 50]
+  {:column-dimensions [20 50]
    :ff-init-frac 0.3
    :ff-potential-radius 0.2
    :ff-perm-inc 0.05
@@ -100,13 +101,15 @@
    :depth 8
    :max-segments 5
    :seg-max-synapse-count 18
-   :seg-new-synapse-count 12
-   :seg-stimulus-threshold 9
-   :seg-learn-threshold 7
+   :seg-new-synapse-count 10
+   :seg-stimulus-threshold 5
+   :seg-learn-threshold 4
    :distal-perm-connected 0.20
    :distal-perm-inc 0.05
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
+   :inhibition-base-distance 3
+   :inhibition-speed 0.25
    })
 
 (defn ^:export input-gen

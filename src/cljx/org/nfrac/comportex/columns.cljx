@@ -101,7 +101,7 @@
    Initial permanence values are uniformly distributed between one
    increment above the connected threshold, down to two increments
    below. So about one third will be initially connected."
-  [n-cols itopo spec]
+  [topo itopo spec]
   (let [pcon (:ff-perm-connected spec)
         pinc (:ff-perm-inc spec)
         p-hi (-> (+ pcon (* 1.0 pinc)) (min 1.0))
@@ -110,17 +110,26 @@
         radius (long (* (:ff-potential-radius spec)
                         (apply max (p/dimensions itopo))))
         frac (:ff-init-frac spec)
-        input-size (p/size itopo)]
+        input-size (p/size itopo)
+        n-cols (p/size topo)
+        one-d? (or (== 1 (count (p/dimensions topo)))
+                   (== 1 (count (p/dimensions itopo))))
+        [cw ch] (p/dimensions topo)
+        [iw ih] (p/dimensions itopo)]
     (->> (range n-cols)
          (mapv (fn [col]
-                   (let [focus-i (round (* input-size (/ col n-cols)))
-                         all-ids (vec (p/neighbours-indices itopo focus-i radius))
-                         n (round (* frac (count all-ids)))
-                         ids (if (< frac 0.5) ;; for performance:
-                               (repeatedly n #(util/rand-nth all-ids)) ;; ignore dups
-                               (take n (util/shuffle all-ids)))
-                         perms (repeatedly n #(util/rand p-lo p-hi))]
-                     (zipmap ids perms)))))))
+                 (let [[cx cy] (p/coordinates-of-index topo col)
+                       focus-i (if one-d?
+                                 (round (* input-size (/ col n-cols)))
+                                 (p/index-of-coordinates itopo [(round (* iw (/ cx cw)))
+                                                                (round (* ih (/ cy ch)))]))
+                       all-ids (vec (p/neighbours-indices itopo focus-i radius))
+                       n (round (* frac (count all-ids)))
+                       ids (if (< frac 0.5) ;; for performance:
+                             (repeatedly n #(util/rand-nth all-ids)) ;; ignore dups
+                             (take n (util/shuffle all-ids)))
+                       perms (repeatedly n #(util/rand p-lo p-hi))]
+                   (zipmap ids perms)))))))
 
 ;;; ## Overlaps
 
@@ -326,7 +335,7 @@ y[t] = (period-1) * y[t-1]  +  1
         col-topo (topology/make-topology col-dim)
         n-inbits (p/size input-topo)
         n-cols (p/size col-topo)
-        all-syns (uniform-ff-synapses n-cols input-topo spec)]
+        all-syns (uniform-ff-synapses col-topo input-topo spec)]
     (->
      (map->ColumnField
       {:spec spec
