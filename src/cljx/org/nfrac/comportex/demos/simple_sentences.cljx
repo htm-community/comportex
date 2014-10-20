@@ -118,7 +118,7 @@ Chifung has no tail.
                                    (enc/category-encoder bit-width uniq-words))
         xform (input-transform-fn split-sens n-repeats)]
     ;; [sentence index, word index, repeat number]
-    (core/sensory-input [0 0 0] xform encoder)))
+    (core/sensory-input [0 -1 0] xform encoder)))
 
 (def spec
   {:column-dimensions [1000]

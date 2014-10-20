@@ -404,3 +404,12 @@
                              m ids)))
                  (transient {}))
          (persistent!))))
+
+(defn predictions
+  [model n-predictions]
+  (let [rgn (first (region-seq model))
+        inp (first (inputs-seq model))
+        pr-cols (->> (p/predictive-cells (:layer-3 rgn))
+                     (map first))
+        pr-votes (predicted-bit-votes rgn pr-cols)]
+    (p/decode (:encoder inp) pr-votes n-predictions)))
