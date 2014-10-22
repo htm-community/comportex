@@ -1,5 +1,9 @@
 # TODO
 
+* cortical-io-encoder: decode-locally? spatial-scramble?
+
+* feed-forward-step + depolarisation-step (lateral + ff motor + ff sensory + top-down feedback)
+
 * move proximal synapses into layer?
 
 * back-flow bursting to mix proximal input fields?
@@ -21,7 +25,6 @@
     * use an implicit potential pool, same as lateral activation
       * extending / shrinking the segment
     * avoids the need to specify potential-radius
-  * STARTUP TIME FOR 2-REGION 1000 COL PROX FIELDS??
 
 * higher-levels regions only grow ff-synapses to learn-cells from below?
   (otherwise typically grow to all cells of a bursting column)
@@ -47,6 +50,10 @@
 * repeatability - store random seeds in objs?
 
 * boosting - apply every time step; periodically recalculate duty cycle thresholds
+
+* clojars release
+
+* java API
 
 ## perf
 

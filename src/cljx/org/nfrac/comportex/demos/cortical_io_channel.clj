@@ -124,6 +124,5 @@
   (close! input-c)
   (close! preloader)
   (close! stepper)
-  (shutdown-agents)
 
   )

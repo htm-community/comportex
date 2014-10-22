@@ -1,6 +1,6 @@
 (defproject org.nfrac/comportex "0.0.5-SNAPSHOT"
   :description "Functionally composable cortex, an implementation of Hierarchical Temporal Memory"
-  :url "http://github.com/floybix/comportex/"
+  :url "http://github.com/nupic-community/comportex/"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :source-paths ["src/clj" "src/cljx" "target/classes"]
@@ -43,9 +43,4 @@
                    :cljsbuild {:builds [{:source-paths ["target/classes" "target/test-classes"]
                                          :jar true
                                          :compiler {:output-to "target/testable.js"
-                                                    :libs [""]
-                                                    :optimizations :advanced}}]}}}
-
-  :autodoc {:copyright "Copyright (C) 2014 Felix Andrews."
-            :web-src-dir "http://github.com/floybix/comportex/blob/"
-            :web-home "http://floybix.github.com/comportex/"})
+                                                    :optimizations :advanced}}]}}})

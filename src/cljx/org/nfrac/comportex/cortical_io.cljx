@@ -8,6 +8,8 @@
 
 (def base-uri "http://api.cortical.io/rest")
 
+(def retina-size [128 128])
+
 (def query-params {:retina_name "en_associative"})
 
 (defn get-fingerprint
@@ -40,7 +42,7 @@
 
 (defn random-sdr
   []
-  (let [size (* 128 128)]
+  (let [size (apply * retina-size)]
    (set (repeatedly (* size 0.02)
                     #(util/rand-int 0 (dec size))))))
 
@@ -59,7 +61,7 @@
 
 (defn cortical-io-encoder
   [api-key cache min-votes]
-  (let [topo (topology/make-topology [128 128])]
+  (let [topo (topology/make-topology retina-size)]
     (reify
       p/PTopological
       (topology [_]
