@@ -3,8 +3,7 @@
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util]
             [clojure.string :as str]
-            [clj-http.client :as http]
-            [clojure.core.async :refer [go >! <! >!! <!! timeout thread]]))
+            [clj-http.client :as http]))
 
 (def base-uri "http://api.cortical.io/rest")
 
@@ -38,7 +37,9 @@
 
 (defn apply-offset
   [xs offset]
-  (into (empty xs) (map #(+ % offset))))
+  (->> xs
+       (map #(+ % offset))
+       (into (empty xs))))
 
 (defn random-sdr
   []
@@ -47,6 +48,11 @@
                     #(util/rand-int 0 (dec size))))))
 
 (defn look-up-fingerprint
+  "Returns a fingerprint for the term, being a set of active indices.
+   If the term is not found in the cache, makes a synchronous call to
+   cortical.io REST API and stores the result in the cache (an atom).
+   If the request to cortical.io fails, the term is assigned a new
+   random SDR."
   [api-key cache term]
   (let [term (str/lower-case term)]
     (or (get @cache term)

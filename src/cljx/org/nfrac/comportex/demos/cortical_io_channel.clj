@@ -45,7 +45,7 @@
        ))
 
 (defn sensory-input-from-channel
-  "Here input-c is a channel to read words from. Transitions of the
+  "Here `input-c` is a channel to read words from. Transitions of the
    input use a blocking take from the channel."
   [api-key input-c cache]
   (let [encoder (cortical-io-encoder api-key cache min-votes)
@@ -53,8 +53,7 @@
     (core/sensory-input nil xform encoder)))
 
 (defn n-region-model
-  "Here c is a channel to read sentences from. It must contain at
-   least one item when calling this or it will block!"
+  "Here `input-c` is a channel to read words from."
   [api-key input-c cache n]
   (core/regions-in-series core/sensory-region
                           (sensory-input-from-channel api-key input-c cache)
