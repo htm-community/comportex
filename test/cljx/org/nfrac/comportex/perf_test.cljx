@@ -12,11 +12,11 @@
 (deftest one-region-perf-test
   (util/set-seed! 0)
   (testing "one region, wide range of ff synapses"
-    (let [m1 (-> (iterate p/feed-forward-step (demo1/n-region-model 1))
+    (let [m1 (-> (iterate p/htm-step (demo1/n-region-model 1))
                  (nth 50))]
       (crit/quick-bench
        (do (util/set-seed! 0)
-           (->> (iterate p/feed-forward-step m1)
+           (->> (iterate p/htm-step m1)
                 (take 50)
                 (last)))))))
 
@@ -24,10 +24,10 @@
 (deftest two-region-perf-test
   (util/set-seed! 0)
   (testing "two regions"
-    (let [m1 (-> (iterate p/feed-forward-step (demo2/n-region-model 2))
+    (let [m1 (-> (iterate p/htm-step (demo2/n-region-model 2))
                  (nth 50))]
       (crit/quick-bench
        (do (util/set-seed! 0)
-           (->> (iterate p/feed-forward-step m1)
+           (->> (iterate p/htm-step m1)
                 (take 50)
                 (last)))))))

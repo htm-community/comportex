@@ -48,7 +48,7 @@
 (deftest sp-test
   (util/set-seed! 0)
   (let [model1 (->> (iterate (fn [m]
-                           (-> (p/feed-forward-step m)
+                           (-> (p/htm-step m)
                                (assoc-in [:active-columns-at (p/timestep m)]
                                          (p/active-columns (:layer-3 (:region m))))))
                          (model))
@@ -83,7 +83,7 @@
                             [:mid 8]
                             [:far 25]]
                      :let [this-in (mapv (partial + d) in)
-                           rgn2 (p/region-step rgn (p/encode encoder 0 this-in) #{})]]
+                           rgn2 (p/region-step rgn (p/encode encoder 0 this-in))]]
                  [k (p/active-columns (:layer-3 rgn2))])
                (into {}))]
         (is (> (count (set/intersection (:orig m) (:near m)))

@@ -190,7 +190,7 @@
    Given the set of input bits `ff-bits`, adjusts the permanence
    values of all potential feed-forward synapses in the active columns
    `a-cols`."
-  [cf a-cols ff-bits signal-ff-bits om]
+  [cf a-cols ff-bits om]
   (let [itopo (:input-topology cf)
         spec (:spec cf)
         pinc (:ff-perm-inc spec)
@@ -297,11 +297,11 @@ y[t] = (period-1) * y[t-1]  +  1
          :overlaps om
          :sig-overlaps sig-om))))
   (columns-learn
-    [this ff-bits signal-ff-bits a-cols]
+    [this ff-bits a-cols]
     (let [dcp (:duty-cycle-period spec)
           t (:timestep this)
           boost? (zero? (mod t dcp))]
-      (cond-> (learn this a-cols ff-bits signal-ff-bits overlaps)
+      (cond-> (learn this a-cols ff-bits overlaps)
               true (update-in [:overlap-duty-cycles] update-duty-cycles
                               (keys prox-exc) dcp)
               true (update-in [:active-duty-cycles] update-duty-cycles

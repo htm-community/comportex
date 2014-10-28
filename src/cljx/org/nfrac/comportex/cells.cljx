@@ -461,10 +461,11 @@
 (defrecord LayerOfCells
     [spec topology distal-sg active-cols burst-cols
      active-cells learn-cells signal-cells tp-cells
+     prior-active-cells prior-learn-cells
      pred-cells prior-pred-cells distal-exc
      tp-exc]
   p/PLayerOfCells
-  (layer-step
+  (layer-activate
     [this prox-exc prox-sig-exc inh-radius]
     (let [{acbc :active-cells-by-col
            b-cols :burst-cols} (select-active-cells prox-exc distal-exc topology
@@ -477,17 +478,23 @@
           ]
       (assoc this
         :active-cells-by-col acbc ;; for convenience / efficiency in other steps
+        :active-cells ac
         :active-cols a-cols
         :burst-cols b-cols
-        :active-cells ac
         :signal-cells sig-ac
-        :tp-cells tpc)))
+        :tp-cells tpc
+        :prior-active-cells active-cells
+        :prior-learn-cells learn-cells
+        )))
+  
   (layer-learn
-    [this prior-ac prior-lc]
-    (let [acbc (:active-cells-by-col this)
+    [this]
+    (let [prior-ac prior-active-cells
+          prior-lc prior-learn-cells
+          acbc (:active-cells-by-col this)
           {lc :learn-cells
            lsegs :learn-segs} (select-learning-segs acbc burst-cols distal-sg
-                                                    prior-ac spec)
+                                                    prior-active-cells spec)
           {alt-cols :learn-cols
            alt-c :learn-cells
            alt-segs :learn-segs} (when (:alternative-learning? spec)
@@ -510,8 +517,10 @@
         :learn-cells lc
         :learn-segments lsegs
         :distal-sg new-sg)))
+  
   (layer-depolarise
     [this distal-bits]
+    ;; TODO distal-bits
     (let [seg-exc (syn/excitations distal-sg active-cells)
           cell-exc (cell-depolarisation seg-exc (:seg-stimulus-threshold spec))
           pc (set (keys cell-exc))]
@@ -519,6 +528,7 @@
         :pred-cells pc
         :prior-pred-cells pred-cells
         :distal-exc cell-exc)))
+  
   (layer-depth [_]
     (:depth spec))
   (bursting-columns [this]

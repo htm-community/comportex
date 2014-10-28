@@ -1,7 +1,8 @@
 (ns org.nfrac.comportex.core
   "A _region_ is the main composable unit in this library. It
-   represents a field of neurons arranged in columns, responding to
-   an input bit array."
+   represents a bank of neurons arranged in columns, responding to an
+   array of feed-forward input bits, as well as distal connections to
+   itself and possibly other regions."
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.columns :as columns]
@@ -10,45 +11,76 @@
             [clojure.set :as set]
             [clojure.zip :as zip]))
 
-;; default implementation of PMotorTopological
-(extend-type
-    #+cljs object, #+clj java.lang.Object
-    p/PMotorTopological
-    (motor-topology [_]
-      (topology/make-topology [0])))
+(defn cell-id->inbit
+  [offset depth [col ci]]
+  (+ offset (* depth col) ci))
+
+(defn inbit->cell-id
+  [depth i]
+  [(quot i depth)
+   (rem i depth)])
 
 (declare sensory-region)
 
 (defrecord SensoryRegion
     [column-field layer-3 uuid step-counter]
   p/PRegion
-  (region-step*
-    [this ff-bits signal-ff-bits distal-bits learn?]
-    (let [prior-ac (p/active-cells layer-3)
-          prior-lc (p/learnable-cells layer-3)
-          step-cf (p/columns-step column-field ff-bits signal-ff-bits)
-          next-lyr (cond-> (p/layer-step layer-3
-                                         (p/column-excitation step-cf)
-                                         (p/column-signal-overlaps step-cf)
-                                         (p/inhibition-radius step-cf))
-                           learn? (p/layer-learn prior-ac prior-lc)
-                           true (p/layer-depolarise distal-bits))
-          next-cf (cond-> step-cf
-                          learn? (p/columns-learn ff-bits signal-ff-bits
-                                                  (p/active-columns next-lyr)))]
+  (region-activate
+    [this ff-bits signal-ff-bits]
+    (let [step-cf (p/columns-step column-field ff-bits signal-ff-bits)
+          lyr (p/layer-activate layer-3
+                                (p/column-excitation step-cf)
+                                (p/column-signal-overlaps step-cf)
+                                (p/inhibition-radius step-cf))]
       (assoc this
-        :column-field next-cf
-        :layer-3 next-lyr
-        :step-counter (inc step-counter))))
-  (ff-cells-per-column [_]
-    (p/layer-depth layer-3))
-  (ff-active-cells [_]
-    (p/active-cells layer-3))
-  (ff-signal-cells [_]
-    (p/signal-cells layer-3))
+        :step-counter (inc step-counter)
+        :column-field step-cf
+        :layer-3 lyr)))
+
+  (region-learn
+    [this ff-bits]
+    (if (:freeze? (p/params this))
+      this
+      (let [cf (p/columns-learn column-field ff-bits (p/active-columns layer-3))
+            lyr (p/layer-learn layer-3)]
+        (assoc this
+          :column-field cf
+          :layer-3 lyr))))
+
+  (region-depolarise
+    [this distal-bits]
+    (assoc this
+      :layer-3 (p/layer-depolarise layer-3 distal-bits)))
+  
   p/PTopological
   (topology [_]
     (p/topology column-field))
+  p/PFeedForward
+  (ff-topology [this]
+    (topology/make-topology (conj (p/dims-of this)
+                                  (p/layer-depth layer-3))))
+  (bits-value
+    [this offset]
+    (let [depth (p/layer-depth layer-3)]
+      (->> (p/active-cells layer-3)
+           (mapv (partial cell-id->inbit offset depth))
+           (into #{}))))
+  (signal-bits-value
+    [_ offset]
+    (let [depth (p/layer-depth layer-3)]
+      (->> (p/signal-cells layer-3)
+           (mapv (partial cell-id->inbit offset depth))
+           (into #{}))))
+  (source-of-bit
+    [_ i]
+    (let [depth (p/layer-depth layer-3)]
+      (inbit->cell-id depth i)))
+  p/PFeedForwardMotor
+  (ff-motor-topology [_]
+    topology/empty-topology)
+  (motor-bits-value
+    [_ offset]
+    #{})
   p/PTemporal
   (timestep [_]
     step-counter)
@@ -73,60 +105,16 @@
     :uuid (uuid/make-random)
     :step-counter 0}))
 
-(declare sensory-motor-region)
-
 (defn cells->cols
   [cells]
   (into #{} (mapv first cells)))
 
+(declare sensory-motor-region)
+
 (defrecord SensoryMotorRegion
     [column-field layer-4 layer-3 uuid step-counter]
-  p/PRegion
-  (region-step*
-    [this ff-bits signal-ff-bits distal-bits learn?]
-    (let [prior-ac (p/active-cells layer-3)
-          prior-lc (p/learnable-cells layer-3)
-          step-cf (p/columns-step column-field ff-bits signal-ff-bits)
-          next-l4 (cond-> (p/layer-step layer-4
-                                        (p/column-excitation step-cf)
-                                        (p/column-signal-overlaps step-cf)
-                                        (p/inhibition-radius step-cf))
-                          learn? (p/layer-learn #{} #{}) ;; TODO ??
-                          true (p/layer-depolarise distal-bits)) ;; ??
-          next-cf (cond-> step-cf
-                          learn? (p/columns-learn ff-bits signal-ff-bits
-                                                  ;; TODO combine with layer 3?
-                                                  (p/active-columns next-l4)))
-          ;; TODO TODO TODO
-          ;; add L4 TP cell activation to proximal inputs
-          ]
-      (assoc this
-        :column-field next-cf
-        :layer-4 next-l4
-        :layer-3 layer-3
-        :step-counter (inc step-counter))))
-  (ff-cells-per-column [_]
-    (p/layer-depth layer-3))
-  (ff-active-cells [_]
-    (p/active-cells layer-3))
-  (ff-signal-cells [_]
-    (p/signal-cells layer-3))
-  p/PTopological
-  (topology [_]
-    (p/topology column-field))
-  p/PTemporal
-  (timestep [_]
-    step-counter)
-  p/PParameterised
-  (params [_]
-    (merge (p/params column-field)
-           (p/params layer-3)
-           (-> (p/params layer-4)
-               (select-keys [:motor-distal-size]))))
-  p/PResettable
-  (reset [this]
-    (-> (sensory-motor-region (p/params this))
-        (assoc :uuid uuid))))
+  ;; TODO
+)
 
 (defn sensory-motor-region
   "Constructs a cortical region with the given specification map. See
@@ -137,7 +125,7 @@
   (map->SensoryMotorRegion
    {:column-field (columns/column-field spec)
     :layer-4 (cells/layer-of-cells (assoc spec
-                                     :motor-distal-size ()
+                                     :motor-distal-size :TODO
                                      :lateral-synapses? false))
     :layer-3 (cells/layer-of-cells (assoc spec
                                      :motor-distal-size 0
@@ -147,27 +135,32 @@
 
 (defrecord SensoryInput
     [init-value value transform encoder]
+  p/PTopological
+  (topology [_]
+    (p/topology encoder))
   p/PFeedForward
-  (bits-value*
+  (ff-topology [_]
+    (p/topology encoder))
+  (bits-value
     [_ offset]
     (p/encode encoder offset value))
-  (signal-bits-value*
+  (signal-bits-value
     [_ offset]
-    #{})
-  (motor-bits-value*
-    [this offset]
     #{})
   (source-of-bit
     [_ i]
     [i])
-  (feed-forward-step* [this _]
-    (assoc this :value (transform value)))
-  p/PTopological
-  (topology [_]
-    (p/topology encoder))
+  p/PFeedForwardMotor
+  (ff-motor-topology [_]
+    topology/empty-topology)
+  (motor-bits-value
+    [_ offset]
+    #{})
   p/PSensoryInput
-  (domain-value [_] value)
-  (state-labels [_] #{})
+  (input-step [this]
+    (assoc this :value (transform value)))
+  (domain-value [_]
+    value)
   p/PResettable
   (reset [this]
     (assoc this :value init-value)))
@@ -180,105 +173,126 @@
 
 (defrecord SensoryMotorInput
     [init-value value transform encoder motor-encoder]
-  p/PFeedForward
-  (bits-value*
-    [_ offset]
-    (p/encode encoder offset value))
-  (signal-bits-value*
-    [_ offset]
-    #{})
-  (motor-bits-value*
-    [_ offset]
-    (p/encode motor-encoder offset value))
-  (source-of-bit
-    [_ i]
-    [i])
-  (feed-forward-step* [this _]
-    (assoc this :value (transform value)))
   p/PTopological
   (topology [_]
     (p/topology encoder))
-  p/PMotorTopological
-  (motor-topology [_]
+  p/PFeedForward
+  (ff-topology [_]
+    (p/topology encoder))
+  (bits-value
+    [_ offset]
+    (p/encode encoder offset value))
+  (signal-bits-value
+    [_ offset]
+    #{})
+  (source-of-bit
+    [_ i]
+    [i])
+  p/PFeedForwardMotor
+  (ff-motor-topology [_]
     (p/topology motor-encoder))
+  (motor-bits-value
+    [_ offset]
+    (p/encode motor-encoder offset value))
   p/PSensoryInput
-  (domain-value [_] value)
-  (state-labels [_] #{})
+  (input-step [this]
+    (assoc this :value (transform value)))
+  (domain-value [_]
+    value)
   p/PResettable
   (reset [this]
     (assoc this :value init-value)))
 
 (defn sensory-motor-input
   "Creates an input stream from an initial value, a function to
-   transform the input to the next time step, and an encoder."
+   transform the input to the next time step, and two encoders
+   operating on the same value."
   [init-value transform encoder motor-encoder]
   (->SensoryMotorInput init-value init-value transform encoder motor-encoder))
 
 (defn combined-bits-value
-  "Returns the total bit set from a collection of sources (satisfying
-   PFeedForward and PTopological). `bits-fn` should be `p/bits-value`
-   or `p/signal-bits-value`."
-  [ffs bits-fn]
-  (let [ws (map p/size-of ffs)
-        os (list* 0 (reductions + ws))]
-    (->> (map bits-fn ffs os)
+  "Returns the total bit set from a collection of sources satisfying
+   `PFeedForward` or `PFeedForwardMotor`. `flavour` should
+   be :standard, :signal or :motor."
+  [ffs flavour]
+  (let [topo-fn (case flavour
+                  (:standard
+                   :signal) p/ff-topology
+                   :motor p/ff-motor-topology)
+        bits-fn (case flavour
+                  :standard p/bits-value
+                  :signal p/signal-bits-value
+                  :motor p/motor-bits-value)
+        widths (map (comp p/size topo-fn) ffs)
+        offs (list* 0 (reductions + widths))]
+    (->> (map bits-fn ffs offs)
          (apply set/union))))
 
-(defn combined-motor-bits-value
-  "Returns the total bit set from a collection of sources (satisfying
-   PFeedForward and PMotorTopological)."
-  [ffs]
-  (let [ws (map (comp p/size p/motor-topology) ffs)
-        os (list* 0 (reductions + ws))]
-    (->> (map p/motor-bits-value* ffs os)
-         (apply set/union))))
+;;; ## Region trees
 
-(defn cell-id->inbit
-  [offset depth [col ci]]
-  (+ offset (* depth col) ci))
+(def is-input? #(satisfies? p/PSensoryInput %))
 
-(defn inbit->cell-id
-  [depth i]
-  [(quot i depth)
-   (rem i depth)])
+(defn- ->ffs
+  [subs]
+  (map (fn [x] (if (is-input? x) x (:region x))) subs))
 
-(defn incoming-bits-value
-  [rgn-tree bits-fn]
-  (combined-bits-value (:subs rgn-tree) bits-fn))
+(defn region-tree-zipper
+  [tree]
+  (zip/zipper :subs :subs (fn [x cs] (assoc x :subs cs)) tree))
+
+(defn region-tree-seq
+  "A sequence of the sub region trees in a region tree (including
+  itself). The order is the same as `region-seq`."
+  [tree]
+  (->> (tree-seq :subs :subs tree)
+       (filter :region)
+       (reverse) ;; put in bottom to top order, for first path down tree
+       (vec)))
 
 (defrecord RegionTree
     [region subs]
-  p/PFeedForward
-  (bits-value*
-    [_ offset]
-    (let [depth (p/ff-cells-per-column region)]
-      (->> (p/ff-active-cells region)
-           (mapv (partial cell-id->inbit offset depth))
-           (into #{}))))
-  (signal-bits-value*
-    [_ offset]
-    (let [depth (p/ff-cells-per-column region)]
-      (->> (p/ff-signal-cells region)
-           (mapv (partial cell-id->inbit offset depth))
-           (into #{}))))
-  (motor-bits-value*
-    [_ offset]
-    ;; TODO
-    #{})
-  (source-of-bit
-    [_ i]
-    (let [depth (p/ff-cells-per-column region)]
-      (inbit->cell-id depth i)))
-  (feed-forward-step*
-    [this learn?]
-    (let [new-subs (map #(p/feed-forward-step % learn?) subs)
-          new-rgn (p/region-step region
-                                 (combined-bits-value new-subs p/bits-value)
-                                 (combined-bits-value new-subs p/signal-bits-value)
-                                 (combined-motor-bits-value new-subs)
-                                 learn?)]
+  p/PHTM
+  (htm-activate
+    [this]
+    (let [new-subs (map (fn [x]
+                          (if (is-input? x)
+                            (p/input-step x)
+                            (p/htm-activate x)))
+                        subs)
+          new-rgn (p/region-activate region
+                                     (combined-bits-value (->ffs new-subs) :standard)
+                                     (combined-bits-value (->ffs new-subs) :signal))]
       (assoc this :region new-rgn :subs new-subs)))
-  p/PFeedForwardComposite
+  (htm-learn
+    [this]
+    (let [new-subs (map (fn [x] (if (is-input? x) x (p/htm-learn x)))
+                        subs)
+          new-rgn (p/region-learn region
+                                  (combined-bits-value (->ffs new-subs) :standard))]
+      (assoc this :region new-rgn :subs new-subs)))
+  (htm-depolarise
+    [this]
+    (let [new-subs (map (fn [x] (if (is-input? x) x (p/htm-depolarise x)))
+                        subs)
+          new-rgn (p/region-depolarise region
+                                       (combined-bits-value (->ffs new-subs) :motor))]
+      (assoc this :region new-rgn :subs new-subs)))
+  (region-seq [this]
+    (map :region (region-tree-seq this)))
+  (input-seq [this]
+    (->> (tree-seq :subs :subs this)
+         (remove :region)))
+  (update-by-uuid
+    [this region-uuid f]
+    (loop [loc (region-tree-zipper this)]
+      (if-let [rgn (:region (zip/node loc))]
+        (if (= region-uuid (:uuid rgn))
+          (-> (zip/edit loc #(update-in % [:region] f))
+              (zip/root))
+          (if (zip/end? loc)
+            ::no-matching-UUID!
+            (recur (zip/next loc)))))))
+  p/PBitsAggregated
   (source-of-incoming-bit
     [this i]
     (loop [sub-i 0
@@ -289,18 +303,14 @@
           (if (<= offset i (+ offset w -1))
             [sub-i (p/source-of-bit sub (- i offset))]
             (recur (inc sub-i) (+ offset (long w))))))))
-  p/PTopological
-  (topology [_]
-    (topology/make-topology (conj (p/dims-of region)
-                                  (p/ff-cells-per-column region))))
   p/PTemporal
   (timestep [_]
     (p/timestep region))
   p/PResettable
   (reset [this]
-    (-> this
-        (update-in [:subs] #(map p/reset %))
-        (update-in [:region] p/reset))))
+    (assoc this
+      :region (p/reset region)
+      :subs (map p/reset subs))))
 
 (defn region-tree
   [rgn subs]
@@ -314,8 +324,11 @@
    parameter in `spec`. The updated spec is passed to `build-region`.
    Returns a RegionTree."
   [build-region spec subs]
-  (let [dims (apply topology/combined-dimensions (map p/dims-of subs))
-        mdims (apply topology/combined-dimensions (map p/motor-dims-of subs))]
+  (let [ffs (->ffs subs)
+        dims (apply topology/combined-dimensions
+                    (map (comp p/dimensions p/ff-topology) ffs))
+        mdims (apply topology/combined-dimensions
+                     (map (comp p/dimensions p/ff-motor-topology) ffs))]
     (-> (assoc spec :input-dimensions dims
                :extra-distal-size (apply * mdims))
         (build-region)
@@ -330,43 +343,7 @@
        (take (inc n))
        (last)))
 
-(defn region-tree-seq
-  "A sequence of the sub region trees in a region tree (including
-  itself). The order is the same as `region-seq`."
-  [tree]
-  (->> (tree-seq :subs :subs tree)
-       (filter :region)
-       (reverse) ;; put in bottom to top order, for first path down tree
-       (vec)))
-
-(defn region-seq
-  "A sequence of the regions in a region tree. The order is the same
-   as `region-tree-seq`."
-  [tree]
-  (map :region (region-tree-seq tree)))
-
-(defn inputs-seq
-  "A seq of the input generators in a region tree."
-  [tree]
-  (->> (tree-seq :subs :subs tree)
-       (remove :region)))
-
-(defn region-tree-zipper
-  [tree]
-  (zip/zipper :subs :subs (fn [x cs] (assoc x :subs cs)) tree))
-
-(defn update-by-uuid
-  "Applies function `f` to the region in `tree` identified by its
-   UUID. Returns the modified region tree."
-  [tree region-uuid f]
-  (loop [loc (region-tree-zipper tree)]
-    (if-let [rgn (:region (zip/node loc))]
-      (if (= region-uuid (:uuid rgn))
-        (-> (zip/edit loc #(update-in % [:region] f))
-            (zip/root))
-        (if (zip/end? loc)
-          ::no-matching-UUID!
-          (recur (zip/next loc)))))))
+;;; ## Stats
 
 (defn column-state-freqs
   "Returns a map with the frequencies of columns in states `:active`,
@@ -407,8 +384,8 @@
 
 (defn predictions
   [model n-predictions]
-  (let [rgn (first (region-seq model))
-        inp (first (inputs-seq model))
+  (let [rgn (first (p/region-seq model))
+        inp (first (p/input-seq model))
         pr-cols (->> (p/predictive-cells (:layer-3 rgn))
                      (map first))
         pr-votes (predicted-bit-votes rgn pr-cols)]

@@ -65,7 +65,7 @@
 
 (deftest sm-test
   (util/set-seed! 0)
-  (let [m1 (-> (iterate p/feed-forward-step (model))
+  (let [m1 (-> (iterate p/htm-step (model))
                (nth 500))
         rgn (:region m1)]
     (testing "Numbers of lateral dendrite segments"
@@ -86,7 +86,7 @@
             "Some cells have grown multiple lateral dendrite segments.")))
     (testing "Column / cell activation"
       (let [sums (->> m1
-                      (iterate p/feed-forward-step)
+                      (iterate p/htm-step)
                       (take 100)
                       (map :region)
                       (map core/column-state-freqs)

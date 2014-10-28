@@ -119,6 +119,9 @@
       4 (three-d-topology w h (* d q))
       )))
 
+(def empty-topology
+  (make-topology [0]))
+
 ;; We will pour the concatenated indices (and offsets) into this
 ;; combined topology. Note that region output is its cells, so will
 ;; add another dimension to column topology. e.g. 2D columns [x y]
