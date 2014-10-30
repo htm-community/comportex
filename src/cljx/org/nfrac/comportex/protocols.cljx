@@ -22,16 +22,16 @@
    PFeedForward, PTemporal, PParameterised."
   (region-activate [this ff-bits signal-ff-bits])
   (region-learn [this ff-bits])
-  (region-depolarise [this distal-bits])) 
+  (region-depolarise [this distal-ff-bits distal-fb-bits]))
 
 (defn region-step
   ([this ff-bits]
-     (region-step this ff-bits #{} #{}))
-  ([this ff-bits signal-ff-bits distal-bits]
+     (region-step this ff-bits #{} #{} #{}))
+  ([this ff-bits signal-ff-bits distal-ff-bits distal-fb-bits]
      (-> this
          (region-activate ff-bits signal-ff-bits)
          (region-learn ff-bits)
-         (region-depolarise distal-bits))))
+         (region-depolarise distal-ff-bits distal-fb-bits))))
 
 (defprotocol PFeedForward
   "A feed-forward input source with a bit set representation. Could be
@@ -45,9 +45,6 @@
   (ff-motor-topology [this])
   (motor-bits-value [this offset]))
 
-(defprotocol PBitsAggregated
-  (source-of-incoming-bit [this i]))
-
 (defprotocol PColumnField
   (columns-step [this ff-bits signal-ff-bits])
   (columns-learn [this ff-bits a-cols])
@@ -59,7 +56,7 @@
 (defprotocol PLayerOfCells
   (layer-activate [this prox-exc prox-sig-exc inh-radius])
   (layer-learn [this])
-  (layer-depolarise [this distal-bits])
+  (layer-depolarise [this distal-ff-bits distal-fb-bits])
   (layer-depth [this])
   (bursting-columns [this])
   (active-columns [this])

@@ -128,6 +128,8 @@
 ;; becomes [x y z], where z = cell depth.
 
 (defn combined-dimensions
+  ([]
+     empty-topology)
   ([dims]
      dims)
   ([dims1 dims2]

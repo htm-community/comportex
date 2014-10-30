@@ -28,13 +28,17 @@
 (def cells-parameter-defaults
   "Default parameter specification map.
 
-   * `lateral-synapses?` - whether distal synapses can grow laterally
-     to other cells in this layer.
+   * `lateral-synapses?` - whether distal synapses can connect
+     laterally to other cells in this layer.
 
-   * `extra-distal-size` - size of bit field available to grow distal
-     synapses to, not including this layer's own cells if lateral
-     connections are allowed. So this is for motor inputs from below,
-     and/or top-down connections.
+   * `use-feedback?` - whether distal synapses can connect to top-down
+     feedback cells.
+
+   * `distal-motor-dimensions` - defines bit field available for
+     feed-forward motor input to distal synapses.
+
+   * `distal-topdown-dimensions` - defines bit field available for
+     top-down feedback to distal synapses.
 
    * `depth` - number of cells per column.
 
@@ -109,12 +113,10 @@
    * `temporal-pooling-amp` - multiplier on the initial excitation
      score of temporal pooling cells; this increases the probability
      that TP cells will remain active."
-  {
-;   :lateral-synapses? true
-;   :extra-distal-size 0
-;   :sensory-distal-size 0
-;   :motor-distal-size 0
-;   :topdown-distal-size 0
+  {:lateral-synapses? true
+   :use-feedback? false
+   :distal-motor-dimensions [0]
+   :distal-topdown-dimensions [0]
    :column-dimensions [2048]
    :depth 16
    :max-segments 5
@@ -519,7 +521,7 @@
         :distal-sg new-sg)))
   
   (layer-depolarise
-    [this distal-bits]
+    [this distal-ff-bits distal-fb-bits]
     ;; TODO distal-bits
     (let [seg-exc (syn/excitations distal-sg active-cells)
           cell-exc (cell-depolarisation seg-exc (:seg-stimulus-threshold spec))

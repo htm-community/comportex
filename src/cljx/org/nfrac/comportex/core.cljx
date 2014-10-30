@@ -7,9 +7,10 @@
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.columns :as columns]
             [org.nfrac.comportex.cells :as cells]
+            [org.nfrac.comportex.util :as util]
             [cljs-uuid.core :as uuid]
             [clojure.set :as set]
-            [clojure.zip :as zip]))
+            [clojure.algo.graph :as graph]))
 
 (defn cell-id->inbit
   [offset depth [col ci]]
@@ -48,9 +49,9 @@
           :layer-3 lyr))))
 
   (region-depolarise
-    [this distal-bits]
+    [this distal-ff-bits distal-fb-bits]
     (assoc this
-      :layer-3 (p/layer-depolarise layer-3 distal-bits)))
+      :layer-3 (p/layer-depolarise layer-3 distal-ff-bits distal-fb-bits)))
   
   p/PTopological
   (topology [_]
@@ -228,120 +229,179 @@
     (->> (map bits-fn ffs offs)
          (apply set/union))))
 
-;;; ## Region trees
+;;; ## Region Networks
 
-(def is-input? #(satisfies? p/PSensoryInput %))
+(defn topo-union
+  [topos]
+  (apply topology/combined-dimensions
+         (map p/dimensions topos)))
 
-(defn- ->ffs
-  [subs]
-  (map (fn [x] (if (is-input? x) x (:region x))) subs))
+;; TODO - better way to do this
+(defn fb-dim-from-spec
+  [spec]
+  (let [spec (merge cells/cells-parameter-defaults spec)]
+    (topology/make-topology (conj (:column-dimensions spec)
+                                  (:depth spec)))))
 
-(defn region-tree-zipper
-  [tree]
-  (zip/zipper :subs :subs (fn [x cs] (assoc x :subs cs)) tree))
+#+cljs (def pmap #'map)
 
-(defn region-tree-seq
-  "A sequence of the sub region trees in a region tree (including
-  itself). The order is the same as `region-seq`."
-  [tree]
-  (->> (tree-seq :subs :subs tree)
-       (filter :region)
-       (reverse) ;; put in bottom to top order, for first path down tree
-       (vec)))
-
-(defrecord RegionTree
-    [region subs]
+(defrecord RegionNetwork
+    [ff-deps-map fb-deps-map strata inputs-map regions-map uuid->id]
   p/PHTM
   (htm-activate
     [this]
-    (let [new-subs (map (fn [x]
-                          (if (is-input? x)
-                            (p/input-step x)
-                            (p/htm-activate x)))
-                        subs)
-          new-rgn (p/region-activate region
-                                     (combined-bits-value (->ffs new-subs) :standard)
-                                     (combined-bits-value (->ffs new-subs) :signal))]
-      (assoc this :region new-rgn :subs new-subs)))
+    (let [im (zipmap (keys inputs-map)
+                     (pmap p/input-step (vals inputs-map)))
+          rm (-> (reduce
+                  (fn [m stratum]
+                    (->> stratum
+                         (pmap (fn [id]
+                                 (let [region (regions-map id)
+                                       ff-ids (ff-deps-map id)
+                                       ffs (map m ff-ids)]
+                                   (p/region-activate
+                                    region
+                                    (combined-bits-value ffs :standard)
+                                    (combined-bits-value ffs :signal)))))
+                         (zipmap stratum)
+                         (into m)))
+                  im
+                  ;; drop 1st stratum i.e. drop the inputs
+                  (rest strata))
+                 ;; get rid of the inputs which were seeded into the reduce
+                 (select-keys (keys regions-map)))]
+      (assoc this :inputs-map im :regions-map rm)))
+
   (htm-learn
     [this]
-    (let [new-subs (map (fn [x] (if (is-input? x) x (p/htm-learn x)))
-                        subs)
-          new-rgn (p/region-learn region
-                                  (combined-bits-value (->ffs new-subs) :standard))]
-      (assoc this :region new-rgn :subs new-subs)))
+    (let [rm (->> regions-map
+                  (pmap (fn [[id region]]
+                          (let [ff-ids (ff-deps-map id)
+                                ffs (map #(or (inputs-map %) (regions-map %))
+                                         ff-ids)]
+                            (p/region-learn
+                             region
+                             (combined-bits-value ffs :standard)))))
+                  (zipmap (keys regions-map)))]
+      (assoc this :regions-map rm)))
+
   (htm-depolarise
     [this]
-    (let [new-subs (map (fn [x] (if (is-input? x) x (p/htm-depolarise x)))
-                        subs)
-          new-rgn (p/region-depolarise region
-                                       (combined-bits-value (->ffs new-subs) :motor))]
-      (assoc this :region new-rgn :subs new-subs)))
-  (region-seq [this]
-    (map :region (region-tree-seq this)))
-  (input-seq [this]
-    (->> (tree-seq :subs :subs this)
-         (remove :region)))
+    (let [rm (->> regions-map
+                  (pmap (fn [[id region]]
+                          (let [ff-ids (ff-deps-map id)
+                                fb-ids (fb-deps-map id)
+                                ffs (map #(or (inputs-map %) (regions-map %))
+                                         ff-ids)
+                                fbs (map regions-map fb-ids)]
+                            (p/region-depolarise
+                             region
+                             (combined-bits-value ffs :motor)
+                             (combined-bits-value fbs :standard)))))
+                  (zipmap (keys regions-map)))]
+      (assoc this :regions-map rm)))
+  
+  (region-seq [_]
+    ;; topological sort. drop 1st stratum i.e. drop the inputs
+    (map regions-map (apply concat (rest strata))))
+  
+  (input-seq [_]
+    (vals inputs-map))
+  
   (update-by-uuid
     [this region-uuid f]
-    (loop [loc (region-tree-zipper this)]
-      (if-let [rgn (:region (zip/node loc))]
-        (if (= region-uuid (:uuid rgn))
-          (-> (zip/edit loc #(update-in % [:region] f))
-              (zip/root))
-          (if (zip/end? loc)
-            ::no-matching-UUID!
-            (recur (zip/next loc)))))))
-  p/PBitsAggregated
-  (source-of-incoming-bit
-    [this i]
-    (loop [sub-i 0
-           offset 0]
-      (when (< sub-i (count subs))
-        (let [sub (nth subs sub-i)
-              w (p/size-of sub)]
-          (if (<= offset i (+ offset w -1))
-            [sub-i (p/source-of-bit sub (- i offset))]
-            (recur (inc sub-i) (+ offset (long w))))))))
+    (update-in this [:regions-map (or (uuid->id region-uuid) region-uuid)]
+               f))
+
   p/PTemporal
   (timestep [_]
-    (p/timestep region))
+    (p/timestep (first (vals regions-map))))
   p/PResettable
   (reset [this]
     (assoc this
-      :region (p/reset region)
-      :subs (map p/reset subs))))
+      :regions-map (->> (vals regions-map)
+                        (pmap p/reset)
+                        (zipmap (keys regions-map)))
+      :inputs-map (util/remap p/reset inputs-map))))
 
-(defn region-tree
-  [rgn subs]
-  (->RegionTree rgn subs))
+(defn- in-vals-not-keys
+  [deps-map]
+  (let [have-deps (set (keys deps-map))
+        are-deps (set (apply concat (vals deps-map)))]
+    (set/difference are-deps have-deps)))
 
-(defn tree
-  "A helper function to build a hierarchical network. The `subs`
-   should be a sequence of subtrees or sensory inputs (things
-   satisfying PFeedForward and PTopological). The combined dimensions
-   of these is calculated and used to set the `:input-dimensions`
-   parameter in `spec`. The updated spec is passed to `build-region`.
-   Returns a RegionTree."
-  [build-region spec subs]
-  (let [ffs (->ffs subs)
-        dims (apply topology/combined-dimensions
-                    (map (comp p/dimensions p/ff-topology) ffs))
-        mdims (apply topology/combined-dimensions
-                     (map (comp p/dimensions p/ff-motor-topology) ffs))]
-    (-> (assoc spec :input-dimensions dims
-               :extra-distal-size (apply * mdims))
-        (build-region)
-        (region-tree subs))))
+(defn region-network
+  "Builds a network of regions and inputs from the given dependency map.
+
+   For each node, the combined dimensions of its feed-forward sources
+   is calculated and used to set the `:input-dimensions` parameter in
+   its `spec`. Also, the combined dimensions of feed-forward motor
+   inputs are used to set the `:distal-motor-dimensions` parameter,
+   and the combined dimensions of its feed-back superior regions is
+   used to set the `:distal-topdown-dimensions` parameter. The updated
+   spec is passed to `build-region`. Returns a RegionNetwork.
+
+   For example to build the network `inp -> v1 -> v2`:
+
+   `
+   (region-network {:v1 [:inp]
+                    :v2 [:v1]}
+                   {:inp (sensory-input nil input-transform encoder)}
+                   sensory-region
+                   {:v1 spec
+                    :v2 spec})`"
+  [ff-deps-map inputs-map build-region region-specs-map]
+  {:pre [;; anything with a dependency must be a region
+         (every? ff-deps-map (keys region-specs-map))
+         ;; anything without a dependency must be an input
+         (every? (in-vals-not-keys ff-deps-map) (keys inputs-map))
+         ;; all ids in dependency map must be defined
+         (every? region-specs-map (keys ff-deps-map))
+         (every? inputs-map (in-vals-not-keys ff-deps-map))]}
+  (let [all-ids (into (set (keys ff-deps-map))
+                      (in-vals-not-keys ff-deps-map))
+        ff-dag (struct graph/directed-graph all-ids ff-deps-map)
+        fb-dag (graph/reverse-graph ff-dag)
+        strata (graph/dependency-list ff-dag)
+        fb-deps-map (:neighbors fb-dag)
+        rm (-> (reduce (fn [m id]
+                         (let [spec (region-specs-map id)
+                               ;; feed-forward
+                               ff-ids (ff-deps-map id)
+                               ffs (map m ff-ids)
+                               ff-dim (topo-union (map p/ff-topology ffs))
+                               ffm-dim (topo-union  (map p/ff-motor-topology ffs))
+                               ;; top-down feedback (if any)
+                               fb-ids (fb-deps-map id)
+                               fb-specs (map region-specs-map fb-ids)
+                               fb-dim (topo-union (map fb-dim-from-spec fb-specs))]
+                           (->> (assoc spec :input-dimensions ff-dim
+                                       :distal-motor-dimensions ffm-dim
+                                       :distal-topdown-dimensions fb-dim)
+                                (build-region)
+                                (assoc m id))))
+                       inputs-map
+                       ;; topological sort. drop 1st stratum i.e. drop the inputs
+                       (apply concat (rest strata)))
+               ;; get rid of the inputs which were seeded into the reduce
+               (select-keys (keys region-specs-map)))]
+    (map->RegionNetwork
+     {:ff-deps-map ff-deps-map
+      :fb-deps-map fb-deps-map
+      :strata strata
+      :inputs-map inputs-map
+      :regions-map rm
+      :uuid->id (zipmap (map :uuid (vals rm)) (keys rm))})))
 
 (defn regions-in-series
   [build-region input n spec]
-  (->> input
-       (iterate (fn [sub-model]
-                  (tree build-region spec
-                        [sub-model])))
-       (take (inc n))
-       (last)))
+  (let [rgn-keys (map #(keyword (str "r" %)) (range n))
+        ;; make {:r0 [:input], :r1 [:r0], :r2 [:r1], ...}
+        deps (zipmap rgn-keys (map vector (list* :input rgn-keys)))]
+    (region-network deps
+                    {:input input}
+                    build-region
+                    (zipmap rgn-keys (repeat spec)))))
 
 ;;; ## Stats
 

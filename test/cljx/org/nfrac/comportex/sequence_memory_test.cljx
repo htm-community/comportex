@@ -60,14 +60,13 @@
 (defn model
   []
   (let [input (core/sensory-input initial-input input-transform encoder)]
-    (core/tree core/sensory-region spec
-               [input])))
+    (core/regions-in-series core/sensory-region input 1 spec)))
 
 (deftest sm-test
   (util/set-seed! 0)
   (let [m1 (-> (iterate p/htm-step (model))
                (nth 500))
-        rgn (:region m1)]
+        rgn (first (p/region-seq m1))]
     (testing "Numbers of lateral dendrite segments"
       (let [n-cols (p/size (p/topology rgn))
             lyr (:layer-3 rgn)
@@ -88,7 +87,7 @@
       (let [sums (->> m1
                       (iterate p/htm-step)
                       (take 100)
-                      (map :region)
+                      (map (comp first p/region-seq))
                       (map core/column-state-freqs)
                       (apply merge-with +))]
         (is (> (:active-predicted sums) 0)

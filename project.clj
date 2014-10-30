@@ -9,8 +9,12 @@
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [com.cemerick/pprng "0.0.2"]
                  [org.clojure/data.int-map "0.1.0"]
-                 [clj-http "1.0.0"]
+                 [org.clojure/algo.graph "0.1.0-SNAPSHOT"]
+                 [clj-http "1.0.1"]
                  [cljs-uuid "0.0.4"]]
+
+  ; to include SNAPSHOT releases of algo.graph
+  :repositories {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"}
 
   :jar-exclusions [#"\.cljx"]
   :jvm-opts ["-server" "-Xmx2500m"]

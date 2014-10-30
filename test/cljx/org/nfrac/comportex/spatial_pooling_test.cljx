@@ -42,19 +42,21 @@
 (defn model
   []
   (let [input (core/sensory-input initial-input input-transform encoder)]
-    (core/tree core/sensory-region spec
-               [input])))
+    (core/regions-in-series core/sensory-region input 1 spec)))
 
 (deftest sp-test
   (util/set-seed! 0)
   (let [model1 (->> (iterate (fn [m]
-                           (-> (p/htm-step m)
-                               (assoc-in [:active-columns-at (p/timestep m)]
-                                         (p/active-columns (:layer-3 (:region m))))))
+                               (let [a-cols (-> (first (p/region-seq m))
+                                                :layer-3
+                                                p/active-columns)]
+                                 (-> (p/htm-step m)
+                                     (assoc-in [:active-columns-at (p/timestep m)]
+                                               a-cols))))
                          (model))
                 (take 500)
                 (last))
-        rgn (:region model1)
+        rgn (first (p/region-seq model1))
         cf (:column-field rgn)
         n-cols (p/size-of cf)]
     (testing "Column activation is distributed and moderated."
