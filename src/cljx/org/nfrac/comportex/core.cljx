@@ -8,9 +8,9 @@
             [org.nfrac.comportex.columns :as columns]
             [org.nfrac.comportex.cells :as cells]
             [org.nfrac.comportex.util :as util]
+            [org.nfrac.comportex.algo-graph :as graph]
             [cljs-uuid.core :as uuid]
-            [clojure.set :as set]
-            [clojure.algo.graph :as graph]))
+            [clojure.set :as set]))
 
 (defn cell-id->inbit
   [offset depth [col ci]]
@@ -243,7 +243,7 @@
     (topology/make-topology (conj (:column-dimensions spec)
                                   (:depth spec)))))
 
-#+cljs (def pmap #'map)
+#+cljs (def pmap map)
 
 (defrecord RegionNetwork
     [ff-deps-map fb-deps-map strata inputs-map regions-map uuid->id]
@@ -360,10 +360,11 @@
          (every? inputs-map (in-vals-not-keys ff-deps-map))]}
   (let [all-ids (into (set (keys ff-deps-map))
                       (in-vals-not-keys ff-deps-map))
-        ff-dag (struct graph/directed-graph all-ids ff-deps-map)
-        fb-dag (graph/reverse-graph ff-dag)
+        ff-dag (graph/directed-graph all-ids ff-deps-map)
         strata (graph/dependency-list ff-dag)
-        fb-deps-map (:neighbors fb-dag)
+        fb-deps-map (->> (graph/reverse-graph ff-dag)
+                         :neighbors
+                         (util/remap seq))
         rm (-> (reduce (fn [m id]
                          (let [spec (region-specs-map id)
                                ;; feed-forward
