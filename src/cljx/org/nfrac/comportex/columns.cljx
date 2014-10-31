@@ -106,6 +106,7 @@
         pinc (:ff-perm-inc spec)
         p-hi (-> (+ pcon (* 1.0 pinc)) (min 1.0))
         p-lo (-> (- pcon (* 2.0 pinc)) (max 0.0))
+        global? (>= (:ff-potential-radius spec) 1.0)
         ;; radius in input space, fraction of longest dimension
         radius (long (* (:ff-potential-radius spec)
                         (apply max (p/dimensions itopo))))
@@ -116,20 +117,27 @@
                    (== 1 (count (p/dimensions itopo))))
         [cw ch] (p/dimensions topo)
         [iw ih] (p/dimensions itopo)]
-    (->> (range n-cols)
-         (mapv (fn [col]
-                 (let [focus-i (if one-d?
-                                 (round (* input-size (/ col n-cols)))
-                                 (let [[cx cy] (p/coordinates-of-index topo col)]
-                                   (p/index-of-coordinates itopo [(round (* iw (/ cx cw)))
-                                                                  (round (* ih (/ cy ch)))])))
-                       all-ids (vec (p/neighbours-indices itopo focus-i radius))
-                       n (round (* frac (count all-ids)))
-                       ids (if (< frac 0.5) ;; for performance:
-                             (repeatedly n #(util/rand-nth all-ids)) ;; ignore dups
-                             (take n (util/shuffle all-ids)))
-                       perms (repeatedly n #(util/rand p-lo p-hi))]
-                   (zipmap ids perms)))))))
+    (if global?
+      (->> (range n-cols)
+           (mapv (fn [col]
+                   (let [n (round (* frac input-size))
+                         ids (repeatedly n #(util/rand-int 0 (dec input-size))) ;; ignore dups
+                         perms (repeatedly n #(util/rand p-lo p-hi))]
+                     (zipmap ids perms)))))
+      (->> (range n-cols)
+           (mapv (fn [col]
+                   (let [focus-i (if one-d?
+                                   (round (* input-size (/ col n-cols)))
+                                   (let [[cx cy] (p/coordinates-of-index topo col)]
+                                     (p/index-of-coordinates itopo [(round (* iw (/ cx cw)))
+                                                                    (round (* ih (/ cy ch)))])))
+                         all-ids (vec (p/neighbours-indices itopo focus-i radius))
+                         n (round (* frac (count all-ids)))
+                         ids (if (< frac 0.5) ;; for performance:
+                               (repeatedly n #(util/rand-nth all-ids)) ;; ignore dups
+                               (take n (util/shuffle all-ids)))
+                         perms (repeatedly n #(util/rand p-lo p-hi))]
+                     (zipmap ids perms))))))))
 
 ;;; ## Overlaps
 
