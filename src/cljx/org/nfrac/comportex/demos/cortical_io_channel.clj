@@ -1,22 +1,22 @@
 (ns org.nfrac.comportex.demos.cortical-io-channel
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.cortical-io :as cio
-             :refer [cortical-io-encoder]]
+            [org.nfrac.comportex.cortical-io :refer [cortical-io-encoder
+                                                     cache-fingerprint!]]
             [clojure.string :as str]
             [clojure.core.async :as async
-             :refer [chan <!! >!! put! thread close!]]))
+             :refer [chan <!! >!! thread close!]]))
 
 (def spec
   {:column-dimensions [40 40]
-   :ff-init-frac 0.30
-   :ff-potential-radius 0.15
+   :ff-init-frac 0.15
+   :ff-potential-radius 1.0
    :ff-perm-inc 0.05
    :ff-perm-dec 0.005
    :ff-perm-connected 0.20
    :ff-stimulus-threshold 3
-   :global-inhibition false
-   :activation-level 0.03
+   :global-inhibition true
+   :activation-level 0.015
    :duty-cycle-period 100000
    :max-boost 2.0
    ;; sequence memory:
@@ -30,12 +30,11 @@
    :distal-perm-inc 0.05
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
-   :distal-punish? false
+   :distal-punish? true
+   :proximal-vs-distal-weight 20
    :inhibition-base-distance 2
    :inhibition-speed 0.25
    })
-
-(def min-votes 2)
 
 (defn split-sentences
   [text]
@@ -48,7 +47,7 @@
   "Here `input-c` is a channel to read words from. Transitions of the
    input use a blocking take from the channel."
   [api-key input-c cache]
-  (let [encoder (cortical-io-encoder api-key cache min-votes)
+  (let [encoder (cortical-io-encoder api-key cache)
         xform (fn [_] (<!! input-c))]
     (core/sensory-input nil xform encoder)))
 
@@ -84,7 +83,7 @@
         (loop []
           (when-let [term (<!! preload-c)]
             (println term)
-            (cio/look-up-fingerprint api-key cache term)
+            (cache-fingerprint! api-key cache term)
             (>!! input-c term)
             (recur)))
         (catch Exception e
@@ -94,7 +93,7 @@
     (thread
       (try
         (loop []
-          (swap! current p/feed-forward-step)
+          (swap! current p/htm-step)
           (recur))
         (catch Exception e
           (println e)))))
