@@ -90,10 +90,10 @@
      active (either locally or globally); inhibition kicks in to
      reduce it to this level.
 
-   * `proximal-vs-distal-weight` - scaling to apply to the number of
-     active proximal synapses before adding to the number of active
-     distal synapses (on the winning segment), when selecting active
-     cells.
+   * `distal-vs-proximal-weight` - scaling to apply to the number of
+     active distal synapses (on the winning segment) before adding to
+     the number of active proximal synapses, when selecting active
+     cells. Set to zero to disable ``prediction-assisted'' activation.
 
    * `spontaneous-activation?` - if true, cells may become active with
      sufficient distal synapse excitation, even in the absence of any
@@ -133,7 +133,7 @@
    :inhibition-base-distance 4
    :inhibition-speed 2
    :activation-level 0.02
-   :proximal-vs-distal-weight 2.0
+   :distal-vs-proximal-weight 0
    :spontaneous-activation? false
    :alternative-learning? false
 ;   :temporal-pooling-decay 0.9
@@ -183,24 +183,26 @@
 
 (defn total-excitations
   "Combine the proximal and distal excitations in a map of column id
-   to excitation, being the sum of proximal and distal values for the
-   most active cell in the column. See `cell-depolarisation`. Normally
-   only columns with proximal input are considered, but if
-   `spontaneous-activation?` is true, this is not enforced."
-  [prox-exc distal-exc-by-col proximal-weight spontaneous-activation?]
-  (->> (if spontaneous-activation?
-         (merge (zipmap (keys distal-exc-by-col) (repeat 0))
-                prox-exc)
-         prox-exc)
-       (reduce-kv (fn [m col pexc]
-                    (let [pexc (* pexc proximal-weight)]
+   to excitation, being the sum of proximal and (weighted) distal
+   values for the most active cell in the column. See
+   `cell-depolarisation`. Normally only columns with proximal input
+   are considered, but if `spontaneous-activation?` is true, this is
+   not enforced."
+  [prox-exc distal-exc-by-col distal-weight spontaneous-activation?]
+  (if (zero? distal-weight)
+    prox-exc
+    (->> (if spontaneous-activation?
+           (merge (zipmap (keys distal-exc-by-col) (repeat 0))
+                  prox-exc)
+           prox-exc)
+         (reduce-kv (fn [m col pexc]
                       (if-let [dexcs (vals (distal-exc-by-col col))]
-                        (let [dexc (apply max dexcs)]
+                        (let [dexc (* distal-weight (apply max dexcs))]
                           (assoc! m col (+ dexc pexc)))
                         ;; no distal excitation
-                        (assoc! m col pexc))))
-                  (transient {}))
-       (persistent!)))
+                        (assoc! m col pexc)))
+                    (transient {}))
+         (persistent!))))
 
 (defn select-active-cells
   "Finds the active cells grouped by their column id. Returns a map
@@ -210,7 +212,7 @@
   (let [distal-exc-by-col (util/group-by-maps (fn [[col _] _] col)
                                               distal-exc)
         exc (total-excitations prox-exc distal-exc-by-col
-                               (:proximal-vs-distal-weight spec)
+                               (:distal-vs-proximal-weight spec)
                                (:spontaneous-activation? spec))
         level (:activation-level spec)
         a-cols (if (:global-inhibition spec)

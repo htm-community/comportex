@@ -31,7 +31,7 @@
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
    :distal-punish? true
-   :proximal-vs-distal-weight 20
+   :distal-vs-proximal-weight 0
    :inhibition-base-distance 2
    :inhibition-speed 0.25
    })

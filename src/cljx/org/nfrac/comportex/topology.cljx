@@ -129,7 +129,7 @@
 
 (defn combined-dimensions
   ([]
-     empty-topology)
+     [0])
   ([dims]
      dims)
   ([dims1 dims2]

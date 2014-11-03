@@ -90,11 +90,11 @@
    :distal-perm-init 0.16
    })
 
-(defn ^:export input-gen
+(defn input-gen
   []
   (core/sensory-input (initial-input) input-transform encoder))
 
-(defn ^:export n-region-model
+(defn n-region-model
   ([n]
      (n-region-model n spec))
   ([n spec]

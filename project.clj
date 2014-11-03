@@ -10,6 +10,7 @@
                  [com.cemerick/pprng "0.0.2"]
                  [org.clojure/data.int-map "0.1.0"]
                  [clj-http "1.0.1"]
+                 [cljs-http "0.1.19"]
                  [cljs-uuid "0.0.4"]]
 
   :jar-exclusions [#"\.cljx"]
