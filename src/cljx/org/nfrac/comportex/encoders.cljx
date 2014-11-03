@@ -6,25 +6,30 @@
             [org.nfrac.comportex.util :as util]
             [clojure.set :as set]))
 
+(defn prediction-stats
+  [x-bits bit-votes total-votes]
+  ;; calculate overlaps of prediction `x` bits with all votes
+  (let [o-votes (select-keys bit-votes x-bits)
+        total-o-votes (apply + (vals o-votes))
+        o-bits (keys o-votes)]
+    {:bit-coverage (/ (count o-bits)
+                      (max 1 (count x-bits)))
+     :bit-precision (/ (count o-bits)
+                       (max 1 (count bit-votes)))
+     :votes-frac (/ total-o-votes
+                    (max 1 total-votes))
+     :votes-per-bit (/ total-o-votes
+                       (max 1 (count x-bits)))}))
+
 (defn decode-by-brute-force
   [e try-values bit-votes]
   (let [total-votes (apply + (vals bit-votes))]
     (when (pos? total-votes)
       (->> try-values
            (map (fn [x]
-                  (let [x-bits (p/encode e 0 x)
-                        o-votes (select-keys bit-votes x-bits)
-                        total-o-votes (apply + (vals o-votes))
-                        o-bits (keys o-votes)]
-                    {:value x
-                     :bit-coverage (/ (count o-bits)
-                                      (count x-bits))
-                     :bit-precision (/ (count o-bits)
-                                       (count bit-votes))
-                     :votes-frac (/ total-o-votes
-                                    total-votes)
-                     :votes-per-bit (/ total-o-votes
-                                       (count x-bits))})))
+                  (let [x-bits (p/encode e 0 x)]
+                    (-> (prediction-stats x-bits bit-votes total-votes)
+                        (assoc :value x)))))
            (filter (comp pos? :votes-frac))
            (sort-by (juxt :votes-frac :bit-coverage :bit-precision) >)))))
 

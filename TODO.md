@@ -1,19 +1,10 @@
 # TODO
 
-* cortical-io-encoder: decode-locally? spatial-scramble?
-
-* feed-forward-step + depolarisation-step (lateral + ff motor + ff sensory + top-down feedback)
-
 * move proximal synapses into layer?
-
-* back-flow bursting to mix proximal input fields?
 
 * separate parameter for punishment permanence decrement
 
-* sensory input should be a channel
-* then e.g. concat, take, filter, interpose
-
-* allow motor/top-down distal inputs to distal synapses
+* motor/top-down distal inputs to distal synapses
   * lateral synapses as an option
 
 * higher regions need a larger potential pool because the source
@@ -53,7 +44,7 @@
 
 * clojars release
 
-* java API
+* java API?
 
 ## perf
 

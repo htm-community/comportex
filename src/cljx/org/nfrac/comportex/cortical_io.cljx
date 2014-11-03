@@ -164,19 +164,10 @@
                         (->> (:body result)
                              (map (fn [item]
                                     (let [x-bits (set (get item [:fingerprint
-                                                                 :positions]))
-                                          o-votes (select-keys bit-votes x-bits)
-                                          total-o-votes (apply + (vals o-votes))
-                                          o-bits (keys o-votes)]
-                                      {:value (get item :term)
-                                       :bit-coverage (/ (count o-bits)
-                                                        (max 1 (count x-bits)))
-                                       :bit-precision (/ (count o-bits)
-                                                         (max 1 (count bit-votes)))
-                                       :votes-frac (/ total-o-votes
-                                                      (max 1 total-votes))
-                                       :votes-per-bit (/ total-o-votes
-                                                         (max 1 (count x-bits)))})))
+                                                                 :positions]))]
+                                      (-> (enc/prediction-stats x-bits bit-votes
+                                                                total-votes)
+                                          (assoc :value (get item :term))))))
                              (take n))
                         (println result)))]
                 #+clj ;; clj - synchronous
@@ -184,5 +175,4 @@
                 #+cljs ;; cljs - asynchronous
                 {:channel
                  (go
-                  (handle (<! (request-similar-terms api-key bits n))))
-                 }))))))))
+                  (handle (<! (request-similar-terms api-key bits n))))}))))))))
