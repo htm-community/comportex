@@ -1,6 +1,7 @@
 (ns org.nfrac.comportex.protocols)
 
 (defprotocol PHTM
+  "A network of regions and their inputs, forming Hierarchical Temporal Memory."
   (htm-activate [this])
   (htm-learn [this])
   (htm-depolarise [this])
@@ -69,17 +70,25 @@
   (depolarisation [this]))
 
 (defprotocol PSynapseGraph
-  "The synaptic connections from a set of sources (as integer ids) to
-   a set of targets (as integer ids). Synapses have an associated
-   permanence value between 0 and 1; above some permanence level they
-   are defined to be connected."
+  "The synaptic connections from a set of sources to a set of targets.
+   Synapses have an associated permanence value between 0 and 1; above
+   some permanence level they are defined to be connected."
   (in-synapses [this target-id]
-    "Synapses connecting to the target. A map from source ids to permanences.")
-  (sources-connected-to [this target-id])
-  (targets-connected-from [this source-id])
-  (reinforce-in-synapses [this target-id skip? reinforce? pinc pdec])
-  (conj-synapses [this target-id syn-source-ids p])
-  (disj-synapses [this target-id syn-source-ids]))
+    "All synapses to the target. A map from source ids to permanences.")
+  (sources-connected-to [this target-id]
+    "The set of source ids actually connected to target id.")
+  (targets-connected-from [this source-id]
+    "The set of target ids actually connected from source id.")
+  (reinforce-in-synapses [this target-id skip? reinforce? pinc pdec]
+    "Updates the permanence of all synapses to `target-id`. Both
+    `skip?` and `reinforce?` are functions of the source id; if the
+    former returns true the synapse is unchanged; otherwise the latter
+    gives the direction of change.")
+  (conj-synapses [this target-id syn-source-ids p]
+    "Conjoins new synapses into the graph, from a collection
+    `syn-source-ids` to `target-id`, with initial permanence `p`.")
+  (disj-synapses [this target-id syn-source-ids]
+    "Disjoins the synapses from `syn-source-ids` to `target-id`."))
 
 (defprotocol PSegments
   (cell-segments [this cell-id]

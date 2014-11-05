@@ -207,7 +207,10 @@
 (defn sensory-motor-input
   "Creates an input stream from an initial value, a function to
    transform the input to the next time step, and two encoders
-   operating on the same value."
+   operating on the same value. Remember that HTM models go through
+   the three phases [activate -> learn -> depolarise] on each
+   timestep: therefore motor signals, which act to depolarise cells,
+   should appear the time step before a corresponding sensory signal."
   [init-value transform encoder motor-encoder]
   (->SensoryMotorInput init-value init-value transform encoder motor-encoder))
 
