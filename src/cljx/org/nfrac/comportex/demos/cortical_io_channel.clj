@@ -15,7 +15,7 @@
    :ff-perm-dec 0.005
    :ff-perm-connected 0.20
    :ff-stimulus-threshold 3
-   :global-inhibition true
+   :global-inhibition? false
    :activation-level 0.015
    :duty-cycle-period 100000
    :max-boost 2.0
@@ -32,8 +32,8 @@
    :distal-perm-init 0.16
    :distal-punish? true
    :distal-vs-proximal-weight 0
-   :inhibition-base-distance 2
-   :inhibition-speed 0.25
+   :inhibition-base-distance 1
+   :inhibition-speed 2
    })
 
 (defn split-sentences

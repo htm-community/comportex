@@ -93,7 +93,7 @@
    :ff-perm-dec 0.01
    :ff-perm-connected 0.20
    :ff-stimulus-threshold 3
-   :global-inhibition false
+   :global-inhibition? false
    :activation-level 0.02
    :duty-cycle-period 100000
    :max-boost 2.0
@@ -108,6 +108,7 @@
    :distal-perm-inc 0.05
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
+   :inhibition-base-distance 2
    })
 
 (defn input-gen

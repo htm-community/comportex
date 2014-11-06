@@ -31,7 +31,7 @@
 (defn inhibition-radius
   "The radius in column space defining neighbouring columns, based on
    the average receptive field size. Specifically, neighbouring
-   columns are defined by sharing at least 30% of their receptive
+   columns are defined by sharing at least 50% of their receptive
    fields, on average.
 
    * `sg` is the synapse graph linking the inputs to targets.
@@ -40,7 +40,7 @@
 
    * `itopo` is the topology of the inputs."
   [sg topo itopo]
-  (let [shared-frac 0.3
+  (let [shared-frac 0.5
         max-dim (apply max (p/dimensions topo))
         max-idim (apply max (p/dimensions itopo))
         arfs (avg-receptive-field-size sg topo itopo)
@@ -61,12 +61,22 @@
   (let [n-on (max 1 (round (* level n-cols)))]
     (util/top-n-keys-by-value n-on om)))
 
-(defn dominant-overlap-diff
-  [dist base-dist speed]
-  (-> dist
-      (- base-dist) ; within this radius, there can be only one
-      (max 0)
-      (/ speed))) ; for every `speed` columns away, need one extra overlap to dominate
+(defn compare-excitations
+  "Returns a positive number if cell with excitation `exc` inhibits a
+   neighbour with excitation `nb-exc`, at a distance `dist` columns
+   away. Returns a negative number if the neighbour inhibits the
+   original cell. Returns zero if neither dominates."
+  [exc nb-exc dist base-dist speed]
+  (let [d (max 0 (- dist base-dist))]
+   (if (> exc nb-exc)
+     ;; maybe dominating neighbour
+     (if (> exc (+ nb-exc (/ d speed)))
+       1
+       0)
+     ;; neighbour maybe dominating us
+     (if (> nb-exc (+ exc (/ d speed)))
+       -1
+       0))))
 
 (defn map->vec
   [n m]
@@ -100,14 +110,15 @@
                (let [nb-col (p/index-of-coordinates topo nb-coord)]
                  (if-let [nb-o (mask nb-col)]
                    (let [dist (p/coord-distance topo coord nb-coord)
-                         odom (dominant-overlap-diff dist inh-base-dist inh-speed)]
+                         ocmp (compare-excitations o nb-o dist inh-base-dist
+                                                   inh-speed)]
                      (cond
                       ;; neighbour is dominated
-                      (>= o (+ nb-o odom))
+                      (pos? ocmp)
                       (recur (next nbs)
                              (assoc! mask nb-col nil))
                       ;; we are dominated by neighbour; abort
-                      (<= o (- nb-o odom))
+                      (neg? ocmp)
                       (assoc! mask col nil)
                       ;; neither dominates
                       :else

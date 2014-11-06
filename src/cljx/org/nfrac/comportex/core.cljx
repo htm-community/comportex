@@ -100,6 +100,11 @@
    namespaces for possible keys. Any keys given here will override
    those default values."
   [spec]
+  (let [unk (set/difference (set (keys spec))
+                            (set (keys cells/cells-parameter-defaults))
+                            (set (keys columns/columns-parameter-defaults)))]
+    (when (seq unk)
+      (println "Warning: unknown keys in spec:" unk)))
   (map->SensoryRegion
    {:column-field (columns/column-field spec)
     :layer-3 (cells/layer-of-cells spec)

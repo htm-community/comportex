@@ -53,7 +53,7 @@
    :distal-perm-inc 0.04
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
-   :global-inhibition true
+   :global-inhibition? false
    :activation-level 0.04
    })
 

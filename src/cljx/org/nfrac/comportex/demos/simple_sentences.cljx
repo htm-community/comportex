@@ -128,8 +128,8 @@ Chifung has no tail.
    :ff-perm-dec 0.005
    :ff-perm-connected 0.20
    :ff-stimulus-threshold 3
-   :global-inhibition false
-   :activation-level 0.03
+   :global-inhibition? true
+   :activation-level 0.02
    :duty-cycle-period 100000
    :max-boost 2.0
    ;; sequence memory:
@@ -145,6 +145,7 @@ Chifung has no tail.
    :distal-perm-init 0.16
    :distal-punish? false
    :distal-vs-proximal-weight 0.5
+   :inhibition-speed 10
    })
 
 (defn n-region-model

@@ -28,7 +28,7 @@
 (def spec {:column-dimensions [1000]
            :input-dimensions [bit-width]
            :ff-potential-radius 0.5
-           :global-inhibition true
+           :global-inhibition? true
            :duty-cycle-period 600
            :depth 1
            :max-segments 1

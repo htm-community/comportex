@@ -72,23 +72,27 @@
    * `distal-punish?` - whether to negatively reinforce synapses on
      segments incorrectly predicting activation.
 
-   * `global-inhibition` - whether to use the faster global algorithm
-     for column inhibition (just keep those with highest overlap
-     scores), or to apply inhibition only within a column's
-     neighbours.
-
-   * `inhibition-base-distance` - the distance in columns within which
-     a cell inhibits all neighbouring cells with lower excitation.
-
-   * `inhibition-speed` - controls effective inhibition distance. For
-     every multiple of this distance away a cell is, its excitation
-     must be exceeded by one extra active synapse for it to be
-     inhibited. E.g. if this is `2`, a cell X, 6 columns away from Y,
-     will be inhibited by Y if `exc(Y) > exc(X) + 3`.
-
    * `activation-level` - fraction of columns that can be
      active (either locally or globally); inhibition kicks in to
      reduce it to this level.
+
+   * `global-inhibition?` - whether to use the faster global algorithm
+     for column inhibition (just keep those with highest overlap
+     scores), or to apply local inhibition (only within a column's
+     neighbours).
+
+   * `inhibition-base-distance` - the distance in columns within which
+     a cell inhibits all neighbouring cells with lower excitation.
+     Ignored if `global-inhibition?` is true.
+
+   * `inhibition-speed` - controls effective inhibition distance. This
+     parameter is tuned at run time to target `activation-level`. For
+     every multiple of this distance away a cell is, its excitation
+     must be exceeded by one extra active synapse for it to be
+     inhibited. E.g. if `inhibition-speed` is `3`, a cell X, 6 columns
+     away from Y, will be inhibited by Y if `exc(Y) > exc(X) + 6/3`.
+     Actually the base distance is subtracted first. Ignored if
+     `global-inhibition?` is true.
 
    * `distal-vs-proximal-weight` - scaling to apply to the number of
      active distal synapses (on the winning segment) before adding to
@@ -129,10 +133,10 @@
    :distal-perm-connected 0.20
    :distal-perm-init 0.16
    :distal-punish? true
-   :global-inhibition false
-   :inhibition-base-distance 4
-   :inhibition-speed 2
    :activation-level 0.02
+   :global-inhibition? false
+   :inhibition-base-distance 1
+   :inhibition-speed 2
    :distal-vs-proximal-weight 0
    :spontaneous-activation? false
    :alternative-learning? false
@@ -215,7 +219,7 @@
                                (:distal-vs-proximal-weight spec)
                                (:spontaneous-activation? spec))
         level (:activation-level spec)
-        a-cols (if (:global-inhibition spec)
+        a-cols (if (:global-inhibition? spec)
                  (inh/ac-inhibit-globally exc level (p/size topo))
                  (keys (inh/inhibit-locally exc topo inh-radius
                                             (:inhibition-base-distance spec)
@@ -462,6 +466,21 @@
 
 ;;; ## Orchestration
 
+(defn tune-spec
+  [spec actual-activation-level prox-exc]
+  (if (or (:global-inhibition? spec)
+          (empty? prox-exc)) ;; ignore case of no input (a gap)
+    spec
+    (let [target-level (:activation-level spec)]
+      (update-in spec [:inhibition-speed]
+                 (fn [x]
+                   (let [scale (/ actual-activation-level target-level)]
+                     ;; if actual < target, reduce speed
+                     ;; if actual > target, increase speed
+                     (-> (+ x (* x (- scale 1) 0.05))
+                         (max 0.01)
+                         (min 100.0))))))))
+
 (defrecord LayerOfCells
     [spec topology distal-sg active-cols burst-cols
      active-cells learn-cells signal-cells tp-cells
@@ -477,10 +496,13 @@
           a-cols (set (keys acbc))
           ac (set (apply concat (vals acbc)))
           sig-ac (set (apply concat (vals (apply dissoc acbc b-cols))))
+          ;; adjust local inhibition to target level of activation
+          new-spec (tune-spec spec (/ (count a-cols) (p/size topology)) prox-exc)
           ;; temporal pooling TODO
           tpc #{}
           ]
       (assoc this
+        :spec new-spec
         :active-cells-by-col acbc ;; for convenience / efficiency in other steps
         :active-cells ac
         :active-cols a-cols
