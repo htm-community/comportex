@@ -3,7 +3,7 @@
   :url "http://github.com/nupic-community/comportex/"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :source-paths ["src/clj" "src/cljx" "target/classes"]
+  :source-paths ["src/cljx" "target/classes"]
   :test-paths ["target/test-classes"]
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
@@ -14,7 +14,7 @@
                  [cljs-uuid "0.0.4"]]
 
   :jar-exclusions [#"\.cljx"]
-  :jvm-opts ["-server" "-Xmx2500m"]
+  :jvm-opts ^:replace ["-server" "-Xmx2500m"]
 
   :profiles {:dev {:dependencies [[org.clojure/clojurescript "0.0-2234"]
                                   [criterium "0.4.3"]]
@@ -39,7 +39,8 @@
                                     :output-path "target/test-classes"
                                     :rules :cljs}]}
 
-                   :hooks [cljx.hooks]
+                   :auto-clean false
+                   :prep-tasks [["cljx" "once"]]
 
                    :cljsbuild {:builds [{:source-paths ["target/classes" "target/test-classes"]
                                          :jar true
