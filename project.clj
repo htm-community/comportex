@@ -8,7 +8,6 @@
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [com.cemerick/pprng "0.0.2"]
-                 [org.clojure/data.int-map "0.1.0"]
                  [clj-http "1.0.1"]
                  [cljs-http "0.1.19"]
                  [cljs-uuid "0.0.4"]]

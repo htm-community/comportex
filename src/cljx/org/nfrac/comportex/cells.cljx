@@ -298,7 +298,7 @@
         max-syns (:seg-max-synapse-count spec)
         min-syns (:seg-learn-threshold spec)
         pcon (:distal-perm-connected spec)
-        segs (p/cell-segments distal-sg [col ci])]
+        segs (syn/cell-segments-raw distal-sg [col ci])]
     (if (>= (count segs) max-segs)
       ;; select the one with fewest connected, or fewest synapses, or first
       (apply min-key (fn [si]

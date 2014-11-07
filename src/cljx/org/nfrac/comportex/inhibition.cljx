@@ -62,19 +62,19 @@
     (util/top-n-keys-by-value n-on om)))
 
 (defn compare-excitations
-  "Returns a positive number if cell with excitation `exc` inhibits a
-   neighbour with excitation `nb-exc`, at a distance `dist` columns
+  "Returns a positive number if cell with excitation `o` inhibits a
+   neighbour with excitation `nb-o`, at a distance `dist` columns
    away. Returns a negative number if the neighbour inhibits the
    original cell. Returns zero if neither dominates."
-  [exc nb-exc dist base-dist speed]
+  [o nb-o dist base-dist speed]
   (let [d (max 0 (- dist base-dist))]
-   (if (> exc nb-exc)
+   (if (> o nb-o)
      ;; maybe dominating neighbour
-     (if (> exc (+ nb-exc (/ d speed)))
+     (if (> o (+ nb-o (/ d speed)))
        1
        0)
      ;; neighbour maybe dominating us
-     (if (> nb-exc (+ exc (/ d speed)))
+     (if (> nb-o (+ o (/ d speed)))
        -1
        0))))
 
@@ -91,46 +91,50 @@
                   m))
               (transient {}) v)))
 
+(defn- mask-out-inhibited-at-or-by-col
+  [emask col o radius topo inh-base-dist inh-speed]
+  (let [coord (p/coordinates-of-index topo col)]
+    (loop [nbs (p/neighbours topo coord radius 0)
+           emask emask]
+      (if-let [nb-coord (first nbs)]
+        (let [nb-col (p/index-of-coordinates topo nb-coord)]
+          (if-let [nb-o (emask nb-col)]
+            (let [dist (p/coord-distance topo coord nb-coord)
+                  ocmp (compare-excitations o nb-o dist inh-base-dist
+                                            inh-speed)]
+              (cond
+               ;; neighbour is dominated
+               (pos? ocmp)
+               (recur (next nbs)
+                      (assoc! emask nb-col nil))
+               ;; we are dominated by neighbour; set and abort loop
+               (neg? ocmp)
+               (assoc! emask col nil)
+               ;; neither dominates
+               :else
+               (recur (next nbs) emask)))
+            ;; neighbour has no overlap or was eliminated
+            (recur (next nbs) emask)))
+        ;; finished with neighbours
+        emask))))
+
 (defn inhibit-locally
   "Takes a map `exc` of column ids to excitation levels (number of
    active synapses) and the column topology, applies local inhibition
    to remove any columns dominated by their neighbours, returning a
-   submap of `exc`."
+   map subset of `exc`."
   [exc topo radius inh-base-dist inh-speed]
   (loop [cols (keys exc)
-         mask (transient (map->vec (p/size topo) exc))]
+         emask (transient (map->vec (p/size topo) exc))]
     (if-let [col (first cols)]
-      (if-let [o (mask col)]
+      (if-let [o (emask col)]
         (recur (next cols)
-         ;; loop through neighbours and mask out any dominated
-         (let [coord (p/coordinates-of-index topo col)]
-           (loop [nbs (p/neighbours topo coord radius 0)
-                  mask mask]
-             (if-let [nb-coord (first nbs)]
-               (let [nb-col (p/index-of-coordinates topo nb-coord)]
-                 (if-let [nb-o (mask nb-col)]
-                   (let [dist (p/coord-distance topo coord nb-coord)
-                         ocmp (compare-excitations o nb-o dist inh-base-dist
-                                                   inh-speed)]
-                     (cond
-                      ;; neighbour is dominated
-                      (pos? ocmp)
-                      (recur (next nbs)
-                             (assoc! mask nb-col nil))
-                      ;; we are dominated by neighbour; abort
-                      (neg? ocmp)
-                      (assoc! mask col nil)
-                      ;; neither dominates
-                      :else
-                      (recur (next nbs) mask)))
-                   ;; neighbour has no overlap or was eliminated
-                   (recur (next nbs) mask)))
-               ;; finished with neighbours
-               mask))))
+               (mask-out-inhibited-at-or-by-col emask col o radius topo
+                                                inh-base-dist inh-speed))
         ;; already eliminated, skip
-        (recur (next cols) mask))
+        (recur (next cols) emask))
       ;; finished
-      (vec->map (persistent! mask)))))
+      (vec->map (persistent! emask)))))
 
 (defn perturb-overlaps
   [om]

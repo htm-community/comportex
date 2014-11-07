@@ -145,26 +145,6 @@
           ;; make the outer map persistent
           (persistent!))))
 
-(defn group-by-sets
-  "Like the built-in group-by, but building sets instead of vectors
-   for the groups, and tuned for performance with many values per key."
-  [f coll]
-  (->> coll
-       ;; create a transient map of transient sets
-       (reduce (fn [m x]
-                 (let [g (f x)
-                       items (get m g (transient #{}))]
-                   (assoc! m g (conj! items x))))
-               (transient {}))
-       ;; make the outer map persistent (can't seq it)
-       (persistent!)
-       ;; make the inner maps persistent within a transient outer map
-       (reduce (fn [m [g items]]
-                 (assoc! m g (persistent! items)))
-               (transient {}))
-       ;; make the outer map persistent
-       (persistent!)))
-
 (defn update-each
   "Transforms a map or vector `m` applying function `f` to the values
    under keys `ks`."

@@ -212,3 +212,15 @@
       :src->i src->i
       :i->src i->src
       })))
+
+(defn cell-segments-raw
+  "Same as `cell-segments` but leaves the keys of each synapse map as
+   the internal integer ids, rather than translating them to cell path
+   vectors. Thus it is cheaper to call. e.g. to find number of
+   segments."
+  [this cell-id]
+  (let [this-raw (:raw-sg this)
+        tgt->i (:tgt->i this)
+        [col ci] cell-id]
+      (mapv #(p/in-synapses this-raw (tgt->i [col ci %]))
+            (range (:max-segs this)))))
