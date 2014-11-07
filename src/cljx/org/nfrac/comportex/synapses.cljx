@@ -18,39 +18,55 @@
     (targets-by-source source-id))
   (reinforce-in-synapses
     [this target-id skip? reinforce? pinc pdec]
-    (let [syns (p/in-synapses this target-id)
-          sg (util/group-by-maps
-              (fn [id2 p]
-                (if (skip? id2)
-                  :skip
-                  (if (reinforce? id2)
-                    (cond
-                     (== p 1.0) :skip
-                     (and (< p pcon)
-                          (>= p (- pcon pinc))) :promote
-                     :else :up)
-                    (cond
-                     (<= p 0.0) (if cull-zeros? :cull :skip)
-                     (and (>= p pcon)
-                          (< p (+ pcon pdec))) :demote
-                     :else :down))))
-              syns)
-          new-syns (merge (:skip sg)
-                          (remap #(min (+ % pinc) 1.0) (:up sg))
-                          (remap #(min (+ % pinc) 1.0) (:promote sg))
-                          (remap #(max (- % pdec) 0.0) (:down sg))
-                          (remap #(- % pdec) (:demote sg)))]
-      (-> this
-          (assoc-in [:syns-by-target target-id] new-syns)
-          (update-in [:targets-by-source]
-                     util/update-each (keys (:promote sg)) #(conj % target-id))
-          (update-in [:targets-by-source]
-                     util/update-each (keys (:demote sg)) #(disj % target-id)))))
+    (let [syns (p/in-synapses this target-id)]
+      (loop [syns (seq syns)
+             up ()
+             promote ()
+             down ()
+             demote ()
+             cull ()]
+        (if (seq syns)
+          ;; process one synapse
+          (let [[id p] (first syns)]
+            (if (skip? id)
+              (recur (next syns) up down promote demote cull)
+              (if (reinforce? id)
+                ;; positive reinforce
+                (recur (next syns)
+                       (if (< p 1.0) (conj up id) up)
+                       (if (and (< p pcon)
+                                (>= p (- pcon pinc)))
+                         (conj promote id) promote)
+                       down
+                       demote
+                       cull)
+                ;; negative reinforce
+                (recur (next syns)
+                       up
+                       promote
+                       (if (> p 0.0) (conj down id) down)
+                       (if (and (>= p pcon)
+                                (< p (+ pcon pdec)))
+                         (conj demote id) demote)
+                       (if (and (<= p 0.0) cull-zeros?)
+                         (conj cull id) cull)))))
+          ;; finished loop
+          (-> this
+              (update-in [:syns-by-target target-id]
+                         (fn [syns]
+                           (-> (if (seq cull)
+                                 (apply dissoc syns cull)
+                                 syns)
+                               (util/update-each up #(min (+ % pinc) 1.0))
+                               (util/update-each down #(max (- % pdec) 0.0)))))
+              (update-in [:targets-by-source]
+                         util/update-each promote #(conj % target-id))
+              (update-in [:targets-by-source]
+                         util/update-each demote #(disj % target-id)))))))
   (conj-synapses
     [this target-id syn-source-ids p]
     (let [osyns (p/in-synapses this target-id)
-          nsyns (zipmap syn-source-ids (repeat p))
-          syns (merge osyns nsyns)]
+          syns (merge osyns (zipmap syn-source-ids (repeat p)))]
       (cond->
        (assoc-in this [:syns-by-target target-id] syns)
        ;; record connection if initially connected
