@@ -311,25 +311,31 @@
       ;; have not reached limit; append
       (count segs))))
 
-(defn- segment-new-synapse-cell-ids
-  [seg host-col lc n]
-  (let [seg-cols (->> (keys seg)
-                      (map first)
-                      (into #{host-col}))]
-    (->> lc
-         (remove (fn [[col _]] (seg-cols col)))
-         (util/shuffle)
-         (take n))))
+(defn segment-new-synapse-cell-ids
+  "Returns a collection of up to n cell ids chosen from the learnable
+   cells `lc`. May be less than `n` if the random samples have
+   duplicates or some already exist on the segment, or if there are
+   fewer than `n` learnable cells. Connections to the host column are
+   not allowed. However, connections can be made to a cell even if
+   there is already a connection to another cell in the same column."
+  [seg host-col lc-vec n]
+  (when (seq lc-vec)
+    (->> lc-vec
+         (util/sample n)
+         (distinct)
+         (remove (fn [cell-id]
+                   (or (seg cell-id)
+                       (= host-col (first cell-id))))))))
 
 (defn grow-new-segment
   "Adds a new segment on the cell with synapses to a selection of the
    learn cells from previous time step, unless there are too few to
    meet the minimum threshold."
-  [distal-sg col ci lc spec]
+  [distal-sg col ci lc-vec spec]
   (let [n (:seg-new-synapse-count spec)
         min-syns (:seg-learn-threshold spec)
         si (new-segment-id distal-sg col ci spec)
-        syn-cell-ids (segment-new-synapse-cell-ids {} col lc n)]
+        syn-cell-ids (segment-new-synapse-cell-ids {} col lc-vec n)]
     (if (< (count syn-cell-ids) min-syns)
       distal-sg
       ;; clear out any existing synapses first
@@ -341,13 +347,13 @@
                                       (:distal-perm-init spec)))))))
 
 (defn segment-extend
-  [distal-sg seg-path ac lc spec]
+  [distal-sg seg-path ac lc-vec spec]
   (let [col (first seg-path)
         seg (p/in-synapses distal-sg seg-path)
         na (segment-activation seg ac 0.0) ;; include disconnected
         n (- (:seg-new-synapse-count spec) na)]
     (if (pos? n)
-      (let [ids (segment-new-synapse-cell-ids seg col lc n)]
+      (let [ids (segment-new-synapse-cell-ids seg col lc-vec n)]
         (p/conj-synapses distal-sg seg-path ids (:distal-perm-init spec)))
       distal-sg)))
 
@@ -360,24 +366,25 @@
   (p/reinforce-in-synapses sg seg-path ac (constantly false) 0.0 pdec))
 
 (defn learn-on-segment
-  [distal-sg col ci si bursting? prev-lc prev-ac spec]
+  [distal-sg col ci si bursting? prev-lc-vec prev-ac spec]
   (let [pinc (:distal-perm-inc spec)
         pdec (:distal-perm-dec spec)]
     (if si
       ;; there is a matching segment, reinforce and/or extend it
       (cond-> distal-sg
               true (segment-reinforce [col ci si] prev-ac pinc pdec)
-              bursting? (segment-extend [col ci si] prev-ac prev-lc spec))
+              bursting? (segment-extend [col ci si] prev-ac prev-lc-vec spec))
       ;; no matching segment, create a new one
-      (grow-new-segment distal-sg col ci prev-lc spec))))
+      (grow-new-segment distal-sg col ci prev-lc-vec spec))))
 
 (defn learn-distal
   [distal-sg lsegs b-cols prior-ac prior-lc spec]
-  (reduce-kv (fn [sg [col ci] si]
-               (learn-on-segment sg col ci si (b-cols col) prior-lc prior-ac
-                                 spec))
-             distal-sg
-             lsegs))
+  (let [prior-lc-vec (vec prior-lc)]
+    (reduce-kv (fn [sg [col ci] si]
+                 (learn-on-segment sg col ci si (b-cols col) prior-lc-vec
+                                   prior-ac spec))
+               distal-sg
+               lsegs)))
 
 (defn punish-cell
   [distal-sg col ci prev-ac th pcon pdec]

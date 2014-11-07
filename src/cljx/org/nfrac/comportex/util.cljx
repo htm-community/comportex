@@ -42,17 +42,56 @@
                  (- upper lower)))))
 
 (defn rand-int
-  [lower upper]
-  (+ lower (rng/int RNG (- upper lower))))
+  "Uniform integer between lower (inclusive) and upper (exclusive)."
+  ([upper]
+     (rng/int RNG upper))
+  ([lower upper]
+     (+ lower (rng/int RNG (- upper lower)))))
 
 (defn rand-nth
   [xs]
-  (nth xs (rand-int 0 (count xs))))
+  (nth xs (rand-int (count xs))))
+
+;; copied from
+;; https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53104d84ca/src/main/clojure/clojure/data/generators.clj
+(defn ^:private fisher-yates
+  "http://en.wikipedia.org/wiki/Fisher–Yates_shuffle#The_modern_algorithm"
+  [coll]
+  (let [as (object-array coll)]
+    (loop [i (dec (count as))]
+      (if (<= 1 i)
+        (let [j (rand-int (inc i))
+              t (aget as i)]
+          (aset as i (aget as j))
+          (aset as j t)
+          (recur (dec i)))
+        (into (empty coll) (seq as))))))
 
 (defn shuffle
-  [xs]
-  (let [xrs (map list (repeatedly #(rng/double RNG)) xs)]
-    (map second (sort-by first xrs))))
+  [coll]
+  (fisher-yates coll))
+
+;; copied from
+;; https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53104d84ca/src/main/clojure/clojure/data/generators.clj
+(defn reservoir-sample
+  "Reservoir sample ct items from coll."
+  [ct coll]
+  (loop [result (transient (vec (take ct coll)))
+         n ct
+         coll (drop ct coll)]
+    (if (seq coll)
+      (let [pos (rand-int n)]
+        (recur (if (< pos ct)
+                 (assoc! result pos (first coll))
+                 result)
+               (inc n)
+               (rest coll)))
+      (persistent! result))))
+
+(defn sample
+  "Sample ct items with replacement (i.e. possibly with duplicates) from coll."
+  [ct coll]
+  (repeatedly ct #(rand-nth coll)))
 
 (defn quantile
   [xs p]

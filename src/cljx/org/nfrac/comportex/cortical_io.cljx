@@ -45,7 +45,7 @@
 (defn random-sdr
   []
   (set (repeatedly (* retina-size 0.02)
-                   #(util/rand-int 0 (dec retina-size)))))
+                   #(util/rand-int (dec retina-size)))))
 
 (defn scramble-bit
   "Maps a retina fingerprint index to another index which is spatially

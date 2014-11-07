@@ -2,6 +2,23 @@
 
 * move proximal synapses into layer?
 
+* allow many more distal dendrite segments (avoid cols*depth*max-segs vector)
+
+* ?speed up distal synapses?
+  rather than tranforming between [col ci si] and uidx:
+  (deftype Cell [rgn-uuid ^long col ^long ci ^long depth]
+   PCell
+   (cell-column [this])
+   (index-in-column [this])
+   (index-in-layer [this])
+   (cell-region-uuid [this]))
+  (deftype Segment [^Cell cell ^long si ^long max-segs]
+   PSegment
+   (index-in-cell [this])
+   (segment-index-in-layer [this])
+   PCell
+   ...)
+
 * separate parameter for punishment permanence decrement
 
 * motor/top-down distal inputs to distal synapses
@@ -21,7 +38,6 @@
   (otherwise typically grow to all cells of a bursting column)
 
 * local activation - start from closest, loop outwards
-* local activation - adapt inhibition strength (or stimulus threshold)  to tune activation level
 
 * turn off temporal pooling when no input
 

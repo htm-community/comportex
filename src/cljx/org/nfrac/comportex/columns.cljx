@@ -121,7 +121,7 @@
       (->> (range n-cols)
            (mapv (fn [col]
                    (let [n (round (* frac input-size))
-                         ids (repeatedly n #(util/rand-int 0 (dec input-size))) ;; ignore dups
+                         ids (repeatedly n #(util/rand-int (dec input-size))) ;; ignore dups
                          perms (repeatedly n #(util/rand p-lo p-hi))]
                      (zipmap ids perms)))))
       (->> (range n-cols)
@@ -133,9 +133,9 @@
                                                                     (round (* ih (/ cy ch)))])))
                          all-ids (vec (p/neighbours-indices itopo focus-i radius))
                          n (round (* frac (count all-ids)))
-                         ids (if (< frac 0.5) ;; for performance:
-                               (repeatedly n #(util/rand-nth all-ids)) ;; ignore dups
-                               (take n (util/shuffle all-ids)))
+                         ids (if (< frac 0.4) ;; for performance:
+                               (util/sample n all-ids)
+                               (util/reservoir-sample n all-ids))
                          perms (repeatedly n #(util/rand p-lo p-hi))]
                      (zipmap ids perms))))))))
 
