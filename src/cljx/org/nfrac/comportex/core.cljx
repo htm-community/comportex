@@ -347,7 +347,8 @@
    inputs are used to set the `:distal-motor-dimensions` parameter,
    and the combined dimensions of its feed-back superior regions is
    used to set the `:distal-topdown-dimensions` parameter. The updated
-   spec is passed to `build-region`. Returns a RegionNetwork.
+   spec is passed to `build-region`, which is typically
+   `sensory-region`. Returns a RegionNetwork.
 
    For example to build the network `inp -> v1 -> v2`:
 
@@ -403,6 +404,8 @@
       :uuid->id (zipmap (map :uuid (vals rm)) (keys rm))})))
 
 (defn regions-in-series
+  "Constructs an HTM network consisting of one input and n regions in
+   a linear series. See `region-network`."
   [build-region input n spec]
   (let [rgn-keys (map #(keyword (str "r" %)) (range n))
         ;; make {:r0 [:input], :r1 [:r0], :r2 [:r1], ...}
@@ -415,8 +418,11 @@
 ;;; ## Stats
 
 (defn column-state-freqs
-  "Returns a map with the frequencies of columns in states `:active`,
-  `:predicted`, `:active-predicted`."
+  "Returns a map with the frequencies of columns in states
+  `:active` (bursting), `:predicted`, `:active-predicted`. Note that
+  these are distinct categories. The names are possibly misleading.
+  Argument `layer-fn` is called on the region to obtain a layer of
+  cells; if omitted it defaults to `:layer-3`."
   ([rgn]
      (column-state-freqs rgn :layer-3))
   ([rgn layer-fn]
