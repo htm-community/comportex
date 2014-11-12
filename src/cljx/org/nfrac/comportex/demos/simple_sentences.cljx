@@ -145,7 +145,6 @@ Chifung has no tail.
    :distal-perm-init 0.16
    :distal-punish? false
    :distal-vs-proximal-weight 0.5
-   :inhibition-speed 10
    })
 
 (defn n-region-model

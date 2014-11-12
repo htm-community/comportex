@@ -46,9 +46,10 @@
 
    * `ff-perm-init` - initial permanence values on new synapses.
 
-   * `ff-stimulus-threshold` - minimum number of active input connections
-     for a column to be _overlapping_ the input (i.e. active prior to
-     inhibition).
+   * `ff-stimulus-threshold` - minimum number of active input
+     connections for a column to be _overlapping_ the input (i.e.
+     active prior to inhibition). This parameter is tuned at run time
+     to target `activation-level` when `global-inhibition?` is false.
 
    * `ff-grow-up-to-count` - target number of active synapses; active columns
      grow new synapses to inputs to reach this each time step.
@@ -289,6 +290,24 @@ y[t] = (period-1) * y[t-1]  +  1
   (assoc cf :inh-radius (inh/inhibition-radius (:ff-sg cf) (:topology cf)
                                                (:input-topology cf))))
 
+(defn tune-spec
+  "Adjust stimulus threshold when using local inhibition to converge
+   on the target level of activation."
+  [spec actual-activation-level n-inbits]
+  (if (or (:global-inhibition? spec false)
+          (zero? n-inbits)) ;; ignore case of no input (a gap)
+    spec
+    (let [target-level (:activation-level spec 0.02)]
+      (update-in spec [:ff-stimulus-threshold]
+                 (fn [x]
+                   ;; adjust threshold proportionally to error ratio
+                   ;; but dampened to 10%
+                   (let [scale (/ actual-activation-level target-level)
+                         delta (* x (- scale 1) 0.10)]
+                     (-> (+ x delta)
+                         (max 1.0)
+                         (min 1000.0))))))))
+
 (defrecord ColumnField
     [spec ff-sg topology input-topology overlaps sig-overlaps prox-exc
      inh-radius boosts active-duty-cycles overlap-duty-cycles]
@@ -308,12 +327,15 @@ y[t] = (period-1) * y[t-1]  +  1
     [this ff-bits a-cols]
     (let [dcp (:duty-cycle-period spec)
           t (:timestep this)
-          boost? (zero? (mod t dcp))]
+          boost? (zero? (mod t dcp))
+          new-spec (tune-spec spec (/ (count a-cols) (p/size topology))
+                              (count ff-bits))]
       (cond-> (learn this a-cols ff-bits overlaps)
               true (update-in [:overlap-duty-cycles] update-duty-cycles
                               (keys prox-exc) dcp)
               true (update-in [:active-duty-cycles] update-duty-cycles
                               a-cols dcp)
+              true (assoc :spec new-spec)
               boost? (update-boosting)
               boost? (update-inhibition-radius))))
   (inhibition-radius [_]

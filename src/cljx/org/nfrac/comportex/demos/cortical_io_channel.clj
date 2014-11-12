@@ -33,7 +33,6 @@
    :distal-punish? true
    :distal-vs-proximal-weight 0
    :inhibition-base-distance 1
-   :inhibition-speed 2
    })
 
 (defn split-sentences

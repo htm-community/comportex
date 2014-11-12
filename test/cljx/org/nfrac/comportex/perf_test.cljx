@@ -1,8 +1,9 @@
 (ns org.nfrac.comportex.perf-test
   (:require [org.nfrac.comportex.protocols :as p]
+            [org.nfrac.comportex.inhibition :as inh]
+            [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util]
-            [org.nfrac.comportex.demos.simple-sentences :as demog]
-            [org.nfrac.comportex.demos.isolated-1d :as demo1d]
+            [org.nfrac.comportex.demos.directional-steps-1d :as demo1d]
             [org.nfrac.comportex.demos.isolated-2d :as demo2d]
             #+clj [criterium.core :as crit]
             #+clj [clojure.test :as t
@@ -17,7 +18,8 @@
       (println (str (newline) info))
       (crit/quick-bench
        (do (util/set-seed! 0)
-           (demog/n-region-model 1))))))
+           (demo1d/n-region-model
+            1 (assoc demo1d/spec :ff-potential-radius 1.0)))))))
 
 #+clj
 (deftest perf-creation-local-2d-test
@@ -35,7 +37,9 @@
   (let [info "[1000] global, 30% potential, 50 steps"]
     (testing info
       (println (str (newline) info))
-      (let [m1 (->> (demog/n-region-model 1)
+      (let [m1 (->> (demo1d/n-region-model
+                     1 (assoc demo1d/spec :global-inhibition? true
+                              :ff-potential-radius 1.0))
                     (iterate p/htm-step)
                     (take 50)
                     (last))]
@@ -76,3 +80,24 @@
              (->> (iterate p/htm-step m1)
                   (take 50)
                   (last))))))))
+
+#+clj
+(deftest perf-inh-test
+  (util/set-seed! 0)
+  (let [topo (topology/make-topology [20 50])
+        n (p/size topo)
+        inh-radius 15
+        inh-base-dist 1
+        exc (->> (repeatedly #(let [x (util/rand 0 5.0)] (* x x))) ;; skew
+                 (zipmap (util/sample (* 0.2 n) ;; 20% over stimulus threshold
+                                      (range n))))
+        info "[20 50], radius 0.2, local inhibition"]
+    (testing info
+      (println (str (newline) info))
+      (crit/quick-bench
+       (inh/inhibit-locally exc topo inh-radius inh-base-dist)))
+    (let [info "[20 50], radius 0.2, global inhibition"]
+      (testing info
+        (println (str (newline) info))
+        (crit/quick-bench
+         (inh/inhibit-globally exc 0.02 n))))))

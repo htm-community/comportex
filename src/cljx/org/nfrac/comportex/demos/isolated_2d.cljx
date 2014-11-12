@@ -109,7 +109,6 @@
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
    :inhibition-base-distance 1
-   :inhibition-speed 0.50
    })
 
 (defn input-gen
