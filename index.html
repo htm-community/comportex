@@ -2865,8 +2865,199 @@ net.brehaut.ClojureTools = (function (SH) {
     build_tree: build_tree
   };
 })(SyntaxHighlighter);
-</script><title>org.nfrac/comportex -- Marginalia</title></head><body><table><tr><td class="docs"><div class="header"><h1 class="project-name"><a href="http://github.com/nupic-community/comportex/">org.nfrac/comportex</a></h1><h2 class="project-version">0.0.6-SNAPSHOT</h2><br /><p>Functionally composable cortex, an implementation of Hierarchical Temporal Memory</p>
-</div><div class="dependencies"><h3>dependencies</h3><table><tr><td class="dep-name">org.clojure/clojure</td><td class="dotted"><hr /></td><td class="dep-version">1.6.0</td></tr><tr><td class="dep-name">org.clojure/core.async</td><td class="dotted"><hr /></td><td class="dep-version">0.1.346.0-17112a-alpha</td></tr><tr><td class="dep-name">com.cemerick/pprng</td><td class="dotted"><hr /></td><td class="dep-version">0.0.2</td></tr><tr><td class="dep-name">org.clojure/data.int-map</td><td class="dotted"><hr /></td><td class="dep-version">0.1.0</td></tr><tr><td class="dep-name">clj-http</td><td class="dotted"><hr /></td><td class="dep-version">1.0.0</td></tr><tr><td class="dep-name">cljs-uuid</td><td class="dotted"><hr /></td><td class="dep-version">0.0.4</td></tr></table></div></td><td class="codes" style="text-align: center; vertical-align: middle;color: #666;padding-right:20px"><br /><br /><br />(this space intentionally left almost blank)</td></tr><tr><td class="docs"><div class="toc"><a name="toc"><h3>namespaces</h3></a><ul><li><a href="#org.nfrac.comportex.cells">org.nfrac.comportex.cells</a></li><li><a href="#org.nfrac.comportex.columns">org.nfrac.comportex.columns</a></li><li><a href="#org.nfrac.comportex.core">org.nfrac.comportex.core</a></li><li><a href="#org.nfrac.comportex.cortical-io">org.nfrac.comportex.cortical-io</a></li><li><a href="#org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</a></li><li><a href="#org.nfrac.comportex.inhibition">org.nfrac.comportex.inhibition</a></li><li><a href="#org.nfrac.comportex.protocols">org.nfrac.comportex.protocols</a></li><li><a href="#org.nfrac.comportex.synapses">org.nfrac.comportex.synapses</a></li><li><a href="#org.nfrac.comportex.topology">org.nfrac.comportex.topology</a></li><li><a href="#org.nfrac.comportex.util">org.nfrac.comportex.util</a></li><li><a href="#org.nfrac.comportex.demos.directional-steps-1d">org.nfrac.comportex.demos.directional-steps-1d</a></li><li><a href="#org.nfrac.comportex.demos.isolated-1d">org.nfrac.comportex.demos.isolated-1d</a></li><li><a href="#org.nfrac.comportex.demos.isolated-2d">org.nfrac.comportex.demos.isolated-2d</a></li><li><a href="#org.nfrac.comportex.demos.mixed-gaps-1d">org.nfrac.comportex.demos.mixed-gaps-1d</a></li><li><a href="#org.nfrac.comportex.demos.simple-sentences">org.nfrac.comportex.demos.simple-sentences</a></li></ul></div></td><td class="codes">&nbsp;</td></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.cells" name="org.nfrac.comportex.cells"><h1 class="project-name">org.nfrac.comportex.cells</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>Cell activation and sequence memory. Learning on distal dendrite segments.</p>
+</script><title>org.nfrac/comportex -- Marginalia</title></head><body><table><tr><td class="docs"><div class="header"><h1 class="project-name"><a href="http://github.com/nupic-community/comportex/">org.nfrac/comportex</a></h1><h2 class="project-version">0.0.6</h2><br /><p>Functionally composable cortex, an implementation of Hierarchical Temporal Memory</p>
+</div><div class="dependencies"><h3>dependencies</h3><table><tr><td class="dep-name">org.clojure/clojure</td><td class="dotted"><hr /></td><td class="dep-version">1.6.0</td></tr><tr><td class="dep-name">org.clojure/core.async</td><td class="dotted"><hr /></td><td class="dep-version">0.1.346.0-17112a-alpha</td></tr><tr><td class="dep-name">com.cemerick/pprng</td><td class="dotted"><hr /></td><td class="dep-version">0.0.2</td></tr><tr><td class="dep-name">clj-http</td><td class="dotted"><hr /></td><td class="dep-version">1.0.1</td></tr><tr><td class="dep-name">cljs-http</td><td class="dotted"><hr /></td><td class="dep-version">0.1.19</td></tr><tr><td class="dep-name">cljs-uuid</td><td class="dotted"><hr /></td><td class="dep-version">0.0.4</td></tr></table></div></td><td class="codes" style="text-align: center; vertical-align: middle;color: #666;padding-right:20px"><br /><br /><br />(this space intentionally left almost blank)</td></tr><tr><td class="docs"><div class="toc"><a name="toc"><h3>namespaces</h3></a><ul><li><a href="#org.nfrac.comportex.algo-graph">org.nfrac.comportex.algo-graph</a></li><li><a href="#org.nfrac.comportex.cells">org.nfrac.comportex.cells</a></li><li><a href="#org.nfrac.comportex.columns">org.nfrac.comportex.columns</a></li><li><a href="#org.nfrac.comportex.core">org.nfrac.comportex.core</a></li><li><a href="#org.nfrac.comportex.cortical-io">org.nfrac.comportex.cortical-io</a></li><li><a href="#org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</a></li><li><a href="#org.nfrac.comportex.inhibition">org.nfrac.comportex.inhibition</a></li><li><a href="#org.nfrac.comportex.protocols">org.nfrac.comportex.protocols</a></li><li><a href="#org.nfrac.comportex.synapses">org.nfrac.comportex.synapses</a></li><li><a href="#org.nfrac.comportex.topology">org.nfrac.comportex.topology</a></li><li><a href="#org.nfrac.comportex.util">org.nfrac.comportex.util</a></li><li><a href="#org.nfrac.comportex.demos.directional-steps-1d">org.nfrac.comportex.demos.directional-steps-1d</a></li><li><a href="#org.nfrac.comportex.demos.isolated-1d">org.nfrac.comportex.demos.isolated-1d</a></li><li><a href="#org.nfrac.comportex.demos.isolated-2d">org.nfrac.comportex.demos.isolated-2d</a></li><li><a href="#org.nfrac.comportex.demos.mixed-gaps-1d">org.nfrac.comportex.demos.mixed-gaps-1d</a></li><li><a href="#org.nfrac.comportex.demos.simple-sentences">org.nfrac.comportex.demos.simple-sentences</a></li></ul></div></td><td class="codes">&nbsp;</td></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.algo-graph" name="org.nfrac.comportex.algo-graph"><h1 class="project-name">org.nfrac.comportex.algo-graph</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>copied from
+https://github.com/clojure/algo.graph/blob/03c740c61/src/main/clojure/clojure/algo/graph.clj
+because distributed snapshot release does not have clojurescript.</p>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>updated to use records not structs.</p>
+</td><td class="codes"></td></tr><tr><td class="docs"><p> Copyright (c) Jeffrey Straszheim. All rights reserved.  The use and
+ distribution terms for this software are covered by the Eclipse Public
+ License 1.0 (http://opensource.org/licenses/eclipse-1.0.php) which can
+ be found in the file epl-v10.html at the root of this distribution.  By
+ using this software in any fashion, you are agreeing to be bound by the
+ terms of this license.  You must not remove this notice, or any other,
+ from this software.</p>
+
+<p> graph</p>
+
+<p> Basic Graph Theory Algorithms</p>
+
+<p> straszheimjeffrey (gmail)
+ Created 23 June 2009</p>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Basic graph theory algorithms</p>
+</td><td class="codes"><pre class="brush: clojure">(ns 
+  ^{:author &quot;Jeffrey Straszheim&quot;,
+     :doc }
+  org.nfrac.comportex.algo-graph
+  (:require [clojure.set :refer [union]]))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defrecord DirectedGraph
+    [nodes neighbors])  </pre></td></tr><tr><td class="docs"><p><code>nodes</code> - The nodes of the graph, a collection.
+   <code>neighbors</code> - A function from a node to its neighbor nodes collection.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn directed-graph
+  [nodes neighbors]
+  (-&gt;DirectedGraph nodes neighbors))</pre></td></tr><tr><td class="docs"><p>Get the neighbors of a node.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn get-neighbors
+  [g n]
+  ((:neighbors g) n))</pre></td></tr><tr><td class="docs"><p>Graph Modification</p>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Given a directed graph, return another directed graph with the
+   order of the edges reversed.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn reverse-graph
+  [g]
+  (let [op (fn [rna idx]
+             (let [ns (get-neighbors g idx)
+                   am (fn [m val]
+                        (assoc m val (conj (get m val #{}) idx)))]
+               (reduce am rna ns)))
+        rn (reduce op {} (:nodes g))]
+    (directed-graph (:nodes g) rn)))</pre></td></tr><tr><td class="docs"><p>For each node n, add the edge n->n if not already present.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn add-loops
+  [g]
+  (directed-graph
+          (:nodes g)
+          (into {} (map (fn [n]
+                          [n (conj (set (get-neighbors g n)) n)]) (:nodes g)))))</pre></td></tr><tr><td class="docs"><p>For each node n, remove any edges n->n.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn remove-loops
+  [g]
+  (directed-graph
+          (:nodes g)
+          (into {} (map (fn [n]
+                          [n (disj (set (get-neighbors g n)) n)]) (:nodes g)))))</pre></td></tr><tr><td class="docs"><p>Graph Walk</p>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Return a lazy sequence of the nodes of a graph starting a node n.  Optionally,
+   provide a set of visited notes (v) and a collection of nodes to
+   visit (ns).</p>
+</td><td class="codes"><pre class="brush: clojure">(defn lazy-walk
+  ([g n]
+     (lazy-walk g [n] #{}))
+  ([g ns v]
+     (lazy-seq (let [s (seq (drop-while v ns))
+                     n (first s)
+                     ns (rest s)]
+                 (when s
+                   (cons n (lazy-walk g (concat (get-neighbors g n) ns) (conj v n))))))))</pre></td></tr><tr><td class="docs"><p>Returns the transitive closure of a graph.  The neighbors are lazily computed.</p>
+
+<p>   Note: some version of this algorithm return all edges a->a
+   regardless of whether such loops exist in the original graph.  This
+   version does not.  Loops will be included only if produced by
+   cycles in the graph.  If you have code that depends on such
+   behavior, call (-> g transitive-closure add-loops)</p>
+</td><td class="codes"><pre class="brush: clojure">(defn transitive-closure
+  [g]
+  (let [nns (fn [n]
+              [n (delay (lazy-walk g (get-neighbors g n) #{}))])
+        nbs (into {} (map nns (:nodes g)))]
+    (directed-graph
+            (:nodes g)
+            (fn [n] (force (nbs n))))))</pre></td></tr><tr><td class="docs"><p>Strongly Connected Components</p>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Starting at node n, perform a post-ordered walk.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn- post-ordered-visit
+  [g n [visited acc :as state]]
+  (if (visited n)
+    state
+    (let [[v2 acc2] (reduce (fn [st nd] (post-ordered-visit g nd st))
+                            [(conj visited n) acc]
+                            (get-neighbors g n))]
+      [v2 (conj acc2 n)])))</pre></td></tr><tr><td class="docs"><p>Return a sequence of indexes of a post-ordered walk of the graph.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn post-ordered-nodes
+  [g]
+  (fnext (reduce #(post-ordered-visit g %2 %1)
+                 [#{} []]
+                 (:nodes g))))</pre></td></tr><tr><td class="docs"><p>Returns, as a sequence of sets, the strongly connected components
+   of g.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn scc
+  [g]
+  (let [po (reverse (post-ordered-nodes g))
+        rev (reverse-graph g)
+        step (fn [stack visited acc]
+               (if (empty? stack)
+                 acc
+                 (let [[nv comp] (post-ordered-visit rev
+                                                     (first stack)
+                                                     [visited #{}])
+                       ns (remove nv stack)]
+                   (recur ns nv (conj acc comp)))))]
+    (step po #{} [])))</pre></td></tr><tr><td class="docs"><p>Given a graph, perhaps with cycles, return a reduced graph that is acyclic.
+   Each node in the new graph will be a set of nodes from the old.
+   These sets are the strongly connected components.  Each edge will
+   be the union of the corresponding edges of the prior graph.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn component-graph
+  ([g]
+     (component-graph g (scc g)))
+  ([g sccs]
+     (let [find-node-set (fn [n]
+                           (some #(if (% n) % nil) sccs))
+           find-neighbors (fn [ns]
+                            (let [nbs1 (map (partial get-neighbors g) ns)
+                                  nbs2 (map set nbs1)
+                                  nbs3 (apply union nbs2)]
+                              (set (map find-node-set nbs3))))
+           nm (into {} (map (fn [ns] [ns (find-neighbors ns)]) sccs))]
+       (directed-graph (set sccs) nm))))</pre></td></tr><tr><td class="docs"><p>Is the component (recieved from scc) self recursive?</p>
+</td><td class="codes"><pre class="brush: clojure">(defn recursive-component?
+  [g ns]
+  (or (&gt; (count ns) 1)
+      (let [n (first ns)]
+        (some #(= % n) (get-neighbors g n)))))</pre></td></tr><tr><td class="docs"><p>Returns, as a sequence of sets, the components of a graph that are
+   self-recursive.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn self-recursive-sets
+  [g]
+  (filter (partial recursive-component? g) (scc g)))</pre></td></tr><tr><td class="docs"><p>Dependency Lists</p>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Repeatedly apply fun to data until (equal old-data new-data)
+   returns true.  If max iterations occur, it will throw an
+   exception.  Set max to nil for unlimited iterations.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn fixed-point
+  [data fun max equal]
+  (let [step (fn step [data idx]
+               (when (and idx (= 0 idx))
+                 (throw (      Exception.
+                         &quot;Fixed point overflow&quot;)))
+               (let [new-data (fun data)]
+                 (if (equal data new-data)
+                   new-data
+                   (recur new-data (and idx (dec idx))))))]
+    (step data max)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn- fold-into-sets
+  [priorities]
+  (let [max (inc (apply max 0 (vals priorities)))
+        step (fn [acc [n dep]]
+               (assoc acc dep (conj (acc dep) n)))]
+    (reduce step
+            (vec (replicate max #{}))
+            priorities)))</pre></td></tr><tr><td class="docs"><p>Similar to a topological sort, this returns a vector of sets. The
+   set of nodes at index 0 are independent.  The set at index 1 depend
+   on index 0; those at 2 depend on 0 and 1, and so on.  Those withing
+   a set have no mutual dependencies.  Assume the input graph (which
+   much be acyclic) has an edge a->b when a depends on b.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn dependency-list
+  [g]
+  (let [step (fn [d]
+               (let [update (fn [n]
+                              (inc (apply max -1 (map d (get-neighbors g n)))))]
+                 (into {} (map (fn [[k v]] [k (update k)]) d))))
+        counts (fixed-point (zipmap (:nodes g) (repeat 0))
+                            step
+                            (inc (count (:nodes g)))
+                            =)]
+    (fold-into-sets counts)))</pre></td></tr><tr><td class="docs"><p>Similar to dependency-list (see doc), except two graphs are
+   provided.  The first is as dependency-list.  The second (which may
+   have cycles) provides a partial-dependency relation.  If node a
+   depends on node b (meaning an edge a->b exists) in the second
+   graph, node a must be equal or later in the sequence.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn stratification-list
+  [g1 g2]
+  (assert (= (-&gt; g1 :nodes set) (-&gt; g2 :nodes set)))
+  (let [step (fn [d]
+               (let [update (fn [n]
+                              (max (inc (apply max -1
+                                               (map d (get-neighbors g1 n))))
+                                   (apply max -1 (map d (get-neighbors g2 n)))))]
+                 (into {} (map (fn [[k v]] [k (update k)]) d))))
+        counts (fixed-point (zipmap (:nodes g1) (repeat 0))
+                            step
+                            (inc (count (:nodes g1)))
+                            =)]
+    (fold-into-sets counts)))</pre></td></tr><tr><td class="docs"><p>End of file</p>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/algo_graph.cljx</p>
+</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.cells" name="org.nfrac.comportex.cells"><h1 class="project-name">org.nfrac.comportex.cells</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>Cell activation and sequence memory.</p>
 
 <p>   <strong>Argument name conventions:</strong></p>
 
@@ -2876,7 +3067,8 @@ net.brehaut.ClojureTools = (function (SH) {
 <li><code>si</code> -- a segment id, an integer index in the cell.</li>
 <li><code>cell-id</code> -- a vector <code>[col ci]</code>.</li>
 <li><p><code>seg-path</code> -- a vector <code>[col ci si]</code>.</p></li>
-<li><p><code>ac</code> -- the set of ids of active cells.</p></li>
+<li><p><code>ff-bits</code> -- the set of indices of any active feed-forward input bits.</p></li>
+<li><code>ac</code> -- the set of ids of active cells.</li>
 <li><code>pc</code> -- the set of ids of predictive cells.</li>
 <li><code>tpc</code> -- the set of ids of temporal pooling cells.</li>
 <li><code>lc</code> -- the set of ids of learnable cells (winner cells).</li>
@@ -2886,6 +3078,7 @@ net.brehaut.ClojureTools = (function (SH) {
 </ul>
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.cells
   (:require [org.nfrac.comportex.protocols :as p]
+            [org.nfrac.comportex.columns :as columns]
             [org.nfrac.comportex.synapses :as syn]
             [org.nfrac.comportex.inhibition :as inh]
             [org.nfrac.comportex.topology :as topology]
@@ -2894,12 +3087,49 @@ net.brehaut.ClojureTools = (function (SH) {
             [clojure.set :as set]))</pre></td></tr><tr><td class="docs"><p>Default parameter specification map.</p>
 
 <ul>
-<li><p><code>lateral-synapses?</code> - whether distal synapses can grow laterally
- to other cells in this layer.</p></li>
-<li><p><code>extra-distal-size</code> - size of bit field available to grow distal
- synapses to, not including this layer's own cells if lateral
- connections are allowed. So this is for motor inputs from below,
- and/or top-down connections.</p></li>
+<li><p><code>input-dimensions</code> - size of input bit grid as a vector, one
+ dimensional <code>[size]</code>, two dimensional <code>[width height]</code>, etc.</p></li>
+<li><p><code>column-dimensions</code> - size of column field as a vector, one
+ dimensional <code>[size]</code> or two dimensional <code>[width height]</code>.</p></li>
+<li><p><code>ff-potential-radius</code> - range of potential feed-forward synapse
+ connections, as a fraction of the longest single dimension in the
+ input space.</p></li>
+<li><p><code>ff-init-frac</code> - fraction of inputs within radius that will be
+ part of the initially connected set.</p></li>
+<li><p><code>ff-perm-inc</code> - amount to increase a synapse's permanence value
+ by when it is reinforced.</p></li>
+<li><p><code>ff-perm-dec</code> - amount to decrease a synapse's permanence value
+ by when it is not reinforced.</p></li>
+<li><p><code>ff-perm-connected</code> - permanence value at which a synapse is
+ functionally connected. Permanence values are defined to be
+ between 0 and 1.</p></li>
+<li><p><code>ff-perm-init</code> - initial permanence values on new synapses.</p></li>
+<li><p><code>ff-stimulus-threshold</code> - minimum number of active input
+ connections for a column to be <em>overlapping</em> the input (i.e.
+ active prior to inhibition). This parameter is tuned at run time
+ to target <code>activation-level</code> when <code>global-inhibition?</code> is false.</p></li>
+<li><p><code>ff-grow-up-to-count</code> - target number of active synapses; active columns
+ grow new synapses to inputs to reach this each time step.</p></li>
+<li><p><code>ff-max-synapse-count</code> - maximum number of synapses on the column.</p></li>
+<li><p><code>boost-overlap-duty-ratio</code> - when a column's overlap frequency is
+ below this proportion of the <em>highest</em> of its neighbours, its
+ feed-forward synapses are boosted.</p></li>
+<li><p><code>boost-active-duty-ratio</code> - when a column's activation frequency is
+ below this proportion of the <em>highest</em> of its neighbours, its
+ boost factor is increased.</p></li>
+<li><p><code>duty-cycle-period</code> - number of time steps to consider when
+ updating column boosting measures. Also the period between such
+ updates.</p></li>
+<li><p><code>max-boost</code> - ceiling on the column boosting factor used to
+ increase activation frequency.</p></li>
+<li><p><code>lateral-synapses?</code> - whether distal synapses can connect
+ laterally to other cells in this layer.</p></li>
+<li><p><code>use-feedback?</code> - whether distal synapses can connect to top-down
+ feedback cells.</p></li>
+<li><p><code>distal-motor-dimensions</code> - defines bit field available for
+ feed-forward motor input to distal synapses.</p></li>
+<li><p><code>distal-topdown-dimensions</code> - defines bit field available for
+ top-down feedback to distal synapses.</p></li>
 <li><p><code>depth</code> - number of cells per column.</p></li>
 <li><p><code>max-segments</code> - maximum number of segments per cell.</p></li>
 <li><p><code>seg-max-synapse-count</code> - maximum number of synapses per segment.</p></li>
@@ -2921,32 +3151,23 @@ net.brehaut.ClojureTools = (function (SH) {
  dendrite segments.</p></li>
 <li><p><code>distal-punish?</code> - whether to negatively reinforce synapses on
  segments incorrectly predicting activation.</p></li>
-<li><p><code>global-inhibition</code> - whether to use the faster global algorithm
- for column inhibition (just keep those with highest overlap
- scores), or to apply inhibition only within a column's
- neighbours.</p></li>
-<li><p><code>inhibition-base-distance</code> - the distance in columns within which
- a cell inhibits all neighbouring cells with lower excitation.</p></li>
-<li><p><code>inhibition-speed</code> - controls effective inhibition distance. For
- every multiple of this distance away a cell is, its excitation
- must be exceeded by one extra active synapse for it to be
- inhibited. E.g. if this is <code>2</code>, a cell X, 6 columns away from Y,
- will be inhibited by Y if <code>exc(Y) &gt; exc(X) + 3</code>.</p></li>
 <li><p><code>activation-level</code> - fraction of columns that can be
  active (either locally or globally); inhibition kicks in to
  reduce it to this level.</p></li>
-<li><p><code>proximal-vs-distal-weight</code> - scaling to apply to the number of
- active proximal synapses before adding to the number of active
- distal synapses (on the winning segment), when selecting active
- cells.</p></li>
+<li><p><code>global-inhibition?</code> - whether to use the faster global algorithm
+ for column inhibition (just keep those with highest overlap
+ scores), or to apply local inhibition (only within a column's
+ neighbours).</p></li>
+<li><p><code>inhibition-base-distance</code> - the distance in columns within which
+ a cell <em>will always</em> inhibit neighbouring cells with lower
+ excitation. Ignored if <code>global-inhibition?</code> is true.</p></li>
+<li><p><code>distal-vs-proximal-weight</code> - scaling to apply to the number of
+ active distal synapses (on the winning segment) before adding to
+ the number of active proximal synapses, when selecting active
+ cells. Set to zero to disable ``prediction-assisted'' activation.</p></li>
 <li><p><code>spontaneous-activation?</code> - if true, cells may become active with
  sufficient distal synapse excitation, even in the absence of any
  proximal synapse excitation.</p></li>
-<li><p><code>alternative-learning?</code> - if true, an extra learning step
- happens. Alternative predictions (i.e. depolarised cells) are
- carried forward an extra time step (as if the predicted cells
- were active); these forward-predicted cells learn on distal
- segments in the current context (as if they were active).</p></li>
 <li><p><code>temporal-pooling-decay</code> - multiplier on the continuing
  excitation score of temporal pooling cells; as this reduces a
  temporal pooling cell is more likely to be interrupted by
@@ -2955,14 +3176,27 @@ net.brehaut.ClojureTools = (function (SH) {
  score of temporal pooling cells; this increases the probability
  that TP cells will remain active.</p></li>
 </ul>
-</td><td class="codes"><pre class="brush: clojure">(def cells-parameter-defaults
-  {
-;   :lateral-synapses? true
-;   :extra-distal-size 0
-;   :sensory-distal-size 0
-;   :motor-distal-size 0
-;   :topdown-distal-size 0
+</td><td class="codes"><pre class="brush: clojure">(def parameter-defaults
+  {:input-dimensions [:define-me!]
    :column-dimensions [2048]
+   :ff-potential-radius 0.3
+   :ff-init-frac 0.3
+   :ff-perm-inc 0.05
+   :ff-perm-dec 0.005
+   :ff-perm-connected 0.2
+   :ff-perm-init 0.16
+   :ff-stimulus-threshold 3
+   :ff-grow-and-die? false
+   :ff-grow-up-to-count 15
+   :ff-max-synapse-count 1000
+   :boost-overlap-duty-ratio 0.001
+   :boost-active-duty-ratio 0.001
+   :duty-cycle-period 1000
+   :max-boost 3.0
+   :lateral-synapses? true
+   :use-feedback? false
+   :distal-motor-dimensions [0]
+   :distal-topdown-dimensions [0]
    :depth 16
    :max-segments 5
    :seg-max-synapse-count 22
@@ -2974,13 +3208,11 @@ net.brehaut.ClojureTools = (function (SH) {
    :distal-perm-connected 0.20
    :distal-perm-init 0.16
    :distal-punish? true
-   :global-inhibition false
-   :inhibition-base-distance 4
-   :inhibition-speed 2
    :activation-level 0.02
-   :proximal-vs-distal-weight 2.0
+   :global-inhibition? false
+   :inhibition-base-distance 1
+   :distal-vs-proximal-weight 0
    :spontaneous-activation? false
-   :alternative-learning? false
 ;   :temporal-pooling-decay 0.9
 ;   :temporal-pooling-amp 1.1
    })</pre></td></tr><tr><td class="docs"><h2>Activation</h2>
@@ -3018,25 +3250,27 @@ net.brehaut.ClojureTools = (function (SH) {
                                           (inc (get m id 0)))))))
                   (transient {}))
        (persistent!)))</pre></td></tr><tr><td class="docs"><p>Combine the proximal and distal excitations in a map of column id
-   to excitation, being the sum of proximal and distal values for the
-   most active cell in the column. See <code>cell-depolarisation</code>. Normally
-   only columns with proximal input are considered, but if
-   <code>spontaneous-activation?</code> is true, this is not enforced.</p>
+   to excitation, being the sum of proximal and (weighted) distal
+   values for the most active cell in the column. See
+   <code>cell-depolarisation</code>. Normally only columns with proximal input
+   are considered, but if <code>spontaneous-activation?</code> is true, this is
+   not enforced.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn total-excitations
-  [prox-exc distal-exc-by-col proximal-weight spontaneous-activation?]
-  (-&gt;&gt; (if spontaneous-activation?
-         (merge (zipmap (keys distal-exc-by-col) (repeat 0))
-                prox-exc)
-         prox-exc)
-       (reduce-kv (fn [m col pexc]
-                    (let [pexc (* pexc proximal-weight)]
+  [prox-exc distal-exc-by-col distal-weight spontaneous-activation?]
+  (if (zero? distal-weight)
+    prox-exc
+    (-&gt;&gt; (if spontaneous-activation?
+           (merge (zipmap (keys distal-exc-by-col) (repeat 0))
+                  prox-exc)
+           prox-exc)
+         (reduce-kv (fn [m col pexc]
                       (if-let [dexcs (vals (distal-exc-by-col col))]
-                        (let [dexc (apply max dexcs)]
+                        (let [dexc (* distal-weight (apply max dexcs))]
                           (assoc! m col (+ dexc pexc)))
                         ;; no distal excitation
-                        (assoc! m col pexc))))
-                  (transient {}))
-       (persistent!)))</pre></td></tr><tr><td class="docs"><p>Finds the active cells grouped by their column id. Returns a map
+                        (assoc! m col pexc)))
+                    (transient {}))
+         (persistent!))))</pre></td></tr><tr><td class="docs"><p>Finds the active cells grouped by their column id. Returns a map
    with keys <code>:active-cells-by-col</code> (a map from column id to cell ids)
    and <code>:burst-cols</code> (the set of bursting column ids).</p>
 </td><td class="codes"><pre class="brush: clojure">(defn select-active-cells
@@ -3044,14 +3278,13 @@ net.brehaut.ClojureTools = (function (SH) {
   (let [distal-exc-by-col (util/group-by-maps (fn [[col _] _] col)
                                               distal-exc)
         exc (total-excitations prox-exc distal-exc-by-col
-                               (:proximal-vs-distal-weight spec)
+                               (:distal-vs-proximal-weight spec)
                                (:spontaneous-activation? spec))
         level (:activation-level spec)
-        a-cols (if (:global-inhibition spec)
-                 (inh/ac-inhibit-globally exc level (p/size topo))
-                 (keys (inh/inhibit-locally exc topo inh-radius
-                                            (:inhibition-base-distance spec)
-                                            (:inhibition-speed spec))))
+        a-cols (if (:global-inhibition? spec)
+                 (inh/inhibit-globally exc level (p/size topo))
+                 (inh/inhibit-locally exc topo inh-radius
+                                      (:inhibition-base-distance spec)))
         depth (:depth spec)]
     (loop [cols a-cols
            acbc (transient {})
@@ -3119,7 +3352,7 @@ net.brehaut.ClojureTools = (function (SH) {
         max-syns (:seg-max-synapse-count spec)
         min-syns (:seg-learn-threshold spec)
         pcon (:distal-perm-connected spec)
-        segs (p/cell-segments distal-sg [col ci])]
+        segs (syn/cell-segments-raw distal-sg [col ci])]
     (if (&gt;= (count segs) max-segs)
       ;; select the one with fewest connected, or fewest synapses, or first
       (apply min-key (fn [si]
@@ -3130,24 +3363,29 @@ net.brehaut.ClojureTools = (function (SH) {
                             (/ si (count segs)))))
              (range (count segs)))
       ;; have not reached limit; append
-      (count segs))))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn- segment-new-synapse-cell-ids
-  [seg host-col lc n]
-  (let [seg-cols (-&gt;&gt; (keys seg)
-                      (map first)
-                      (into #{host-col}))]
-    (-&gt;&gt; lc
-         (remove (fn [[col _]] (seg-cols col)))
-         (util/shuffle)
-         (take n))))</pre></td></tr><tr><td class="docs"><p>Adds a new segment on the cell with synapses to a selection of the
+      (count segs))))</pre></td></tr><tr><td class="docs"><p>Returns a collection of up to n cell ids chosen from the learnable
+   cells <code>lc</code>. May be less than <code>n</code> if the random samples have
+   duplicates or some already exist on the segment, or if there are
+   fewer than <code>n</code> learnable cells. Connections to the host column are
+   not allowed. However, connections can be made to a cell even if
+   there is already a connection to another cell in the same column.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn segment-new-synapse-cell-ids
+  [seg host-col lc-vec n]
+  (when (seq lc-vec)
+    (-&gt;&gt; lc-vec
+         (util/sample n)
+         (distinct)
+         (remove (fn [cell-id]
+                   (or (seg cell-id)
+                       (= host-col (first cell-id))))))))</pre></td></tr><tr><td class="docs"><p>Adds a new segment on the cell with synapses to a selection of the
    learn cells from previous time step, unless there are too few to
    meet the minimum threshold.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn grow-new-segment
-  [distal-sg col ci lc spec]
+  [distal-sg col ci lc-vec spec]
   (let [n (:seg-new-synapse-count spec)
         min-syns (:seg-learn-threshold spec)
         si (new-segment-id distal-sg col ci spec)
-        syn-cell-ids (segment-new-synapse-cell-ids {} col lc n)]
+        syn-cell-ids (segment-new-synapse-cell-ids {} col lc-vec n)]
     (if (&lt; (count syn-cell-ids) min-syns)
       distal-sg
       ;; clear out any existing synapses first
@@ -3158,13 +3396,13 @@ net.brehaut.ClojureTools = (function (SH) {
                 true (p/conj-synapses seg-path syn-cell-ids
                                       (:distal-perm-init spec)))))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn segment-extend
-  [distal-sg seg-path ac lc spec]
+  [distal-sg seg-path ac lc-vec spec]
   (let [col (first seg-path)
         seg (p/in-synapses distal-sg seg-path)
         na (segment-activation seg ac 0.0) ;; include disconnected
         n (- (:seg-new-synapse-count spec) na)]
     (if (pos? n)
-      (let [ids (segment-new-synapse-cell-ids seg col lc n)]
+      (let [ids (segment-new-synapse-cell-ids seg col lc-vec n)]
         (p/conj-synapses distal-sg seg-path ids (:distal-perm-init spec)))
       distal-sg)))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn segment-reinforce
@@ -3174,23 +3412,24 @@ net.brehaut.ClojureTools = (function (SH) {
   [sg seg-path ac pdec]
   (p/reinforce-in-synapses sg seg-path ac (constantly false) 0.0 pdec))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn learn-on-segment
-  [distal-sg col ci si bursting? prev-lc prev-ac spec]
+  [distal-sg col ci si bursting? prev-lc-vec prev-ac spec]
   (let [pinc (:distal-perm-inc spec)
         pdec (:distal-perm-dec spec)]
     (if si
       ;; there is a matching segment, reinforce and/or extend it
       (cond-&gt; distal-sg
               true (segment-reinforce [col ci si] prev-ac pinc pdec)
-              bursting? (segment-extend [col ci si] prev-ac prev-lc spec))
+              bursting? (segment-extend [col ci si] prev-ac prev-lc-vec spec))
       ;; no matching segment, create a new one
-      (grow-new-segment distal-sg col ci prev-lc spec))))</pre></td></tr><tr><td class="docs">
+      (grow-new-segment distal-sg col ci prev-lc-vec spec))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn learn-distal
   [distal-sg lsegs b-cols prior-ac prior-lc spec]
-  (reduce-kv (fn [sg [col ci] si]
-               (learn-on-segment sg col ci si (b-cols col) prior-lc prior-ac
-                                 spec))
-             distal-sg
-             lsegs))</pre></td></tr><tr><td class="docs">
+  (let [prior-lc-vec (vec prior-lc)]
+    (reduce-kv (fn [sg [col ci] si]
+                 (learn-on-segment sg col ci si (b-cols col) prior-lc-vec
+                                   prior-ac spec))
+               distal-sg
+               lsegs)))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn punish-cell
   [distal-sg col ci prev-ac th pcon pdec]
   (let [cell-segs (p/cell-segments distal-sg [col ci])
@@ -3233,7 +3472,7 @@ net.brehaut.ClojureTools = (function (SH) {
                   cell-segs (p/cell-segments distal-sg cell)
                   sc (most-active-segment cell-segs prior-ac pcon)
                   ;; if not depolarised by current active cells
-                  ;; (e.g. alternative) then fall back to bursting-like
+                  ;; (temporal pooling?) then fall back to bursting-like
                   sc (if (:segment-idx sc)
                        sc
                        (most-active-segment cell-segs prior-ac 0))]
@@ -3242,94 +3481,96 @@ net.brehaut.ClojureTools = (function (SH) {
                      (assoc! lsegs cell (:segment-idx sc))))))
         ;; finished
         {:learn-cells (persistent! lc)
-         :learn-segs (persistent! lsegs)}))))</pre></td></tr><tr><td class="docs"><p>Carry forward predictions so the current context can learn them, as
-   if by analogy, rather than having to experience those alternative
-   paths directly.</p>
-
-<p>   Taking all prior depolarised cells (filtered to those which could
-   have predicted the current input). Find segments--and thereby
-   cells--potentially excited by them. These are the alternative
-   cells. Choose a segment on each to learn on.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn alternative-segs
-  [distal-sg ac burst-cols
-   prior-pred-cells prior-ac distal-exc topo inh-radius spec]
-  (let [analogy-cells (-&gt;&gt; (set/difference prior-pred-cells prior-ac)
-                           (filter (fn [cell]
-                                     (some ac (p/targets-connected-from distal-sg
-                                                                        cell)))))]
-    (if (empty? analogy-cells)
-      {}
-      ;; find cells forward-predicted from analogy cells
-      (let [flow-seg-exc (syn/excitations distal-sg analogy-cells)
-            flow-cell-exc (cell-depolarisation flow-seg-exc
-                                               (:seg-stimulus-threshold spec))
-            flow-cols (set (map first (keys flow-cell-exc)))
-            flow-prox-exc (zipmap flow-cols (repeat 1.0))
-            {flow-cbc :active-cells-by-col
-             f-b-cols :burst-cols} (select-active-cells flow-prox-exc flow-cell-exc
-                                                        topo inh-radius spec)]
-        (-&gt; (select-learning-segs flow-cbc f-b-cols distal-sg prior-ac spec)
-            (assoc :learn-cols (set (keys flow-cbc))))))))</pre></td></tr><tr><td class="docs"><h2>Orchestration</h2>
+         :learn-segs (persistent! lsegs)}))))</pre></td></tr><tr><td class="docs"><p>Adjust stimulus threshold when using local inhibition to converge
+   on the target level of activation.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn tune-spec
+  [spec actual-activation-level n-inbits]
+  (if (or (:global-inhibition? spec false)
+          (zero? n-inbits)) ;; ignore case of no input (a gap)
+    spec
+    (let [target-level (:activation-level spec 0.02)]
+      (update-in spec [:ff-stimulus-threshold]
+                 (fn [x]
+                   ;; adjust threshold proportionally to error ratio
+                   ;; but dampened to 10%
+                   (let [scale (/ actual-activation-level target-level)
+                         delta (* x (- scale 1) 0.10)]
+                     (-&gt; (+ x delta)
+                         (max 1.0)
+                         (min 1000.0))))))))</pre></td></tr><tr><td class="docs"><h2>Orchestration</h2>
 </td><td class="codes"></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn update-inhibition-radius
+  [layer]
+  (assoc layer :inh-radius
+         (inh/inhibition-radius (:proximal-sg layer) (:topology layer)
+                                (:input-topology layer))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defrecord LayerOfCells
-    [spec topology distal-sg active-cols burst-cols
-     active-cells learn-cells signal-cells tp-cells
-     prior-active-cells prior-learn-cells
-     pred-cells prior-pred-cells distal-exc
-     tp-exc]
+    [spec topology input-topology inh-radius proximal-sg distal-sg
+     overlaps proximal-exc proximal-sig-exc distal-exc
+     active-cols burst-cols active-cells learn-cells signal-cells
+     prior-active-cells prior-learn-cells pred-cells prior-pred-cells
+     boosts active-duty-cycles overlap-duty-cycles]
   p/PLayerOfCells
   (layer-activate
-    [this prox-exc prox-sig-exc inh-radius]
-    (let [{acbc :active-cells-by-col
+    [this ff-bits signal-ff-bits]
+    (let [om (syn/excitations proximal-sg ff-bits)
+          prox-exc (columns/apply-overlap-boosting om boosts spec)
+          sig-om (syn/excitations proximal-sg signal-ff-bits)
+          {acbc :active-cells-by-col
            b-cols :burst-cols} (select-active-cells prox-exc distal-exc topology
                                                     inh-radius spec)
           a-cols (set (keys acbc))
           ac (set (apply concat (vals acbc)))
           sig-ac (set (apply concat (vals (apply dissoc acbc b-cols))))
-          ;; temporal pooling TODO
-          tpc #{}
           ]
       (assoc this
+        :timestep (inc (:timestep this 0))
+        :overlaps om
+        :proximal-exc prox-exc
+        :sig-overlaps sig-om
         :active-cells-by-col acbc ;; for convenience / efficiency in other steps
         :active-cells ac
         :active-cols a-cols
         :burst-cols b-cols
         :signal-cells sig-ac
-        :tp-cells tpc
         :prior-active-cells active-cells
         :prior-learn-cells learn-cells)))
   (layer-learn
-    [this]
-    (let [prior-ac prior-active-cells
+    [this ff-bits]
+    (let [dcp (:duty-cycle-period spec)
+          t (:timestep this)
+          boost? (zero? (mod t dcp))
+          new-spec (tune-spec spec (/ (count active-cols) (p/size topology))
+                              (count ff-bits))
+          prior-ac prior-active-cells
           prior-lc prior-learn-cells
           acbc (:active-cells-by-col this)
           {lc :learn-cells
            lsegs :learn-segs} (select-learning-segs acbc burst-cols distal-sg
                                                     prior-active-cells spec)
-          {alt-cols :learn-cols
-           alt-c :learn-cells
-           alt-segs :learn-segs} (when (:alternative-learning? spec)
-                                   (alternative-segs distal-sg active-cells burst-cols
-                                                     prior-pred-cells prior-ac
-                                                     distal-exc topology 5 spec))
-          new-sg (cond-&gt;
-                  (learn-distal distal-sg lsegs burst-cols prior-ac prior-lc
-                                spec)
-                  ;; allow this phase of learning as an option
-                  (:distal-punish? spec)
-                  (punish-distal active-cells prior-ac pred-cells
-                                 prior-pred-cells spec)
-                  ;; experimental: back-flow bursting to depolarised cells
-                  (and (:alternative-learning? spec) alt-segs)
-                  (learn-distal alt-segs alt-cols prior-ac prior-lc spec))]
-      (assoc this
-        :alternative-cells alt-c
-        :alternative-segments alt-segs
-        :learn-cells lc
-        :learn-segments lsegs
-        :distal-sg new-sg)))
+          dsg (cond-&gt;
+               (learn-distal distal-sg lsegs burst-cols prior-ac prior-lc spec)
+               ;; allow this phase of learning as an option
+               (:distal-punish? spec)
+               (punish-distal active-cells prior-ac pred-cells prior-pred-cells
+                              spec))
+          psg (columns/learn-proximal proximal-sg input-topology topology
+                                      active-cols ff-bits overlaps spec)]
+      (cond-&gt;
+       (assoc this
+         :spec new-spec
+         :learn-cells lc
+         :learn-segments lsegs
+         :distal-sg dsg
+         :proximal-sg psg)
+       true (update-in [:overlap-duty-cycles] columns/update-duty-cycles
+                       (keys proximal-exc) dcp)
+       true (update-in [:active-duty-cycles] columns/update-duty-cycles
+                       active-cols dcp)
+       boost? (columns/update-boosting)
+       boost? (update-inhibition-radius))))
   (layer-depolarise
-    [this distal-bits]
+    [this distal-ff-bits distal-fb-bits]
     ;; TODO distal-bits
     (let [seg-exc (syn/excitations distal-sg active-cells)
           cell-exc (cell-depolarisation seg-exc (:seg-stimulus-threshold spec))
@@ -3351,48 +3592,66 @@ net.brehaut.ClojureTools = (function (SH) {
   (signal-cells [this]
     (:signal-cells this))
   (temporal-pooling-cells [this]
-    tp-cells)
+    #{})
   (predictive-cells [this]
     pred-cells)
   (prior-predictive-cells [this]
     prior-pred-cells)
   (depolarisation [this]
     distal-exc)
+  (column-excitation [_]
+    proximal-exc)
   p/PTopological
   (topology [this]
     (:topology this))
+  p/PTemporal
+  (timestep [this]
+    (:timestep this 0))
   p/PParameterised
   (params [_]
     spec))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn layer-of-cells
   [spec]
-  (let [spec (merge cells-parameter-defaults spec)
-        col-dim (:column-dimensions spec)
-        col-topo (topology/make-topology col-dim)
+  (let [spec (merge parameter-defaults spec)
+        input-topo (topology/make-topology (:input-dimensions spec))
+        col-topo (topology/make-topology (:column-dimensions spec))
         n-cols (p/size col-topo)
-        depth (:depth spec)
-        max-segs (:max-segments spec)
-        max-syns (:seg-max-synapse-count spec)
-        pcon (:distal-perm-connected spec)
-        distal-sg (syn/synapse-graph-by-segments
-                   n-cols depth max-segs pcon max-syns true)]
-    (map-&gt;LayerOfCells
-     {:spec spec
-      :topology col-topo
-      :distal-sg distal-sg
-      :active-cols #{}
-      :burst-cols #{}
-      :active-cells #{}
-      :learn-cells #{}
-      :signal-cells #{}
-      :tp-cells #{}
-      :pred-cells #{}
-      :prior-pred-cells #{}
-      :distal-exc {}
-      })))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/cells.cljx</p>
+        all-syns (columns/uniform-ff-synapses col-topo input-topo spec)
+        proximal-sg (syn/synapse-graph all-syns (p/size input-topo)
+                                       (:ff-perm-connected spec)
+                                       (:ff-max-synapse-count spec)
+                                       (:ff-grow-and-die? spec))
+        distal-sg (syn/synapse-graph-by-segments n-cols (:depth spec)
+                                                 (:max-segments spec)
+                                                 (:distal-perm-connected spec)
+                                                 (:seg-max-synapse-count spec)
+                                                 true)]
+    (-&gt;
+     (map-&gt;LayerOfCells
+      {:spec spec
+       :topology col-topo
+       :input-topology input-topo
+       :inh-radius 1
+       :proximal-sg proximal-sg
+       :distal-sg distal-sg
+       :prox-exc {}
+       :overlaps {}
+       :sig-overlaps {}
+       :active-cols #{}
+       :burst-cols #{}
+       :active-cells #{}
+       :learn-cells #{}
+       :signal-cells #{}
+       :pred-cells #{}
+       :prior-pred-cells #{}
+       :distal-exc {}
+       :boosts (vec (repeat n-cols 1.0))
+       :active-duty-cycles (vec (repeat n-cols 0.0))
+       :overlap-duty-cycles (vec (repeat n-cols 0.0))
+       })
+     (update-inhibition-radius))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/cells.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.columns" name="org.nfrac.comportex.columns"><h1 class="project-name">org.nfrac.comportex.columns</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>Handling of column excitation through proximal dendrite segment
-   synapses. This process produces spatial pooling (pattern memory)
-   over feed-forward inputs.</p>
+   synapses.</p>
 
 <p>   <strong>Argument name conventions:</strong></p>
 
@@ -3401,7 +3660,6 @@ net.brehaut.ClojureTools = (function (SH) {
 <li><code>a-cols</code> -- the set of ids of active columns.</li>
 <li><code>om</code> -- overlap scores in a map keyed by column id.</li>
 <li><code>ff-bits</code> -- the set of indexes of any active feed-forward input bits.</li>
-<li><code>cf</code> -- a ColumnField.</li>
 </ul>
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.columns
   (:require [org.nfrac.comportex.protocols :as p]
@@ -3409,63 +3667,7 @@ net.brehaut.ClojureTools = (function (SH) {
             [org.nfrac.comportex.inhibition :as inh]
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util
-             :refer [abs round mean count-filter remap]]))</pre></td></tr><tr><td class="docs"><p>Default parameter specification map.</p>
-
-<ul>
-<li><p><code>input-dimensions</code> - size of input bit grid as a vector, one
- dimensional <code>[size]</code>, two dimensional <code>[width height]</code>, etc.</p></li>
-<li><p><code>column-dimensions</code> - size of column field as a vector, one
- dimensional <code>[size]</code> or two dimensional <code>[width height]</code>.</p></li>
-<li><p><code>ff-potential-radius</code> - range of potential feed-forward synapse
- connections, as a fraction of the longest single dimension in the
- input space.</p></li>
-<li><p><code>ff-init-frac</code> - fraction of inputs within radius that will be
- part of the initially connected set.</p></li>
-<li><p><code>ff-perm-inc</code> - amount to increase a synapse's permanence value
- by when it is reinforced.</p></li>
-<li><p><code>ff-perm-dec</code> - amount to decrease a synapse's permanence value
- by when it is not reinforced.</p></li>
-<li><p><code>ff-perm-connected</code> - permanence value at which a synapse is
- functionally connected. Permanence values are defined to be
- between 0 and 1.</p></li>
-<li><p><code>ff-perm-init</code> - initial permanence values on new synapses.</p></li>
-<li><p><code>ff-stimulus-threshold</code> - minimum number of active input connections
- for a column to be <em>overlapping</em> the input (i.e. active prior to
- inhibition).</p></li>
-<li><p><code>ff-grow-up-to-count</code> - target number of active synapses; active columns
- grow new synapses to inputs to reach this each time step.</p></li>
-<li><p><code>ff-max-synapse-count</code> - maximum number of synapses on the column.</p></li>
-<li><p><code>boost-overlap-duty-ratio</code> - when a column's overlap frequency is
- below this proportion of the <em>highest</em> of its neighbours, its
- feed-forward synapses are boosted.</p></li>
-<li><p><code>boost-active-duty-ratio</code> - when a column's activation frequency is
- below this proportion of the <em>highest</em> of its neighbours, its
- boost factor is increased.</p></li>
-<li><p><code>duty-cycle-period</code> - number of time steps to consider when
- updating column boosting measures. Also the period between such
- updates.</p></li>
-<li><p><code>max-boost</code> - ceiling on the column boosting factor used to
- increase activation frequency.</p></li>
-</ul>
-</td><td class="codes"><pre class="brush: clojure">(def columns-parameter-defaults
-  {:input-dimensions [:define-me!]
-   :column-dimensions [2048]
-   :ff-potential-radius 0.3
-   ;:ff-potential-frac 0.5
-   :ff-init-frac 0.3
-   :ff-perm-inc 0.05
-   :ff-perm-dec 0.005
-   :ff-perm-connected 0.2
-   :ff-perm-init 0.16
-   :ff-stimulus-threshold 3
-   :ff-grow-and-die? false
-   :ff-grow-up-to-count 15
-   :ff-max-synapse-count 1000
-   :boost-overlap-duty-ratio 0.001
-   :boost-active-duty-ratio 0.001
-   :duty-cycle-period 1000
-   :max-boost 3.0
-   })</pre></td></tr><tr><td class="docs"><p>Generates feed-forward synapses connecting columns to the input bit
+             :refer [abs round mean count-filter remap]]))</pre></td></tr><tr><td class="docs"><p>Generates feed-forward synapses connecting columns to the input bit
    array.</p>
 
 <p>   Connections are made locally by scaling the input space to the
@@ -3483,6 +3685,7 @@ net.brehaut.ClojureTools = (function (SH) {
         pinc (:ff-perm-inc spec)
         p-hi (-&gt; (+ pcon (* 1.0 pinc)) (min 1.0))
         p-lo (-&gt; (- pcon (* 2.0 pinc)) (max 0.0))
+        global? (&gt;= (:ff-potential-radius spec) 1.0)
         ;; radius in input space, fraction of longest dimension
         radius (long (* (:ff-potential-radius spec)
                         (apply max (p/dimensions itopo))))
@@ -3493,20 +3696,27 @@ net.brehaut.ClojureTools = (function (SH) {
                    (== 1 (count (p/dimensions itopo))))
         [cw ch] (p/dimensions topo)
         [iw ih] (p/dimensions itopo)]
-    (-&gt;&gt; (range n-cols)
-         (mapv (fn [col]
-                 (let [focus-i (if one-d?
-                                 (round (* input-size (/ col n-cols)))
-                                 (let [[cx cy] (p/coordinates-of-index topo col)]
-                                   (p/index-of-coordinates itopo [(round (* iw (/ cx cw)))
-                                                                  (round (* ih (/ cy ch)))])))
-                       all-ids (vec (p/neighbours-indices itopo focus-i radius))
-                       n (round (* frac (count all-ids)))
-                       ids (if (&lt; frac 0.5) ;; for performance:
-                             (repeatedly n #(util/rand-nth all-ids)) ;; ignore dups
-                             (take n (util/shuffle all-ids)))
-                       perms (repeatedly n #(util/rand p-lo p-hi))]
-                   (zipmap ids perms)))))))</pre></td></tr><tr><td class="docs"><h2>Overlaps</h2>
+    (if global?
+      (-&gt;&gt; (range n-cols)
+           (mapv (fn [col]
+                   (let [n (round (* frac input-size))
+                         ids (repeatedly n #(util/rand-int (dec input-size))) ;; ignore dups
+                         perms (repeatedly n #(util/rand p-lo p-hi))]
+                     (zipmap ids perms)))))
+      (-&gt;&gt; (range n-cols)
+           (mapv (fn [col]
+                   (let [focus-i (if one-d?
+                                   (round (* input-size (/ col n-cols)))
+                                   (let [[cx cy] (p/coordinates-of-index topo col)]
+                                     (p/index-of-coordinates itopo [(round (* iw (/ cx cw)))
+                                                                    (round (* ih (/ cy ch)))])))
+                         all-ids (vec (p/neighbours-indices itopo focus-i radius))
+                         n (round (* frac (count all-ids)))
+                         ids (if (&lt; frac 0.4) ;; for performance:
+                               (util/sample n all-ids)
+                               (util/reservoir-sample n all-ids))
+                         perms (repeatedly n #(util/rand p-lo p-hi))]
+                     (zipmap ids perms))))))))</pre></td></tr><tr><td class="docs"><h2>Overlaps</h2>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>Given a map <code>om</code> of the raw overlap counts, finds the columns with
   an overlap count above parameter <code>ff-stimulus-threshold</code>, and
   returns a map of their column ids to excitations. That is, the
@@ -3558,11 +3768,9 @@ net.brehaut.ClojureTools = (function (SH) {
    Given the set of input bits <code>ff-bits</code>, adjusts the permanence
    values of all potential feed-forward synapses in the active columns
    <code>a-cols</code>.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn learn
-  [cf a-cols ff-bits om]
-  (let [itopo (:input-topology cf)
-        spec (:spec cf)
-        pinc (:ff-perm-inc spec)
+</td><td class="codes"><pre class="brush: clojure">(defn learn-proximal
+  [sg itopo topo a-cols ff-bits om spec]
+  (let [pinc (:ff-perm-inc spec)
         pdec (:ff-perm-dec spec)
         pinit (:ff-perm-init spec)
         grow-and-die? (:ff-grow-and-die? spec)
@@ -3571,19 +3779,17 @@ net.brehaut.ClojureTools = (function (SH) {
         ;; radius in input space, fraction of longest dimension
         radius (long (* (:ff-potential-radius spec)
                         (apply max (p/dimensions itopo))))
-        n-cols (p/size-of cf)]
-    (update-in cf [:ff-sg]
-               (fn [ff-sg]
-                 (reduce (fn [sg col]
-                           (let [n-on (om col)
-                                 n-grow (max 0 (- grow-up-to n-on))]
-                             (cond-&gt;
-                              (p/reinforce-in-synapses sg col (constantly false)
-                                                       ff-bits pinc pdec)
-                              (and grow-and-die? (pos? n-grow))
-                              (grow-new-synapses col ff-bits itopo radius n-cols
-                                                 n-grow pinit))))
-                         ff-sg a-cols)))))</pre></td></tr><tr><td class="docs"><h2>Boosting</h2>
+        n-cols (p/size topo)]
+    (reduce (fn [sg col]
+              (let [n-on (om col)
+                    n-grow (max 0 (- grow-up-to n-on))]
+                (cond-&gt;
+                 (p/reinforce-in-synapses sg col (constantly false)
+                                          ff-bits pinc pdec)
+                 (and grow-and-die? (pos? n-grow))
+                 (grow-new-synapses col ff-bits itopo radius n-cols
+                                    n-grow pinit))))
+            sg a-cols)))</pre></td></tr><tr><td class="docs"><h2>Boosting</h2>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>Recalculates the column's boost factor and possibly applies an
    increase to all feedforward synapse permanences. This is based on
    comparing the number of activations or overlaps in recent history
@@ -3610,7 +3816,7 @@ net.brehaut.ClojureTools = (function (SH) {
                    (max 1.0)
                    (double))]
     (if (&lt; od crit-od)
-      (update-in cf [:ff-sg] p/reinforce-in-synapses col (constantly false)
+      (update-in cf [:proximal-sg] p/reinforce-in-synapses col (constantly false)
                  (constantly true) pinc 0)
       (assoc-in cf [:boosts col] nboost))))</pre></td></tr><tr><td class="docs"><p>For each column, determines whether it has had too few activations
   -- relative to its neighbours -- in recent history. Boosting may be
@@ -3634,84 +3840,7 @@ y[t] = (period-1) * y[t-1]  +  1
   (let [d (/ 1.0 period)
         decay (* d (dec period))]
     (-&gt; (mapv #(* % decay) v)
-        (util/update-each is #(+ % d)))))</pre></td></tr><tr><td class="docs"><h2>Orchestration</h2>
-</td><td class="codes"></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn update-inhibition-radius
-  [cf]
-  (assoc cf :inh-radius (inh/inhibition-radius (:ff-sg cf) (:topology cf)
-                                               (:input-topology cf))))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defrecord ColumnField
-    [spec ff-sg topology input-topology overlaps sig-overlaps prox-exc
-     inh-radius boosts active-duty-cycles overlap-duty-cycles]
-  p/PColumnField
-  (columns-step
-    [this ff-bits signal-ff-bits]
-    (let [om (syn/excitations ff-sg ff-bits)
-          exc (apply-overlap-boosting om boosts spec)
-          sig-om (syn/excitations ff-sg signal-ff-bits)]
-      (cond-&gt;
-       (assoc this
-         :timestep (inc (:timestep this 0))
-         :prox-exc exc
-         :overlaps om
-         :sig-overlaps sig-om))))
-  (columns-learn
-    [this ff-bits a-cols]
-    (let [dcp (:duty-cycle-period spec)
-          t (:timestep this)
-          boost? (zero? (mod t dcp))]
-      (cond-&gt; (learn this a-cols ff-bits overlaps)
-              true (update-in [:overlap-duty-cycles] update-duty-cycles
-                              (keys prox-exc) dcp)
-              true (update-in [:active-duty-cycles] update-duty-cycles
-                              a-cols dcp)
-              boost? (update-boosting)
-              boost? (update-inhibition-radius))))
-  (inhibition-radius [_]
-    inh-radius)
-  (column-excitation [_]
-    prox-exc)
-  (column-overlaps [_]
-    overlaps)
-  (column-signal-overlaps [_]
-    sig-overlaps)
-  p/PTemporal
-  (timestep [this]
-    (:timestep this 0))
-  p/PTopological
-  (topology [this]
-    (:topology this))
-  p/PParameterised
-  (params [_]
-    spec))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn column-field
-  [spec]
-  (let [spec (merge columns-parameter-defaults spec)
-        input-dim (:input-dimensions spec)
-        col-dim (:column-dimensions spec)
-        input-topo (topology/make-topology input-dim)
-        col-topo (topology/make-topology col-dim)
-        n-inbits (p/size input-topo)
-        n-cols (p/size col-topo)
-        all-syns (uniform-ff-synapses col-topo input-topo spec)]
-    (-&gt;
-     (map-&gt;ColumnField
-      {:spec spec
-       :ff-sg (syn/synapse-graph all-syns n-inbits
-                                 (:ff-perm-connected spec)
-                                 (:ff-max-synapse-count spec)
-                                 (:ff-grow-and-die? spec))
-       :topology col-topo
-       :input-topology input-topo
-       :inh-radius 1
-       :prox-exc {}
-       :overlaps {}
-       :sig-overlaps {}
-       :boosts (vec (repeat n-cols 1.0))
-       :active-duty-cycles (vec (repeat n-cols 0.0))
-       :overlap-duty-cycles (vec (repeat n-cols 0.0))
-       })
-     (update-inhibition-radius))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/columns.cljx</p>
+        (util/update-each is #(+ % d)))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/columns.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.core" name="org.nfrac.comportex.core"><h1 class="project-name">org.nfrac.comportex.core</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>A <em>region</em> is the main composable unit in this library. It
    represents a bank of neurons arranged in columns, responding to an
    array of feed-forward input bits, as well as distal connections to
@@ -3719,11 +3848,11 @@ y[t] = (period-1) * y[t-1]  +  1
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.core
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topology :as topology]
-            [org.nfrac.comportex.columns :as columns]
             [org.nfrac.comportex.cells :as cells]
+            [org.nfrac.comportex.util :as util]
+            [org.nfrac.comportex.algo-graph :as graph]
             [cljs-uuid.core :as uuid]
-            [clojure.set :as set]
-            [clojure.zip :as zip]))</pre></td></tr><tr><td class="docs">
+            [clojure.set :as set]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn cell-id-&gt;inbit
   [offset depth [col ci]]
   (+ offset (* depth col) ci))</pre></td></tr><tr><td class="docs">
@@ -3733,35 +3862,26 @@ y[t] = (period-1) * y[t-1]  +  1
    (rem i depth)])</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(declare sensory-region)</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defrecord SensoryRegion
-    [column-field layer-3 uuid step-counter]
+    [layer-3 uuid step-counter]
   p/PRegion
   (region-activate
     [this ff-bits signal-ff-bits]
-    (let [step-cf (p/columns-step column-field ff-bits signal-ff-bits)
-          lyr (p/layer-activate layer-3
-                                (p/column-excitation step-cf)
-                                (p/column-signal-overlaps step-cf)
-                                (p/inhibition-radius step-cf))]
-      (assoc this
-        :step-counter (inc step-counter)
-        :column-field step-cf
-        :layer-3 lyr)))
+    (assoc this
+      :step-counter (inc step-counter)
+      :layer-3 (p/layer-activate layer-3 ff-bits signal-ff-bits)))
   (region-learn
     [this ff-bits]
     (if (:freeze? (p/params this))
       this
-      (let [cf (p/columns-learn column-field ff-bits (p/active-columns layer-3))
-            lyr (p/layer-learn layer-3)]
-        (assoc this
-          :column-field cf
-          :layer-3 lyr))))
+      (assoc this
+        :layer-3 (p/layer-learn layer-3 ff-bits))))
   (region-depolarise
-    [this distal-bits]
+    [this distal-ff-bits distal-fb-bits]
     (assoc this
-      :layer-3 (p/layer-depolarise layer-3 distal-bits)))
+      :layer-3 (p/layer-depolarise layer-3 distal-ff-bits distal-fb-bits)))
   p/PTopological
   (topology [_]
-    (p/topology column-field))
+    (p/topology layer-3))
   p/PFeedForward
   (ff-topology [this]
     (topology/make-topology (conj (p/dims-of this)
@@ -3793,20 +3913,21 @@ y[t] = (period-1) * y[t-1]  +  1
     step-counter)
   p/PParameterised
   (params [_]
-    (merge (p/params column-field)
-           (p/params layer-3)))
+    (p/params layer-3))
   p/PResettable
   (reset [this]
     (-&gt; (sensory-region (p/params this))
         (assoc :uuid uuid))))</pre></td></tr><tr><td class="docs"><p>Constructs a cortical region with the given specification map. See
-   documentation on parameter defaults in the <code>columns</code> and <code>cells</code>
-   namespaces for possible keys. Any keys given here will override
-   those default values.</p>
+   documentation on <code>cells/parameter-defaults</code> for possible keys. Any
+   keys given here will override those default values.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn sensory-region
   [spec]
+  (let [unk (set/difference (set (keys spec))
+                            (set (keys cells/parameter-defaults)))]
+    (when (seq unk)
+      (println &quot;Warning: unknown keys in spec:&quot; unk)))
   (map-&gt;SensoryRegion
-   {:column-field (columns/column-field spec)
-    :layer-3 (cells/layer-of-cells spec)
+   {:layer-3 (cells/layer-of-cells spec)
     :uuid (uuid/make-random)
     :step-counter 0}))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn cells-&gt;cols
@@ -3814,23 +3935,8 @@ y[t] = (period-1) * y[t-1]  +  1
   (into #{} (mapv first cells)))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(declare sensory-motor-region)</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defrecord SensoryMotorRegion
-    [column-field layer-4 layer-3 uuid step-counter]
-  ;; TODO)</pre></td></tr><tr><td class="docs"><p>Constructs a cortical region with the given specification map. See
-   documentation on parameter defaults in the <code>columns</code> and <code>cells</code>
-   namespaces for possible keys. Any keys given here will override
-   those default values.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn sensory-motor-region
-  [spec]
-  (map-&gt;SensoryMotorRegion
-   {:column-field (columns/column-field spec)
-    :layer-4 (cells/layer-of-cells (assoc spec
-                                     :motor-distal-size :TODO
-                                     :lateral-synapses? false))
-    :layer-3 (cells/layer-of-cells (assoc spec
-                                     :motor-distal-size 0
-                                     :lateral-synapses? true))
-    :uuid (uuid/make-random)
-    :step-counter 0}))</pre></td></tr><tr><td class="docs">
+    [layer-4 layer-3 uuid step-counter]
+  ;; TODO)</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defrecord SensoryInput
     [init-value value transform encoder]
   p/PTopological
@@ -3898,7 +4004,10 @@ y[t] = (period-1) * y[t-1]  +  1
   (reset [this]
     (assoc this :value init-value)))</pre></td></tr><tr><td class="docs"><p>Creates an input stream from an initial value, a function to
    transform the input to the next time step, and two encoders
-   operating on the same value.</p>
+   operating on the same value. Remember that HTM models go through
+   the three phases [activate -> learn -> depolarise] on each
+   timestep: therefore motor signals, which act to depolarise cells,
+   should appear the time step before a corresponding sensory signal.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn sensory-motor-input
   [init-value transform encoder motor-encoder]
   (-&gt;SensoryMotorInput init-value init-value transform encoder motor-encoder))</pre></td></tr><tr><td class="docs"><p>Returns the total bit set from a collection of sources satisfying
@@ -3917,113 +4026,172 @@ y[t] = (period-1) * y[t-1]  +  1
         widths (map (comp p/size topo-fn) ffs)
         offs (list* 0 (reductions + widths))]
     (-&gt;&gt; (map bits-fn ffs offs)
-         (apply set/union))))</pre></td></tr><tr><td class="docs"><h2>Region trees</h2>
+         (apply set/union))))</pre></td></tr><tr><td class="docs"><h2>Region Networks</h2>
 </td><td class="codes"></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def is-input? #(satisfies? p/PSensoryInput %))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn- -&gt;ffs
-  [subs]
-  (map (fn [x] (if (is-input? x) x (:region x))) subs))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn region-tree-zipper
-  [tree]
-  (zip/zipper :subs :subs (fn [x cs] (assoc x :subs cs)) tree))</pre></td></tr><tr><td class="docs"><p>A sequence of the sub region trees in a region tree (including
-  itself). The order is the same as <code>region-seq</code>.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn region-tree-seq
-  [tree]
-  (-&gt;&gt; (tree-seq :subs :subs tree)
-       (filter :region)
-       (reverse) ;; put in bottom to top order, for first path down tree
-       (vec)))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defrecord RegionTree
-    [region subs]
+</td><td class="codes"><pre class="brush: clojure">(defn topo-union
+  [topos]
+  (apply topology/combined-dimensions
+         (map p/dimensions topos)))</pre></td></tr><tr><td class="docs"><p>TODO - better way to do this</p>
+</td><td class="codes"><pre class="brush: clojure">(defn fb-dim-from-spec
+  [spec]
+  (let [spec (merge cells/parameter-defaults spec)]
+    (topology/make-topology (conj (:column-dimensions spec)
+                                  (:depth spec)))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defrecord RegionNetwork
+    [ff-deps-map fb-deps-map strata inputs-map regions-map uuid-&gt;id]
   p/PHTM
   (htm-activate
     [this]
-    (let [new-subs (map (fn [x]
-                          (if (is-input? x)
-                            (p/input-step x)
-                            (p/htm-activate x)))
-                        subs)
-          new-rgn (p/region-activate region
-                                     (combined-bits-value (-&gt;ffs new-subs) :standard)
-                                     (combined-bits-value (-&gt;ffs new-subs) :signal))]
-      (assoc this :region new-rgn :subs new-subs)))
+    (let [im (zipmap (keys inputs-map)
+                     (pmap p/input-step (vals inputs-map)))
+          rm (-&gt; (reduce
+                  (fn [m stratum]
+                    (-&gt;&gt; stratum
+                         (pmap (fn [id]
+                                 (let [region (regions-map id)
+                                       ff-ids (ff-deps-map id)
+                                       ffs (map m ff-ids)]
+                                   (p/region-activate
+                                    region
+                                    (combined-bits-value ffs :standard)
+                                    (combined-bits-value ffs :signal)))))
+                         (zipmap stratum)
+                         (into m)))
+                  im
+                  ;; drop 1st stratum i.e. drop the inputs
+                  (rest strata))
+                 ;; get rid of the inputs which were seeded into the reduce
+                 (select-keys (keys regions-map)))]
+      (assoc this :inputs-map im :regions-map rm)))
   (htm-learn
     [this]
-    (let [new-subs (map (fn [x] (if (is-input? x) x (p/htm-learn x)))
-                        subs)
-          new-rgn (p/region-learn region
-                                  (combined-bits-value (-&gt;ffs new-subs) :standard))]
-      (assoc this :region new-rgn :subs new-subs)))
+    (let [rm (-&gt;&gt; regions-map
+                  (pmap (fn [[id region]]
+                          (let [ff-ids (ff-deps-map id)
+                                ffs (map #(or (inputs-map %) (regions-map %))
+                                         ff-ids)]
+                            (p/region-learn
+                             region
+                             (combined-bits-value ffs :standard)))))
+                  (zipmap (keys regions-map)))]
+      (assoc this :regions-map rm)))
   (htm-depolarise
     [this]
-    (let [new-subs (map (fn [x] (if (is-input? x) x (p/htm-depolarise x)))
-                        subs)
-          new-rgn (p/region-depolarise region
-                                       (combined-bits-value (-&gt;ffs new-subs) :motor))]
-      (assoc this :region new-rgn :subs new-subs)))
-  (region-seq [this]
-    (map :region (region-tree-seq this)))
-  (input-seq [this]
-    (-&gt;&gt; (tree-seq :subs :subs this)
-         (remove :region)))
+    (let [rm (-&gt;&gt; regions-map
+                  (pmap (fn [[id region]]
+                          (let [ff-ids (ff-deps-map id)
+                                fb-ids (fb-deps-map id)
+                                ffs (map #(or (inputs-map %) (regions-map %))
+                                         ff-ids)
+                                fbs (map regions-map fb-ids)]
+                            (p/region-depolarise
+                             region
+                             (combined-bits-value ffs :motor)
+                             (combined-bits-value fbs :standard)))))
+                  (zipmap (keys regions-map)))]
+      (assoc this :regions-map rm)))
+  (region-seq [_]
+    ;; topological sort. drop 1st stratum i.e. drop the inputs
+    (map regions-map (apply concat (rest strata))))
+  (input-seq [_]
+    (vals inputs-map))
   (update-by-uuid
     [this region-uuid f]
-    (loop [loc (region-tree-zipper this)]
-      (if-let [rgn (:region (zip/node loc))]
-        (if (= region-uuid (:uuid rgn))
-          (-&gt; (zip/edit loc #(update-in % [:region] f))
-              (zip/root))
-          (if (zip/end? loc)
-            ::no-matching-UUID!
-            (recur (zip/next loc)))))))
-  p/PBitsAggregated
-  (source-of-incoming-bit
-    [this i]
-    (loop [sub-i 0
-           offset 0]
-      (when (&lt; sub-i (count subs))
-        (let [sub (nth subs sub-i)
-              w (p/size-of sub)]
-          (if (&lt;= offset i (+ offset w -1))
-            [sub-i (p/source-of-bit sub (- i offset))]
-            (recur (inc sub-i) (+ offset (long w))))))))
+    (update-in this [:regions-map (or (uuid-&gt;id region-uuid) region-uuid)]
+               f))
   p/PTemporal
   (timestep [_]
-    (p/timestep region))
+    (p/timestep (first (vals regions-map))))
   p/PResettable
   (reset [this]
     (assoc this
-      :region (p/reset region)
-      :subs (map p/reset subs))))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn region-tree
-  [rgn subs]
-  (-&gt;RegionTree rgn subs))</pre></td></tr><tr><td class="docs"><p>A helper function to build a hierarchical network. The <code>subs</code>
-   should be a sequence of subtrees or sensory inputs (things
-   satisfying PFeedForward and PTopological). The combined dimensions
-   of these is calculated and used to set the <code>:input-dimensions</code>
-   parameter in <code>spec</code>. The updated spec is passed to <code>build-region</code>.
-   Returns a RegionTree.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn tree
-  [build-region spec subs]
-  (let [ffs (-&gt;ffs subs)
-        dims (apply topology/combined-dimensions
-                    (map (comp p/dimensions p/ff-topology) ffs))
-        mdims (apply topology/combined-dimensions
-                     (map (comp p/dimensions p/ff-motor-topology) ffs))]
-    (-&gt; (assoc spec :input-dimensions dims
-               :extra-distal-size (apply * mdims))
-        (build-region)
-        (region-tree subs))))</pre></td></tr><tr><td class="docs">
+      :regions-map (-&gt;&gt; (vals regions-map)
+                        (pmap p/reset)
+                        (zipmap (keys regions-map)))
+      :inputs-map (util/remap p/reset inputs-map))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn- in-vals-not-keys
+  [deps-map]
+  (let [have-deps (set (keys deps-map))
+        are-deps (set (apply concat (vals deps-map)))]
+    (set/difference are-deps have-deps)))</pre></td></tr><tr><td class="docs"><p>Builds a network of regions and inputs from the given dependency map.</p>
+
+<p>   For each node, the combined dimensions of its feed-forward sources
+   is calculated and used to set the <code>:input-dimensions</code> parameter in
+   its <code>spec</code>. Also, the combined dimensions of feed-forward motor
+   inputs are used to set the <code>:distal-motor-dimensions</code> parameter,
+   and the combined dimensions of its feed-back superior regions is
+   used to set the <code>:distal-topdown-dimensions</code> parameter. The updated
+   spec is passed to <code>build-region</code>, which is typically
+   <code>sensory-region</code>. Returns a RegionNetwork.</p>
+
+<p>   For example to build the network <code>inp -&gt; v1 -&gt; v2</code>:</p>
+
+<p>   `
+   (region-network {:v1 [:inp]
+                    :v2 [:v1]}
+                   {:inp (sensory-input nil input-transform encoder)}
+                   sensory-region
+                   {:v1 spec
+                    :v2 spec})`</p>
+</td><td class="codes"><pre class="brush: clojure">(defn region-network
+  [ff-deps-map inputs-map build-region region-specs-map]
+  {:pre [;; anything with a dependency must be a region
+         (every? ff-deps-map (keys region-specs-map))
+         ;; anything without a dependency must be an input
+         (every? (in-vals-not-keys ff-deps-map) (keys inputs-map))
+         ;; all ids in dependency map must be defined
+         (every? region-specs-map (keys ff-deps-map))
+         (every? inputs-map (in-vals-not-keys ff-deps-map))]}
+  (let [all-ids (into (set (keys ff-deps-map))
+                      (in-vals-not-keys ff-deps-map))
+        ff-dag (graph/directed-graph all-ids ff-deps-map)
+        strata (graph/dependency-list ff-dag)
+        fb-deps-map (-&gt;&gt; (graph/reverse-graph ff-dag)
+                         :neighbors
+                         (util/remap seq))
+        rm (-&gt; (reduce (fn [m id]
+                         (let [spec (region-specs-map id)
+                               ;; feed-forward
+                               ff-ids (ff-deps-map id)
+                               ffs (map m ff-ids)
+                               ff-dim (topo-union (map p/ff-topology ffs))
+                               ffm-dim (topo-union  (map p/ff-motor-topology ffs))
+                               ;; top-down feedback (if any)
+                               fb-ids (fb-deps-map id)
+                               fb-specs (map region-specs-map fb-ids)
+                               fb-dim (topo-union (map fb-dim-from-spec fb-specs))]
+                           (-&gt;&gt; (assoc spec :input-dimensions ff-dim
+                                       :distal-motor-dimensions ffm-dim
+                                       :distal-topdown-dimensions fb-dim)
+                                (build-region)
+                                (assoc m id))))
+                       inputs-map
+                       ;; topological sort. drop 1st stratum i.e. drop the inputs
+                       (apply concat (rest strata)))
+               ;; get rid of the inputs which were seeded into the reduce
+               (select-keys (keys region-specs-map)))]
+    (map-&gt;RegionNetwork
+     {:ff-deps-map ff-deps-map
+      :fb-deps-map fb-deps-map
+      :strata strata
+      :inputs-map inputs-map
+      :regions-map rm
+      :uuid-&gt;id (zipmap (map :uuid (vals rm)) (keys rm))})))</pre></td></tr><tr><td class="docs"><p>Constructs an HTM network consisting of one input and n regions in
+   a linear series. See <code>region-network</code>.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn regions-in-series
   [build-region input n spec]
-  (-&gt;&gt; input
-       (iterate (fn [sub-model]
-                  (tree build-region spec
-                        [sub-model])))
-       (take (inc n))
-       (last)))</pre></td></tr><tr><td class="docs"><h2>Stats</h2>
-</td><td class="codes"></td></tr><tr><td class="docs"><p>Returns a map with the frequencies of columns in states <code>:active</code>,
-  <code>:predicted</code>, <code>:active-predicted</code>.</p>
+  (let [rgn-keys (map #(keyword (str &quot;r&quot; %)) (range n))
+        ;; make {:r0 [:input], :r1 [:r0], :r2 [:r1], ...}
+        deps (zipmap rgn-keys (map vector (list* :input rgn-keys)))]
+    (region-network deps
+                    {:input input}
+                    build-region
+                    (zipmap rgn-keys (repeat spec)))))</pre></td></tr><tr><td class="docs"><h2>Stats</h2>
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Returns a map with the frequencies of columns in states
+  <code>:active</code> (bursting), <code>:predicted</code>, <code>:active-predicted</code>. Note that
+  these are distinct categories. The names are possibly misleading.
+  Argument <code>layer-fn</code> is called on the region to obtain a layer of
+  cells; if omitted it defaults to <code>:layer-3</code>.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn column-state-freqs
   ([rgn]
      (column-state-freqs rgn :layer-3))
@@ -4044,17 +4212,19 @@ y[t] = (period-1) * y[t-1]  +  1
    it from columns in the predictive state. <code>p-cols</code> is the column ids
    of columns containing predictive cells.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn predicted-bit-votes
-  [rgn p-cols]
-  (let [cf (:column-field rgn)
-        sg (:ff-sg cf)]
-    (-&gt;&gt; p-cols
-         (reduce (fn [m col]
-                   (let [ids (p/sources-connected-to sg col)]
-                     (reduce (fn [m id]
-                               (assoc! m id (inc (get m id 0))))
-                             m ids)))
-                 (transient {}))
-         (persistent!))))</pre></td></tr><tr><td class="docs">
+  ([rgn p-cols]
+     (predicted-bit-votes rgn p-cols :layer-3))
+  ([rgn p-cols layer-fn]
+     (let [lyr (layer-fn rgn)
+           sg (:proximal-sg lyr)]
+       (-&gt;&gt; p-cols
+            (reduce (fn [m col]
+                      (let [ids (p/sources-connected-to sg col)]
+                        (reduce (fn [m id]
+                                  (assoc! m id (inc (get m id 0))))
+                                m ids)))
+                    (transient {}))
+            (persistent!)))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn predictions
   [model n-predictions]
   (let [rgn (first (p/region-seq model))
@@ -4067,63 +4237,111 @@ y[t] = (period-1) * y[t-1]  +  1
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.cortical-io
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topology :as topology]
+            [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.string :as str]
-            [clj-http.client :as http]))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def base-uri &quot;http://api.cortical.io/rest&quot;)</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def retina-size [128 128])</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def query-params {:retina_name &quot;en_associative&quot;})</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn get-fingerprint
+                   [clj-http.client :as http]))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def base-uri &quot;http://api.cortical.io/rest&quot;)
+(def query-params {:retina_name &quot;en_associative&quot;})
+(def retina-dim [128 128])
+(def retina-size (apply * retina-dim))
+(def max-bits 512)
+(def min-votes 2)</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn request-fingerprint
   [api-key term]
   (http/post (str base-uri &quot;/expressions&quot;)
              {:query-params query-params
-              :content-type :json
+              :content-type &quot;application/json&quot;
               :as :json
-              :form-params {:term term}
+                    :form-params
+                                  {:term term}
               :with-credentials? false
               :throw-exceptions false
               :headers {&quot;api-key&quot; api-key}}))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn get-similar-terms
+</td><td class="codes"><pre class="brush: clojure">(defn request-similar-terms
   [api-key bits max-n]
   (http/post (str base-uri &quot;/expressions/similar_terms&quot;)
              {:query-params (assoc query-params
                               :get_fingerprint true
                               :max_results max-n)
-              :content-type :json
+              :content-type &quot;application/json&quot;
               :as :json
-              :form-params {:positions bits}
+                    :form-params
+                                  {:positions (sort bits)}
               :with-credentials? false
               :throw-exceptions false
               :headers {&quot;api-key&quot; api-key}}))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn random-sdr
+  []
+  (set (repeatedly (* retina-size 0.02)
+                   #(util/rand-int (dec retina-size)))))</pre></td></tr><tr><td class="docs"><p>Maps a retina fingerprint index to another index which is spatially
+   scrambled. Meaning that direct neighbours in the retina are now
+   offset from each other by around 17 units. This is a complete
+   mapping, i.e. the following holds:</p>
+
+<p>   `
+   (= (set (map scramble-bit (range retina-size)))
+      (set (range retina-size)))`.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn scramble-bit
+  [i]
+  (mod (* i 17) retina-size))</pre></td></tr><tr><td class="docs"><p>don't ask me how i got this to work</p>
+</td><td class="codes"><pre class="brush: clojure">(defn unscramble-bit
+  [j]
+  (-&gt; (rem j 17)
+      (* 13) ;; == (rem retina-size 17)
+      (mod 17)
+      (* retina-size)
+      (+ j)
+      (quot 17)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn scramble-bitset
+  [bits]
+  (into #{} (map scramble-bit bits)))</pre></td></tr><tr><td class="docs"><p>assoc, but not if the key already has a (truthy) value.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn ?assoc
+  [m k v]
+  (if (m k) m (assoc m k v)))</pre></td></tr><tr><td class="docs"><p>Makes a request to cortical.io to look up the fingerprint for the
+   term, and stores it in the given cache atom. In Clojure this is a
+   synchonous call and returns the fingerprint bit-set. In
+   Clojurescript this is an asynchronous call and returns a channel.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn cache-fingerprint!
+  [api-key cache term]
+  (let [term (str/lower-case term)
+        handle (fn [result]
+                 (if (http/unexceptional-status? (:status result))
+                   (set (get-in result [:body :positions]))
+                   (do (println &quot;cortical.io lookup of term failed:&quot; term)
+                       (println result)
+                       (random-sdr))))]
+           ;; clj - synchronous
+    (let [result (request-fingerprint api-key term)]
+      (swap! cache ?assoc term (handle result)))))</pre></td></tr><tr><td class="docs"><p>Looks up a fingerprint for the term, being a set of active indices,
+   in the cache. If it is not found (which should not happen, it
+   should be preloaded from the web service), the term is assigned a
+   new random SDR.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn get-fingerprint
+  [cache term]
+  (let [term (str/lower-case term)]
+    (or (get @cache term)
+        (get (swap! cache ?assoc term
+                    (do (println &quot;no fingerprint in cache for term:&quot; term)
+                        (random-sdr)))
+             term))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn elect-bits
+  [bit-votes min-votes max-bits]
+  (loop [min-votes min-votes]
+    (let [bits (keep (fn [[i n]]
+                       (when (&gt;= n min-votes) i))
+                     bit-votes)]
+      (if (&gt; (count bits) max-bits)
+        (recur (inc min-votes))
+        bits))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn apply-offset
   [xs offset]
   (-&gt;&gt; xs
        (map #(+ % offset))
        (into (empty xs))))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn random-sdr
-  []
-  (let [size (apply * retina-size)]
-   (set (repeatedly (* size 0.02)
-                    #(util/rand-int 0 (dec size))))))</pre></td></tr><tr><td class="docs"><p>Returns a fingerprint for the term, being a set of active indices.
-   If the term is not found in the cache, makes a synchronous call to
-   cortical.io REST API and stores the result in the cache (an atom).
-   If the request to cortical.io fails, the term is assigned a new
-   random SDR.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn look-up-fingerprint
-  [api-key cache term]
-  (let [term (str/lower-case term)]
-    (or (get @cache term)
-        (get (swap! cache assoc term
-                    (let [result (get-fingerprint api-key term)]
-                      (if (http/success? result)
-                        (set (get-in result [:body :positions]))
-                        (do (println &quot;cortical.io lookup of term failed:&quot; term)
-                            (println result)
-                            (random-sdr)))))
-             term))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn cortical-io-encoder
-  [api-key cache min-votes]
-  (let [topo (topology/make-topology retina-size)]
+  [api-key cache &amp; {:keys [decode-locally? spatial-scramble?]}]
+  (let [topo (topology/make-topology retina-dim)]
     (reify
       p/PTopological
       (topology [_]
@@ -4133,36 +4351,38 @@ y[t] = (period-1) * y[t-1]  +  1
         [_ offset term]
         (if (seq term)
           (cond-&gt;
-           (look-up-fingerprint api-key cache term)
+           (get-fingerprint cache term)
+           spatial-scramble? (scramble-bitset)
            (not (zero? offset)) (apply-offset offset))
           #{}))
       (decode
-        [_ bit-votes n]
-        (let [bits (keep (fn [[i votes]]
-                           (when (&gt;= votes min-votes) i))
-                         bit-votes)]
-          (if (empty? bits)
-            []
-            (let [total-votes (apply + (vals bit-votes))
-                  result (get-similar-terms api-key bits n)]
-              (if (http/success? result)
-                (-&gt;&gt; (:body result)
-                     (map (fn [item]
-                            (let [x-bits (set (get item :positions))
-                                  o-votes (select-keys bit-votes x-bits)
-                                  total-o-votes (apply + (vals o-votes))
-                                  o-bits (keys o-votes)]
-                              {:value (get item :term)
-                               :bit-coverage (/ (count o-bits)
-                                                (max 1 (count x-bits)))
-                               :bit-precision (/ (count o-bits)
-                                                 (max 1 (count bit-votes)))
-                               :votes-frac (/ total-o-votes
-                                              (max 1 total-votes))
-                               :votes-per-bit (/ total-o-votes
-                                                 (max 1 (count x-bits)))})))
-                     (take n))
-                (println result)))))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/cortical_io.cljx</p>
+        [this bit-votes n]
+        (if decode-locally?
+          (-&gt;&gt; (enc/decode-by-brute-force this (keys @cache) bit-votes)
+               (take n))
+          ;; otherwise - remote request for similar terms
+          (let [bit-votes (if spatial-scramble?
+                            (zipmap (map unscramble-bit (keys bit-votes))
+                                    (vals bit-votes))
+                            bit-votes)
+                bits (elect-bits bit-votes min-votes max-bits)]
+            (if (empty? bits)
+              []
+              (let [total-votes (apply + (vals bit-votes))
+                    handle
+                    (fn [result]
+                      (if (http/unexceptional-status? (:status result))
+                        (-&gt;&gt; (:body result)
+                             (map (fn [item]
+                                    (let [x-bits (set (get item [:fingerprint
+                                                                 :positions]))]
+                                      (-&gt; (enc/prediction-stats x-bits bit-votes
+                                                                total-votes)
+                                          (assoc :value (get item :term))))))
+                             (take n))
+                        (println result)))]
+                      ;; clj - synchronous
+                (handle (request-similar-terms api-key bits n))))))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/cortical_io.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.encoders" name="org.nfrac.comportex.encoders"><h1 class="project-name">org.nfrac.comportex.encoders</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>Methods of encoding data as distributed bit sets, for feeding as
    input to a cortical region.</p>
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.encoders
@@ -4170,25 +4390,29 @@ y[t] = (period-1) * y[t-1]  +  1
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util]
             [clojure.set :as set]))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn prediction-stats
+  [x-bits bit-votes total-votes]
+  ;; calculate overlaps of prediction `x` bits with all votes
+  (let [o-votes (select-keys bit-votes x-bits)
+        total-o-votes (apply + (vals o-votes))
+        o-bits (keys o-votes)]
+    {:bit-coverage (/ (count o-bits)
+                      (max 1 (count x-bits)))
+     :bit-precision (/ (count o-bits)
+                       (max 1 (count bit-votes)))
+     :votes-frac (/ total-o-votes
+                    (max 1 total-votes))
+     :votes-per-bit (/ total-o-votes
+                       (max 1 (count x-bits)))}))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn decode-by-brute-force
   [e try-values bit-votes]
   (let [total-votes (apply + (vals bit-votes))]
     (when (pos? total-votes)
       (-&gt;&gt; try-values
            (map (fn [x]
-                  (let [x-bits (p/encode e 0 x)
-                        o-votes (select-keys bit-votes x-bits)
-                        total-o-votes (apply + (vals o-votes))
-                        o-bits (keys o-votes)]
-                    {:value x
-                     :bit-coverage (/ (count o-bits)
-                                      (count x-bits))
-                     :bit-precision (/ (count o-bits)
-                                       (count bit-votes))
-                     :votes-frac (/ total-o-votes
-                                    total-votes)
-                     :votes-per-bit (/ total-o-votes
-                                       (count x-bits))})))
+                  (let [x-bits (p/encode e 0 x)]
+                    (-&gt; (prediction-stats x-bits bit-votes total-votes)
+                        (assoc :value x)))))
            (filter (comp pos? :votes-frac))
            (sort-by (juxt :votes-frac :bit-coverage :bit-precision) &gt;)))))</pre></td></tr><tr><td class="docs"><p>Returns an encoder wrapping another encoder <code>e</code>, where the function
    <code>f</code> is applied to input values prior to encoding by <code>e</code>.</p>
@@ -4404,7 +4628,7 @@ will be clamped to this range.</p></li>
            (range (p/size topo)))
       (mean)))</pre></td></tr><tr><td class="docs"><p>The radius in column space defining neighbouring columns, based on
    the average receptive field size. Specifically, neighbouring
-   columns are defined by sharing at least 30% of their receptive
+   columns are defined by sharing at least 50% of their receptive
    fields, on average.</p>
 
 <ul>
@@ -4414,7 +4638,7 @@ will be clamped to this range.</p></li>
 </ul>
 </td><td class="codes"><pre class="brush: clojure">(defn inhibition-radius
   [sg topo itopo]
-  (let [shared-frac 0.3
+  (let [shared-frac 0.5
         max-dim (apply max (p/dimensions topo))
         max-idim (apply max (p/dimensions itopo))
         arfs (avg-receptive-field-size sg topo itopo)
@@ -4425,19 +4649,19 @@ will be clamped to this range.</p></li>
     (-&gt; (* cols-radius (- 1.0 shared-frac))
         (round)
         (max 1))))</pre></td></tr><tr><td class="docs"><p>Returns the set of column ids which should become active given the
-   map of column overlap scores <code>om</code>, and the target activation rate
+   map of column excitations <code>exc</code>, and the target activation rate
    <code>level</code>. Global inhibition is applied, i.e. the top N columns by
-   overlap score are selected.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn ac-inhibit-globally
-  [om level n-cols]
+   excitation are selected.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn inhibit-globally
+  [exc level n-cols]
   (let [n-on (max 1 (round (* level n-cols)))]
-    (util/top-n-keys-by-value n-on om)))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn dominant-overlap-diff
-  [dist base-dist speed]
-  (-&gt; dist
-      (- base-dist) ; within this radius, there can be only one
-      (max 0)
-      (/ speed))) ; for every `speed` columns away, need one extra overlap to dominate</pre></td></tr><tr><td class="docs">
+    (util/top-n-keys-by-value n-on exc)))</pre></td></tr><tr><td class="docs"><p>Whether a cell with excitation <code>x</code> inhibits a neighbour cell with
+   excitation <code>nb-x</code> at a distance <code>dist</code> columns away.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn inhibits?
+  [x nb-x dist max-dist base-dist]
+  (let [z (- 1.0 (/ (max 0 (- dist base-dist))
+                    (- max-dist base-dist)))]
+    (&lt;= nb-x (* x z))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn map-&gt;vec
   [n m]
   (mapv m (range n)))</pre></td></tr><tr><td class="docs">
@@ -4448,50 +4672,42 @@ will be clamped to this range.</p></li>
                 (if x
                   (assoc! m i x)
                   m))
-              (transient {}) v)))</pre></td></tr><tr><td class="docs"><p>Takes a map <code>exc</code> of column ids to excitation levels (number of
-   active synapses) and the column topology, applies local inhibition
-   to remove any columns dominated by their neighbours, returning a
-   submap of <code>exc</code>.</p>
+              (transient {}) v)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn- mask-out-inhibited-by-col
+  [emask col x topo inh-radius inh-base-dist]
+  (let [coord (p/coordinates-of-index topo col)]
+    (loop [nbs (p/neighbours topo coord inh-radius 0)
+           emask emask]
+      (if-let [nb-coord (first nbs)]
+        (let [nb-col (p/index-of-coordinates topo nb-coord)]
+          (if-let [nb-x (emask nb-col)]
+            (let [dist (p/coord-distance topo coord nb-coord)]
+              (if (inhibits? x nb-x dist inh-radius inh-base-dist)
+                (recur (next nbs)
+                       (assoc! emask nb-col nil))
+                (recur (next nbs) emask)))
+            ;; neighbour has no overlap or was eliminated
+            (recur (next nbs) emask)))
+        ;; finished with neighbours
+        emask))))</pre></td></tr><tr><td class="docs"><p>Returns the set of column ids which should become active given the
+   map of column excitations <code>exc</code> and the column topology. Applies
+   local inhibition to remove any columns dominated by their
+   neighbours.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn inhibit-locally
-  [exc topo radius inh-base-dist inh-speed]
-  (loop [cols (keys exc)
-         mask (transient (map-&gt;vec (p/size topo) exc))]
+  [exc topo inh-radius inh-base-dist]
+  (loop [cols (keys (sort-by val &gt; exc))
+         emask (transient (map-&gt;vec (p/size topo) exc))]
     (if-let [col (first cols)]
-      (if-let [o (mask col)]
+      (if-let [x (emask col)]
         (recur (next cols)
-         ;; loop through neighbours and mask out any dominated
-         (let [coord (p/coordinates-of-index topo col)]
-           (loop [nbs (p/neighbours topo coord radius 0)
-                  mask mask]
-             (if-let [nb-coord (first nbs)]
-               (let [nb-col (p/index-of-coordinates topo nb-coord)]
-                 (if-let [nb-o (mask nb-col)]
-                   (let [dist (p/coord-distance topo coord nb-coord)
-                         odom (dominant-overlap-diff dist inh-base-dist inh-speed)]
-                     (cond
-                      ;; neighbour is dominated
-                      (&gt;= o (+ nb-o odom))
-                      (recur (next nbs)
-                             (assoc! mask nb-col nil))
-                      ;; we are dominated by neighbour; abort
-                      (&lt;= o (- nb-o odom))
-                      (assoc! mask col nil)
-                      ;; neither dominates
-                      :else
-                      (recur (next nbs) mask)))
-                   ;; neighbour has no overlap or was eliminated
-                   (recur (next nbs) mask)))
-               ;; finished with neighbours
-               mask))))
+               (mask-out-inhibited-by-col emask col x topo inh-radius
+                                          inh-base-dist))
         ;; already eliminated, skip
-        (recur (next cols) mask))
+        (recur (next cols) emask))
       ;; finished
-      (vec-&gt;map (persistent! mask)))))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn perturb-overlaps
-  [om]
-  (remap #(+ % (util/rand 0 0.5)) om))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/inhibition.cljx</p>
+      (keys (vec-&gt;map (persistent! emask))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/inhibition.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.protocols" name="org.nfrac.comportex.protocols"><h1 class="project-name">org.nfrac.comportex.protocols</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.protocols)</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.protocols)</pre></td></tr><tr><td class="docs"><p>A network of regions and their inputs, forming Hierarchical Temporal Memory.</p>
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PHTM
   (htm-activate [this])
   (htm-learn [this])
@@ -4511,15 +4727,15 @@ will be clamped to this range.</p></li>
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PRegion
   (region-activate [this ff-bits signal-ff-bits])
   (region-learn [this ff-bits])
-  (region-depolarise [this distal-bits])) </pre></td></tr><tr><td class="docs">
+  (region-depolarise [this distal-ff-bits distal-fb-bits]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn region-step
   ([this ff-bits]
-     (region-step this ff-bits #{} #{}))
-  ([this ff-bits signal-ff-bits distal-bits]
+     (region-step this ff-bits #{} #{} #{}))
+  ([this ff-bits signal-ff-bits distal-ff-bits distal-fb-bits]
      (-&gt; this
          (region-activate ff-bits signal-ff-bits)
          (region-learn ff-bits)
-         (region-depolarise distal-bits))))</pre></td></tr><tr><td class="docs"><p>A feed-forward input source with a bit set representation. Could be
+         (region-depolarise distal-ff-bits distal-fb-bits))))</pre></td></tr><tr><td class="docs"><p>A feed-forward input source with a bit set representation. Could be
    sensory input or a region (where cells are bits).</p>
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PFeedForward
   (ff-topology [this])
@@ -4529,20 +4745,12 @@ will be clamped to this range.</p></li>
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PFeedForwardMotor
   (ff-motor-topology [this])
   (motor-bits-value [this offset]))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defprotocol PBitsAggregated
-  (source-of-incoming-bit [this i]))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defprotocol PColumnField
-  (columns-step [this ff-bits signal-ff-bits])
-  (columns-learn [this ff-bits a-cols])
-  (inhibition-radius [this])
-  (column-excitation [this])
-  (column-overlaps [this])
-  (column-signal-overlaps [this]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PLayerOfCells
-  (layer-activate [this prox-exc prox-sig-exc inh-radius])
-  (layer-learn [this])
-  (layer-depolarise [this distal-bits])
+  (layer-activate [this ff-bits signal-ff-bits])
+  (layer-learn [this ff-bits])
+  (layer-depolarise [this distal-ff-bits distal-fb-bits])
   (layer-depth [this])
+  (column-excitation [this])
   (bursting-columns [this])
   (active-columns [this])
   (active-cells [this])
@@ -4551,18 +4759,26 @@ will be clamped to this range.</p></li>
   (temporal-pooling-cells [this])
   (predictive-cells [this])
   (prior-predictive-cells [this])
-  (depolarisation [this]))</pre></td></tr><tr><td class="docs"><p>The synaptic connections from a set of sources (as integer ids) to
-   a set of targets (as integer ids). Synapses have an associated
-   permanence value between 0 and 1; above some permanence level they
-   are defined to be connected.</p>
+  (depolarisation [this]))</pre></td></tr><tr><td class="docs"><p>The synaptic connections from a set of sources to a set of targets.
+   Synapses have an associated permanence value between 0 and 1; above
+   some permanence level they are defined to be connected.</p>
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PSynapseGraph
   (in-synapses [this target-id]
-    &quot;Synapses connecting to the target. A map from source ids to permanences.&quot;)
-  (sources-connected-to [this target-id])
-  (targets-connected-from [this source-id])
-  (reinforce-in-synapses [this target-id skip? reinforce? pinc pdec])
-  (conj-synapses [this target-id syn-source-ids p])
-  (disj-synapses [this target-id syn-source-ids]))</pre></td></tr><tr><td class="docs">
+    &quot;All synapses to the target. A map from source ids to permanences.&quot;)
+  (sources-connected-to [this target-id]
+    &quot;The set of source ids actually connected to target id.&quot;)
+  (targets-connected-from [this source-id]
+    &quot;The set of target ids actually connected from source id.&quot;)
+  (reinforce-in-synapses [this target-id skip? reinforce? pinc pdec]
+    &quot;Updates the permanence of all synapses to `target-id`. Both
+    `skip?` and `reinforce?` are functions of the source id; if the
+    former returns true the synapse is unchanged; otherwise the latter
+    gives the direction of change.&quot;)
+  (conj-synapses [this target-id syn-source-ids p]
+    &quot;Conjoins new synapses into the graph, from a collection
+    `syn-source-ids` to `target-id`, with initial permanence `p`.&quot;)
+  (disj-synapses [this target-id syn-source-ids]
+    &quot;Disjoins the synapses from `syn-source-ids` to `target-id`.&quot;))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PSegments
   (cell-segments [this cell-id]
     &quot;A vector of segments on the cell, each being a synapse map.&quot;))</pre></td></tr><tr><td class="docs"><p>Encoders need to extend this together with PTopological.</p>
@@ -4640,39 +4856,55 @@ will be clamped to this range.</p></li>
     (targets-by-source source-id))
   (reinforce-in-synapses
     [this target-id skip? reinforce? pinc pdec]
-    (let [syns (p/in-synapses this target-id)
-          sg (util/group-by-maps
-              (fn [id2 p]
-                (if (skip? id2)
-                  :skip
-                  (if (reinforce? id2)
-                    (cond
-                     (== p 1.0) :skip
-                     (and (&lt; p pcon)
-                          (&gt;= p (- pcon pinc))) :promote
-                     :else :up)
-                    (cond
-                     (&lt;= p 0.0) (if cull-zeros? :cull :skip)
-                     (and (&gt;= p pcon)
-                          (&lt; p (+ pcon pdec))) :demote
-                     :else :down))))
-              syns)
-          new-syns (merge (:skip sg)
-                          (remap #(min (+ % pinc) 1.0) (:up sg))
-                          (remap #(min (+ % pinc) 1.0) (:promote sg))
-                          (remap #(max (- % pdec) 0.0) (:down sg))
-                          (remap #(- % pdec) (:demote sg)))]
-      (-&gt; this
-          (assoc-in [:syns-by-target target-id] new-syns)
-          (update-in [:targets-by-source]
-                     util/update-each (keys (:promote sg)) #(conj % target-id))
-          (update-in [:targets-by-source]
-                     util/update-each (keys (:demote sg)) #(disj % target-id)))))
+    (let [syns (p/in-synapses this target-id)]
+      (loop [syns (seq syns)
+             up ()
+             promote ()
+             down ()
+             demote ()
+             cull ()]
+        (if (seq syns)
+          ;; process one synapse
+          (let [[id p] (first syns)]
+            (if (skip? id)
+              (recur (next syns) up down promote demote cull)
+              (if (reinforce? id)
+                ;; positive reinforce
+                (recur (next syns)
+                       (if (&lt; p 1.0) (conj up id) up)
+                       (if (and (&lt; p pcon)
+                                (&gt;= p (- pcon pinc)))
+                         (conj promote id) promote)
+                       down
+                       demote
+                       cull)
+                ;; negative reinforce
+                (recur (next syns)
+                       up
+                       promote
+                       (if (&gt; p 0.0) (conj down id) down)
+                       (if (and (&gt;= p pcon)
+                                (&lt; p (+ pcon pdec)))
+                         (conj demote id) demote)
+                       (if (and (&lt;= p 0.0) cull-zeros?)
+                         (conj cull id) cull)))))
+          ;; finished loop
+          (-&gt; this
+              (update-in [:syns-by-target target-id]
+                         (fn [syns]
+                           (-&gt; (if (seq cull)
+                                 (apply dissoc syns cull)
+                                 syns)
+                               (util/update-each up #(min (+ % pinc) 1.0))
+                               (util/update-each down #(max (- % pdec) 0.0)))))
+              (update-in [:targets-by-source]
+                         util/update-each promote #(conj % target-id))
+              (update-in [:targets-by-source]
+                         util/update-each demote #(disj % target-id)))))))
   (conj-synapses
     [this target-id syn-source-ids p]
     (let [osyns (p/in-synapses this target-id)
-          nsyns (zipmap syn-source-ids (repeat p))
-          syns (merge osyns nsyns)]
+          syns (merge osyns (zipmap syn-source-ids (repeat p)))]
       (cond-&gt;
        (assoc-in this [:syns-by-target target-id] syns)
        ;; record connection if initially connected
@@ -4805,7 +5037,17 @@ will be clamped to this range.</p></li>
       :i-&gt;tgt i-&gt;tgt
       :src-&gt;i src-&gt;i
       :i-&gt;src i-&gt;src
-      })))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/synapses.cljx</p>
+      })))</pre></td></tr><tr><td class="docs"><p>Same as <code>cell-segments</code> but leaves the keys of each synapse map as
+   the internal integer ids, rather than translating them to cell path
+   vectors. Thus it is cheaper to call. e.g. to find number of
+   segments.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn cell-segments-raw
+  [this cell-id]
+  (let [this-raw (:raw-sg this)
+        tgt-&gt;i (:tgt-&gt;i this)
+        [col ci] cell-id]
+      (mapv #(p/in-synapses this-raw (tgt-&gt;i [col ci %]))
+            (range (:max-segs this)))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/synapses.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.topology" name="org.nfrac.comportex.topology"><h1 class="project-name">org.nfrac.comportex.topology</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.topology
   (:require [org.nfrac.comportex.protocols :as p]))</pre></td></tr><tr><td class="docs">
@@ -4925,6 +5167,8 @@ add another dimension to column topology. e.g. 2D columns [x y]
 becomes [x y z], where z = cell depth.</p>
 </td><td class="codes"></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn combined-dimensions
+  ([]
+     [0])
   ([dims]
      dims)
   ([dims1 dims2]
@@ -5015,17 +5259,51 @@ becomes [x y z], where z = cell depth.</p>
   ([lower upper]
      {:pre [(&lt; lower upper)]}
      (+ lower (* (rng/double RNG)
-                 (- upper lower)))))</pre></td></tr><tr><td class="docs">
+                 (- upper lower)))))</pre></td></tr><tr><td class="docs"><p>Uniform integer between lower (inclusive) and upper (exclusive).</p>
 </td><td class="codes"><pre class="brush: clojure">(defn rand-int
-  [lower upper]
-  (+ lower (rng/int RNG (- upper lower))))</pre></td></tr><tr><td class="docs">
+  ([upper]
+     (rng/int RNG upper))
+  ([lower upper]
+     (+ lower (rng/int RNG (- upper lower)))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn rand-nth
   [xs]
-  (nth xs (rand-int 0 (count xs))))</pre></td></tr><tr><td class="docs">
+  (nth xs (rand-int (count xs))))</pre></td></tr><tr><td class="docs"><p>http://en.wikipedia.org/wiki/Fisher–Yates<em>shuffle#The</em>modern_algorithm</p>
+
+<p>copied from
+https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53104d84ca/src/main/clojure/clojure/data/generators.clj</p>
+</td><td class="codes"><pre class="brush: clojure">(defn ^:private fisher-yates
+  [coll]
+  (let [as (object-array coll)]
+    (loop [i (dec (count as))]
+      (if (&lt;= 1 i)
+        (let [j (rand-int (inc i))
+              t (aget as i)]
+          (aset as i (aget as j))
+          (aset as j t)
+          (recur (dec i)))
+        (into (empty coll) (seq as))))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn shuffle
-  [xs]
-  (let [xrs (map list (repeatedly #(rng/double RNG)) xs)]
-    (map second (sort-by first xrs))))</pre></td></tr><tr><td class="docs">
+  [coll]
+  (fisher-yates coll))</pre></td></tr><tr><td class="docs"><p>Reservoir sample ct items from coll.</p>
+
+<p>copied from
+https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53104d84ca/src/main/clojure/clojure/data/generators.clj</p>
+</td><td class="codes"><pre class="brush: clojure">(defn reservoir-sample
+  [ct coll]
+  (loop [result (transient (vec (take ct coll)))
+         n ct
+         coll (drop ct coll)]
+    (if (seq coll)
+      (let [pos (rand-int n)]
+        (recur (if (&lt; pos ct)
+                 (assoc! result pos (first coll))
+                 result)
+               (inc n)
+               (rest coll)))
+      (persistent! result))))</pre></td></tr><tr><td class="docs"><p>Sample ct items with replacement (i.e. possibly with duplicates) from coll.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn sample
+  [ct coll]
+  (repeatedly ct #(rand-nth coll)))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn quantile
   [xs p]
   (nth (sort xs) (long (* p (dec (count xs))))))</pre></td></tr><tr><td class="docs"><p>Returns a function transforming uniform randoms in [0 1] to variates on a
@@ -5070,29 +5348,11 @@ becomes [x y z], where z = cell depth.</p>
                     (assoc! m g (persistent! items)))
                   (transient {}))
           ;; make the outer map persistent
-          (persistent!))))</pre></td></tr><tr><td class="docs"><p>Like the built-in group-by, but building sets instead of vectors
-   for the groups, and tuned for performance with many values per key.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn group-by-sets
-  [f coll]
-  (-&gt;&gt; coll
-       ;; create a transient map of transient sets
-       (reduce (fn [m x]
-                 (let [g (f x)
-                       items (get m g (transient #{}))]
-                   (assoc! m g (conj! items x))))
-               (transient {}))
-       ;; make the outer map persistent (can't seq it)
-       (persistent!)
-       ;; make the inner maps persistent within a transient outer map
-       (reduce (fn [m [g items]]
-                 (assoc! m g (persistent! items)))
-               (transient {}))
-       ;; make the outer map persistent
-       (persistent!)))</pre></td></tr><tr><td class="docs"><p>Transforms a map or vector <code>m</code> applying function <code>f</code> to the values
+          (persistent!))))</pre></td></tr><tr><td class="docs"><p>Transforms a map or vector <code>m</code> applying function <code>f</code> to the values
    under keys <code>ks</code>.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn update-each
   [m ks f]
-  (if-not (seq ks)
+  (if (empty? ks)
     m
     (-&gt;&gt; ks
          (reduce (fn [m k]
@@ -5106,35 +5366,37 @@ becomes [x y z], where z = cell depth.</p>
        (into (or (empty m) {}))))</pre></td></tr><tr><td class="docs"><p>Like <code>(reverse (take n (keys (sort-by val &gt; m))))</code> but faster.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn top-n-keys-by-value
   [n m]
-  (if-not (pos? n)
-    ()
-    (loop [ms (seq m)
-           am (sorted-map-by #(compare [(m %1) %1] [(m %2) %2]))
-           curr-min -1.0]
-      (if (empty? ms)
-        (keys am)
-        (let [[k v] (first ms)]
-          (cond
-           ;; just initialising the set
-           (empty? am)
-           (recur (next ms)
-                  (assoc am k v)
-                  (double v))
-           ;; filling up the set
-           (&lt; (count am) n)
-           (recur (next ms)
-                  (assoc am k v)
-                  (double (min curr-min v)))
-           ;; include this one, dominates previous min
-           (&gt; v curr-min)
-           (let [new-am (-&gt; (dissoc am (first (keys am)))
-                            (assoc k v))]
-             (recur (next ms)
-                    new-am
-                    (double (first (vals new-am)))))
-           ;; exclude this one
-           :else
-           (recur (next ms) am curr-min)))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/util.cljx</p>
+  (cond
+   (&lt;= n 0) []
+   (== n 1) [(key (apply max-key val (seq m)))]
+   :else
+   (loop [ms (seq m)
+          am (sorted-map-by #(compare [(m %1) %1] [(m %2) %2]))
+          curr-min -1.0]
+     (if (empty? ms)
+       (keys am)
+       (let [[k v] (first ms)]
+         (cond
+          ;; just initialising the set
+          (empty? am)
+          (recur (next ms)
+                 (assoc am k v)
+                 (double v))
+          ;; filling up the set
+          (&lt; (count am) n)
+          (recur (next ms)
+                 (assoc am k v)
+                 (double (min curr-min v)))
+          ;; include this one, dominates previous min
+          (&gt; v curr-min)
+          (let [new-am (-&gt; (dissoc am (first (keys am)))
+                           (assoc k v))]
+            (recur (next ms)
+                   new-am
+                   (double (first (vals new-am)))))
+          ;; exclude this one
+          :else
+          (recur (next ms) am curr-min)))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/util.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.directional-steps-1d" name="org.nfrac.comportex.demos.directional-steps-1d"><h1 class="project-name">org.nfrac.comportex.demos.directional-steps-1d</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.directional-steps-1d
   (:require [org.nfrac.comportex.core :as core]
@@ -5167,7 +5429,7 @@ becomes [x y z], where z = cell depth.</p>
    :ff-perm-dec 0.01
    :ff-perm-connected 0.20
    :ff-stimulus-threshold 3
-   :global-inhibition false
+   :global-inhibition? false
    :activation-level 0.04
    :duty-cycle-period 100000
    :max-boost 2.0
@@ -5183,10 +5445,10 @@ becomes [x y z], where z = cell depth.</p>
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
    })</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn ^:export input-gen
+</td><td class="codes"><pre class="brush: clojure">(defn input-gen
   []
   (core/sensory-input initial-input input-transform encoder))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn ^:export n-region-model
+</td><td class="codes"><pre class="brush: clojure">(defn n-region-model
   ([n]
      (n-region-model n spec))
   ([n spec]
@@ -5277,7 +5539,7 @@ becomes [x y z], where z = cell depth.</p>
    :ff-perm-dec 0.01
    :ff-perm-connected 0.20
    :ff-stimulus-threshold 3
-   :global-inhibition false
+   :global-inhibition? false
    :activation-level 0.02
    :duty-cycle-period 100000
    :max-boost 2.0
@@ -5292,11 +5554,12 @@ becomes [x y z], where z = cell depth.</p>
    :distal-perm-inc 0.05
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
+   :inhibition-base-distance 1
    })</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn ^:export input-gen
+</td><td class="codes"><pre class="brush: clojure">(defn input-gen
   []
   (core/sensory-input (initial-input) input-transform encoder))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn ^:export n-region-model
+</td><td class="codes"><pre class="brush: clojure">(defn n-region-model
   ([n]
      (n-region-model n spec))
   ([n spec]
@@ -5387,7 +5650,7 @@ becomes [x y z], where z = cell depth.</p>
    :ff-perm-dec 0.01
    :ff-perm-connected 0.20
    :ff-stimulus-threshold 3
-   :global-inhibition false
+   :global-inhibition? false
    :activation-level 0.02
    :duty-cycle-period 100000
    :max-boost 2.0
@@ -5402,13 +5665,12 @@ becomes [x y z], where z = cell depth.</p>
    :distal-perm-inc 0.05
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
-   :inhibition-base-distance 2
-   :inhibition-speed 0.25
+   :inhibition-base-distance 1
    })</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn ^:export input-gen
+</td><td class="codes"><pre class="brush: clojure">(defn input-gen
   []
   (core/sensory-input (initial-input) input-transform encoder))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn ^:export n-region-model
+</td><td class="codes"><pre class="brush: clojure">(defn n-region-model
   ([n]
      (n-region-model n spec))
   ([n spec]
@@ -5479,7 +5741,7 @@ becomes [x y z], where z = cell depth.</p>
    :ff-perm-dec 0.01
    :ff-perm-connected 0.20
    :ff-stimulus-threshold 3
-   :global-inhibition false
+   :global-inhibition? false
    :activation-level 0.02
    :duty-cycle-period 100000
    :max-boost 2.0
@@ -5495,10 +5757,10 @@ becomes [x y z], where z = cell depth.</p>
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
    })</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn ^:export input-gen
+</td><td class="codes"><pre class="brush: clojure">(defn input-gen
   []
   (core/sensory-input (initial-input) input-transform encoder))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn ^:export n-region-model
+</td><td class="codes"><pre class="brush: clojure">(defn n-region-model
   ([n]
      (n-region-model n spec))
   ([n spec]
@@ -5618,8 +5880,8 @@ Chifung has no tail.
    :ff-perm-dec 0.005
    :ff-perm-connected 0.20
    :ff-stimulus-threshold 3
-   :global-inhibition false
-   :activation-level 0.03
+   :global-inhibition? true
+   :activation-level 0.02
    :duty-cycle-period 100000
    :max-boost 2.0
    ;; sequence memory:
@@ -5634,14 +5896,15 @@ Chifung has no tail.
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
    :distal-punish? false
+   :distal-vs-proximal-weight 0.5
    })</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn ^:export n-region-model
+</td><td class="codes"><pre class="brush: clojure">(defn n-region-model
   ([n]
      (n-region-model input-text 3 n spec))
   ([text n-repeats n spec]
      (let [inp (sensory-input-from-text text n-repeats bits-per-word)]
        (core/regions-in-series core/sensory-region inp n spec))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/simple_sentences.cljx</p>
-</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr></table><div class="footer">Generated by <a href="https://github.com/gdeer81/marginalia">Marginalia</a>.&nbsp;&nbsp;Syntax highlighting provided by Alex Gorbatchev's <a href="http://alexgorbatchev.com/SyntaxHighlighter/">SyntaxHighlighter</a><div id="floating-toc"><ul><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.cells">org.nfrac.comportex.cells</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.columns">org.nfrac.comportex.columns</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.core">org.nfrac.comportex.core</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.cortical-io">org.nfrac.comportex.cortical-io</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.inhibition">org.nfrac.comportex.inhibition</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.protocols">org.nfrac.comportex.protocols</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.synapses">org.nfrac.comportex.synapses</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.topology">org.nfrac.comportex.topology</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.util">org.nfrac.comportex.util</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.directional-steps-1d">org.nfrac.comportex.demos.directional-steps-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.isolated-1d">org.nfrac.comportex.demos.isolated-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.isolated-2d">org.nfrac.comportex.demos.isolated-2d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.mixed-gaps-1d">org.nfrac.comportex.demos.mixed-gaps-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.simple-sentences">org.nfrac.comportex.demos.simple-sentences</li></ul></div></div><script type="text/javascript">SyntaxHighlighter.defaults['gutter'] = false;
+</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr></table><div class="footer">Generated by <a href="https://github.com/gdeer81/marginalia">Marginalia</a>.&nbsp;&nbsp;Syntax highlighting provided by Alex Gorbatchev's <a href="http://alexgorbatchev.com/SyntaxHighlighter/">SyntaxHighlighter</a><div id="floating-toc"><ul><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.algo-graph">org.nfrac.comportex.algo-graph</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.cells">org.nfrac.comportex.cells</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.columns">org.nfrac.comportex.columns</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.core">org.nfrac.comportex.core</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.cortical-io">org.nfrac.comportex.cortical-io</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.inhibition">org.nfrac.comportex.inhibition</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.protocols">org.nfrac.comportex.protocols</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.synapses">org.nfrac.comportex.synapses</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.topology">org.nfrac.comportex.topology</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.util">org.nfrac.comportex.util</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.directional-steps-1d">org.nfrac.comportex.demos.directional-steps-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.isolated-1d">org.nfrac.comportex.demos.isolated-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.isolated-2d">org.nfrac.comportex.demos.isolated-2d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.mixed-gaps-1d">org.nfrac.comportex.demos.mixed-gaps-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.simple-sentences">org.nfrac.comportex.demos.simple-sentences</li></ul></div></div><script type="text/javascript">SyntaxHighlighter.defaults['gutter'] = false;
 SyntaxHighlighter.all();
 
 // hackity hack
