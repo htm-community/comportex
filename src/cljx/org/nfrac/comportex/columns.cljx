@@ -1,7 +1,6 @@
 (ns org.nfrac.comportex.columns
   "Handling of column excitation through proximal dendrite segment
-   synapses. This process produces spatial pooling (pattern memory)
-   over feed-forward inputs.
+   synapses.
 
    **Argument name conventions:**
 
@@ -9,7 +8,6 @@
    * `a-cols` -- the set of ids of active columns.
    * `om` -- overlap scores in a map keyed by column id.
    * `ff-bits` -- the set of indexes of any active feed-forward input bits.
-   * `cf` -- a ColumnField.
 "
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.synapses :as syn]
@@ -17,77 +15,6 @@
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util
              :refer [abs round mean count-filter remap]]))
-
-(def columns-parameter-defaults
-  "Default parameter specification map.
-
-   * `input-dimensions` - size of input bit grid as a vector, one
-     dimensional `[size]`, two dimensional `[width height]`, etc.
-
-   * `column-dimensions` - size of column field as a vector, one
-     dimensional `[size]` or two dimensional `[width height]`.
-
-   * `ff-potential-radius` - range of potential feed-forward synapse
-     connections, as a fraction of the longest single dimension in the
-     input space.
-
-   * `ff-init-frac` - fraction of inputs within radius that will be
-     part of the initially connected set.
-
-   * `ff-perm-inc` - amount to increase a synapse's permanence value
-     by when it is reinforced.
-
-   * `ff-perm-dec` - amount to decrease a synapse's permanence value
-     by when it is not reinforced.
-
-   * `ff-perm-connected` - permanence value at which a synapse is
-     functionally connected. Permanence values are defined to be
-     between 0 and 1.
-
-   * `ff-perm-init` - initial permanence values on new synapses.
-
-   * `ff-stimulus-threshold` - minimum number of active input
-     connections for a column to be _overlapping_ the input (i.e.
-     active prior to inhibition). This parameter is tuned at run time
-     to target `activation-level` when `global-inhibition?` is false.
-
-   * `ff-grow-up-to-count` - target number of active synapses; active columns
-     grow new synapses to inputs to reach this each time step.
-
-   * `ff-max-synapse-count` - maximum number of synapses on the column.
-
-   * `boost-overlap-duty-ratio` - when a column's overlap frequency is
-     below this proportion of the _highest_ of its neighbours, its
-     feed-forward synapses are boosted.
-
-   * `boost-active-duty-ratio` - when a column's activation frequency is
-     below this proportion of the _highest_ of its neighbours, its
-     boost factor is increased.
-
-   * `duty-cycle-period` - number of time steps to consider when
-     updating column boosting measures. Also the period between such
-     updates.
-
-   * `max-boost` - ceiling on the column boosting factor used to
-     increase activation frequency."
-  {:input-dimensions [:define-me!]
-   :column-dimensions [2048]
-   :ff-potential-radius 0.3
-   ;:ff-potential-frac 0.5
-   :ff-init-frac 0.3
-   :ff-perm-inc 0.05
-   :ff-perm-dec 0.005
-   :ff-perm-connected 0.2
-   :ff-perm-init 0.16
-   :ff-stimulus-threshold 3
-   :ff-grow-and-die? false
-   :ff-grow-up-to-count 15
-   :ff-max-synapse-count 1000
-   :boost-overlap-duty-ratio 0.001
-   :boost-active-duty-ratio 0.001
-   :duty-cycle-period 1000
-   :max-boost 3.0
-   })
 
 (defn uniform-ff-synapses
   "Generates feed-forward synapses connecting columns to the input bit
@@ -194,15 +121,13 @@
                                     radius n-grow)]
     (p/conj-synapses ff-sg col new-ids pinit)))
 
-(defn learn
+(defn learn-proximal
   "Adapt feed-forward synapses to focus on observed input patterns.
    Given the set of input bits `ff-bits`, adjusts the permanence
    values of all potential feed-forward synapses in the active columns
    `a-cols`."
-  [cf a-cols ff-bits om]
-  (let [itopo (:input-topology cf)
-        spec (:spec cf)
-        pinc (:ff-perm-inc spec)
+  [sg itopo topo a-cols ff-bits om spec]
+  (let [pinc (:ff-perm-inc spec)
         pdec (:ff-perm-dec spec)
         pinit (:ff-perm-init spec)
         grow-and-die? (:ff-grow-and-die? spec)
@@ -211,19 +136,17 @@
         ;; radius in input space, fraction of longest dimension
         radius (long (* (:ff-potential-radius spec)
                         (apply max (p/dimensions itopo))))
-        n-cols (p/size-of cf)]
-    (update-in cf [:ff-sg]
-               (fn [ff-sg]
-                 (reduce (fn [sg col]
-                           (let [n-on (om col)
-                                 n-grow (max 0 (- grow-up-to n-on))]
-                             (cond->
-                              (p/reinforce-in-synapses sg col (constantly false)
-                                                       ff-bits pinc pdec)
-                              (and grow-and-die? (pos? n-grow))
-                              (grow-new-synapses col ff-bits itopo radius n-cols
-                                                 n-grow pinit))))
-                         ff-sg a-cols)))))
+        n-cols (p/size topo)]
+    (reduce (fn [sg col]
+              (let [n-on (om col)
+                    n-grow (max 0 (- grow-up-to n-on))]
+                (cond->
+                 (p/reinforce-in-synapses sg col (constantly false)
+                                          ff-bits pinc pdec)
+                 (and grow-and-die? (pos? n-grow))
+                 (grow-new-synapses col ff-bits itopo radius n-cols
+                                    n-grow pinit))))
+            sg a-cols)))
 
 ;;; ## Boosting
 
@@ -253,7 +176,7 @@
                    (max 1.0)
                    (double))]
     (if (< od crit-od)
-      (update-in cf [:ff-sg] p/reinforce-in-synapses col (constantly false)
+      (update-in cf [:proximal-sg] p/reinforce-in-synapses col (constantly false)
                  (constantly true) pinc 0)
       (assoc-in cf [:boosts col] nboost))))
 
@@ -282,105 +205,3 @@ y[t] = (period-1) * y[t-1]  +  1
         decay (* d (dec period))]
     (-> (mapv #(* % decay) v)
         (util/update-each is #(+ % d)))))
-
-;;; ## Orchestration
-
-(defn update-inhibition-radius
-  [cf]
-  (assoc cf :inh-radius (inh/inhibition-radius (:ff-sg cf) (:topology cf)
-                                               (:input-topology cf))))
-
-(defn tune-spec
-  "Adjust stimulus threshold when using local inhibition to converge
-   on the target level of activation."
-  [spec actual-activation-level n-inbits]
-  (if (or (:global-inhibition? spec false)
-          (zero? n-inbits)) ;; ignore case of no input (a gap)
-    spec
-    (let [target-level (:activation-level spec 0.02)]
-      (update-in spec [:ff-stimulus-threshold]
-                 (fn [x]
-                   ;; adjust threshold proportionally to error ratio
-                   ;; but dampened to 10%
-                   (let [scale (/ actual-activation-level target-level)
-                         delta (* x (- scale 1) 0.10)]
-                     (-> (+ x delta)
-                         (max 1.0)
-                         (min 1000.0))))))))
-
-(defrecord ColumnField
-    [spec ff-sg topology input-topology overlaps sig-overlaps prox-exc
-     inh-radius boosts active-duty-cycles overlap-duty-cycles]
-  p/PColumnField
-  (columns-step
-    [this ff-bits signal-ff-bits]
-    (let [om (syn/excitations ff-sg ff-bits)
-          exc (apply-overlap-boosting om boosts spec)
-          sig-om (syn/excitations ff-sg signal-ff-bits)]
-      (cond->
-       (assoc this
-         :timestep (inc (:timestep this 0))
-         :prox-exc exc
-         :overlaps om
-         :sig-overlaps sig-om))))
-  (columns-learn
-    [this ff-bits a-cols]
-    (let [dcp (:duty-cycle-period spec)
-          t (:timestep this)
-          boost? (zero? (mod t dcp))
-          new-spec (tune-spec spec (/ (count a-cols) (p/size topology))
-                              (count ff-bits))]
-      (cond-> (learn this a-cols ff-bits overlaps)
-              true (update-in [:overlap-duty-cycles] update-duty-cycles
-                              (keys prox-exc) dcp)
-              true (update-in [:active-duty-cycles] update-duty-cycles
-                              a-cols dcp)
-              true (assoc :spec new-spec)
-              boost? (update-boosting)
-              boost? (update-inhibition-radius))))
-  (inhibition-radius [_]
-    inh-radius)
-  (column-excitation [_]
-    prox-exc)
-  (column-overlaps [_]
-    overlaps)
-  (column-signal-overlaps [_]
-    sig-overlaps)
-  p/PTemporal
-  (timestep [this]
-    (:timestep this 0))
-  p/PTopological
-  (topology [this]
-    (:topology this))
-  p/PParameterised
-  (params [_]
-    spec))
-
-(defn column-field
-  [spec]
-  (let [spec (merge columns-parameter-defaults spec)
-        input-dim (:input-dimensions spec)
-        col-dim (:column-dimensions spec)
-        input-topo (topology/make-topology input-dim)
-        col-topo (topology/make-topology col-dim)
-        n-inbits (p/size input-topo)
-        n-cols (p/size col-topo)
-        all-syns (uniform-ff-synapses col-topo input-topo spec)]
-    (->
-     (map->ColumnField
-      {:spec spec
-       :ff-sg (syn/synapse-graph all-syns n-inbits
-                                 (:ff-perm-connected spec)
-                                 (:ff-max-synapse-count spec)
-                                 (:ff-grow-and-die? spec))
-       :topology col-topo
-       :input-topology input-topo
-       :inh-radius 1
-       :prox-exc {}
-       :overlaps {}
-       :sig-overlaps {}
-       :boosts (vec (repeat n-cols 1.0))
-       :active-duty-cycles (vec (repeat n-cols 0.0))
-       :overlap-duty-cycles (vec (repeat n-cols 0.0))
-       })
-     (update-inhibition-radius))))

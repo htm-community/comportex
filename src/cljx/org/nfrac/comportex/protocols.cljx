@@ -46,19 +46,12 @@
   (ff-motor-topology [this])
   (motor-bits-value [this offset]))
 
-(defprotocol PColumnField
-  (columns-step [this ff-bits signal-ff-bits])
-  (columns-learn [this ff-bits a-cols])
-  (inhibition-radius [this])
-  (column-excitation [this])
-  (column-overlaps [this])
-  (column-signal-overlaps [this]))
-
 (defprotocol PLayerOfCells
-  (layer-activate [this prox-exc prox-sig-exc inh-radius])
-  (layer-learn [this])
+  (layer-activate [this ff-bits signal-ff-bits])
+  (layer-learn [this ff-bits])
   (layer-depolarise [this distal-ff-bits distal-fb-bits])
   (layer-depth [this])
+  (column-excitation [this])
   (bursting-columns [this])
   (active-columns [this])
   (active-cells [this])

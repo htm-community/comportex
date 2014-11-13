@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.cells
-  "Cell activation and sequence memory. Learning on distal dendrite segments.
+  "Cell activation and sequence memory.
 
    **Argument name conventions:**
 
@@ -9,6 +9,7 @@
    * `cell-id` -- a vector `[col ci]`.
    * `seg-path` -- a vector `[col ci si]`.
 
+   * `ff-bits` -- the set of indices of any active feed-forward input bits.
    * `ac` -- the set of ids of active cells.
    * `pc` -- the set of ids of predictive cells.
    * `tpc` -- the set of ids of temporal pooling cells.
@@ -18,6 +19,7 @@
    * `syns` -- incoming synapses as a map from source id to permanence.
 "
   (:require [org.nfrac.comportex.protocols :as p]
+            [org.nfrac.comportex.columns :as columns]
             [org.nfrac.comportex.synapses :as syn]
             [org.nfrac.comportex.inhibition :as inh]
             [org.nfrac.comportex.topology :as topology]
@@ -25,8 +27,58 @@
              :refer [count-filter remap round]]
             [clojure.set :as set]))
 
-(def cells-parameter-defaults
+(def parameter-defaults
   "Default parameter specification map.
+
+   * `input-dimensions` - size of input bit grid as a vector, one
+     dimensional `[size]`, two dimensional `[width height]`, etc.
+
+   * `column-dimensions` - size of column field as a vector, one
+     dimensional `[size]` or two dimensional `[width height]`.
+
+   * `ff-potential-radius` - range of potential feed-forward synapse
+     connections, as a fraction of the longest single dimension in the
+     input space.
+
+   * `ff-init-frac` - fraction of inputs within radius that will be
+     part of the initially connected set.
+
+   * `ff-perm-inc` - amount to increase a synapse's permanence value
+     by when it is reinforced.
+
+   * `ff-perm-dec` - amount to decrease a synapse's permanence value
+     by when it is not reinforced.
+
+   * `ff-perm-connected` - permanence value at which a synapse is
+     functionally connected. Permanence values are defined to be
+     between 0 and 1.
+
+   * `ff-perm-init` - initial permanence values on new synapses.
+
+   * `ff-stimulus-threshold` - minimum number of active input
+     connections for a column to be _overlapping_ the input (i.e.
+     active prior to inhibition). This parameter is tuned at run time
+     to target `activation-level` when `global-inhibition?` is false.
+
+   * `ff-grow-up-to-count` - target number of active synapses; active columns
+     grow new synapses to inputs to reach this each time step.
+
+   * `ff-max-synapse-count` - maximum number of synapses on the column.
+
+   * `boost-overlap-duty-ratio` - when a column's overlap frequency is
+     below this proportion of the _highest_ of its neighbours, its
+     feed-forward synapses are boosted.
+
+   * `boost-active-duty-ratio` - when a column's activation frequency is
+     below this proportion of the _highest_ of its neighbours, its
+     boost factor is increased.
+
+   * `duty-cycle-period` - number of time steps to consider when
+     updating column boosting measures. Also the period between such
+     updates.
+
+   * `max-boost` - ceiling on the column boosting factor used to
+     increase activation frequency.
 
    * `lateral-synapses?` - whether distal synapses can connect
      laterally to other cells in this layer.
@@ -108,11 +160,26 @@
    * `temporal-pooling-amp` - multiplier on the initial excitation
      score of temporal pooling cells; this increases the probability
      that TP cells will remain active."
-  {:lateral-synapses? true
+  {:input-dimensions [:define-me!]
+   :column-dimensions [2048]
+   :ff-potential-radius 0.3
+   :ff-init-frac 0.3
+   :ff-perm-inc 0.05
+   :ff-perm-dec 0.005
+   :ff-perm-connected 0.2
+   :ff-perm-init 0.16
+   :ff-stimulus-threshold 3
+   :ff-grow-and-die? false
+   :ff-grow-up-to-count 15
+   :ff-max-synapse-count 1000
+   :boost-overlap-duty-ratio 0.001
+   :boost-active-duty-ratio 0.001
+   :duty-cycle-period 1000
+   :max-boost 3.0
+   :lateral-synapses? true
    :use-feedback? false
    :distal-motor-dimensions [0]
    :distal-topdown-dimensions [0]
-   :column-dimensions [2048]
    :depth 16
    :max-segments 5
    :seg-max-synapse-count 22
@@ -460,40 +527,73 @@
         (-> (select-learning-segs flow-cbc f-b-cols distal-sg prior-ac spec)
             (assoc :learn-cols (set (keys flow-cbc))))))))
 
+(defn tune-spec
+  "Adjust stimulus threshold when using local inhibition to converge
+   on the target level of activation."
+  [spec actual-activation-level n-inbits]
+  (if (or (:global-inhibition? spec false)
+          (zero? n-inbits)) ;; ignore case of no input (a gap)
+    spec
+    (let [target-level (:activation-level spec 0.02)]
+      (update-in spec [:ff-stimulus-threshold]
+                 (fn [x]
+                   ;; adjust threshold proportionally to error ratio
+                   ;; but dampened to 10%
+                   (let [scale (/ actual-activation-level target-level)
+                         delta (* x (- scale 1) 0.10)]
+                     (-> (+ x delta)
+                         (max 1.0)
+                         (min 1000.0))))))))
+
 ;;; ## Orchestration
 
+(defn update-inhibition-radius
+  [layer]
+  (assoc layer :inh-radius
+         (inh/inhibition-radius (:proximal-sg layer) (:topology layer)
+                                (:input-topology layer))))
+
 (defrecord LayerOfCells
-    [spec topology distal-sg active-cols burst-cols
-     active-cells learn-cells signal-cells tp-cells
-     prior-active-cells prior-learn-cells
-     pred-cells prior-pred-cells distal-exc
-     tp-exc]
+    [spec topology input-topology inh-radius proximal-sg distal-sg
+     overlaps proximal-exc proximal-sig-exc distal-exc
+     active-cols burst-cols active-cells learn-cells signal-cells
+     prior-active-cells prior-learn-cells pred-cells prior-pred-cells
+     boosts active-duty-cycles overlap-duty-cycles]
   p/PLayerOfCells
   (layer-activate
-    [this prox-exc prox-sig-exc inh-radius]
-    (let [{acbc :active-cells-by-col
+    [this ff-bits signal-ff-bits]
+    (let [om (syn/excitations proximal-sg ff-bits)
+          prox-exc (columns/apply-overlap-boosting om boosts spec)
+          sig-om (syn/excitations proximal-sg signal-ff-bits)
+          {acbc :active-cells-by-col
            b-cols :burst-cols} (select-active-cells prox-exc distal-exc topology
                                                     inh-radius spec)
           a-cols (set (keys acbc))
           ac (set (apply concat (vals acbc)))
           sig-ac (set (apply concat (vals (apply dissoc acbc b-cols))))
-          ;; temporal pooling TODO
-          tpc #{}
           ]
       (assoc this
+        :timestep (inc (:timestep this 0))
+        :overlaps om
+        :proximal-exc prox-exc
+        :sig-overlaps sig-om
         :active-cells-by-col acbc ;; for convenience / efficiency in other steps
         :active-cells ac
         :active-cols a-cols
         :burst-cols b-cols
         :signal-cells sig-ac
-        :tp-cells tpc
         :prior-active-cells active-cells
         :prior-learn-cells learn-cells
         )))
   
   (layer-learn
-    [this]
-    (let [prior-ac prior-active-cells
+    [this ff-bits]
+    (let [dcp (:duty-cycle-period spec)
+          t (:timestep this)
+          boost? (zero? (mod t dcp))
+          new-spec (tune-spec spec (/ (count active-cols) (p/size topology))
+                              (count ff-bits))
+          prior-ac prior-active-cells
           prior-lc prior-learn-cells
           acbc (:active-cells-by-col this)
           {lc :learn-cells
@@ -514,13 +614,25 @@
                                  prior-pred-cells spec)
                   ;; experimental: back-flow bursting to depolarised cells
                   (and (:alternative-learning? spec) alt-segs)
-                  (learn-distal alt-segs alt-cols prior-ac prior-lc spec))]
-      (assoc this
-        :alternative-cells alt-c
-        :alternative-segments alt-segs
-        :learn-cells lc
-        :learn-segments lsegs
-        :distal-sg new-sg)))
+                  (learn-distal alt-segs alt-cols prior-ac prior-lc spec))
+          new-psg (columns/learn-proximal proximal-sg input-topology topology
+                                          active-cols ff-bits overlaps spec)
+          ]
+      (cond->
+       (assoc this
+         :spec new-spec
+         :alternative-cells alt-c
+         :alternative-segments alt-segs
+         :learn-cells lc
+         :learn-segments lsegs
+         :distal-sg new-sg
+         :proximal-sg new-psg)
+       true (update-in [:overlap-duty-cycles] columns/update-duty-cycles
+                       (keys proximal-exc) dcp)
+       true (update-in [:active-duty-cycles] columns/update-duty-cycles
+                       active-cols dcp)
+       boost? (columns/update-boosting)
+       boost? (update-inhibition-radius))))
   
   (layer-depolarise
     [this distal-ff-bits distal-fb-bits]
@@ -546,43 +658,62 @@
   (signal-cells [this]
     (:signal-cells this))
   (temporal-pooling-cells [this]
-    tp-cells)
+    #{})
   (predictive-cells [this]
     pred-cells)
   (prior-predictive-cells [this]
     prior-pred-cells)
   (depolarisation [this]
     distal-exc)
+  (column-excitation [_]
+    proximal-exc)
   p/PTopological
   (topology [this]
     (:topology this))
+  p/PTemporal
+  (timestep [this]
+    (:timestep this 0))
   p/PParameterised
   (params [_]
     spec))
 
 (defn layer-of-cells
   [spec]
-  (let [spec (merge cells-parameter-defaults spec)
-        col-dim (:column-dimensions spec)
-        col-topo (topology/make-topology col-dim)
+  (let [spec (merge parameter-defaults spec)
+        input-topo (topology/make-topology (:input-dimensions spec))
+        col-topo (topology/make-topology (:column-dimensions spec))
         n-cols (p/size col-topo)
-        depth (:depth spec)
-        max-segs (:max-segments spec)
-        max-syns (:seg-max-synapse-count spec)
-        pcon (:distal-perm-connected spec)
-        distal-sg (syn/synapse-graph-by-segments
-                   n-cols depth max-segs pcon max-syns true)]
-    (map->LayerOfCells
-     {:spec spec
-      :topology col-topo
-      :distal-sg distal-sg
-      :active-cols #{}
-      :burst-cols #{}
-      :active-cells #{}
-      :learn-cells #{}
-      :signal-cells #{}
-      :tp-cells #{}
-      :pred-cells #{}
-      :prior-pred-cells #{}
-      :distal-exc {}
-      })))
+        all-syns (columns/uniform-ff-synapses col-topo input-topo spec)
+        proximal-sg (syn/synapse-graph all-syns (p/size input-topo)
+                                       (:ff-perm-connected spec)
+                                       (:ff-max-synapse-count spec)
+                                       (:ff-grow-and-die? spec))
+        distal-sg (syn/synapse-graph-by-segments n-cols (:depth spec)
+                                                 (:max-segments spec)
+                                                 (:distal-perm-connected spec)
+                                                 (:seg-max-synapse-count spec)
+                                                 true)]
+    (->
+     (map->LayerOfCells
+      {:spec spec
+       :topology col-topo
+       :input-topology input-topo
+       :inh-radius 1
+       :proximal-sg proximal-sg
+       :distal-sg distal-sg
+       :prox-exc {}
+       :overlaps {}
+       :sig-overlaps {}
+       :active-cols #{}
+       :burst-cols #{}
+       :active-cells #{}
+       :learn-cells #{}
+       :signal-cells #{}
+       :pred-cells #{}
+       :prior-pred-cells #{}
+       :distal-exc {}
+       :boosts (vec (repeat n-cols 1.0))
+       :active-duty-cycles (vec (repeat n-cols 0.0))
+       :overlap-duty-cycles (vec (repeat n-cols 0.0))
+       })
+     (update-inhibition-radius))))

@@ -5,7 +5,6 @@
    itself and possibly other regions."
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topology :as topology]
-            [org.nfrac.comportex.columns :as columns]
             [org.nfrac.comportex.cells :as cells]
             [org.nfrac.comportex.util :as util]
             [org.nfrac.comportex.algo-graph :as graph]
@@ -24,29 +23,20 @@
 (declare sensory-region)
 
 (defrecord SensoryRegion
-    [column-field layer-3 uuid step-counter]
+    [layer-3 uuid step-counter]
   p/PRegion
   (region-activate
     [this ff-bits signal-ff-bits]
-    (let [step-cf (p/columns-step column-field ff-bits signal-ff-bits)
-          lyr (p/layer-activate layer-3
-                                (p/column-excitation step-cf)
-                                (p/column-signal-overlaps step-cf)
-                                (p/inhibition-radius step-cf))]
-      (assoc this
-        :step-counter (inc step-counter)
-        :column-field step-cf
-        :layer-3 lyr)))
+    (assoc this
+      :step-counter (inc step-counter)
+      :layer-3 (p/layer-activate layer-3 ff-bits signal-ff-bits)))
 
   (region-learn
     [this ff-bits]
     (if (:freeze? (p/params this))
       this
-      (let [cf (p/columns-learn column-field ff-bits (p/active-columns layer-3))
-            lyr (p/layer-learn layer-3)]
-        (assoc this
-          :column-field cf
-          :layer-3 lyr))))
+      (assoc this
+        :layer-3 (p/layer-learn layer-3 ff-bits))))
 
   (region-depolarise
     [this distal-ff-bits distal-fb-bits]
@@ -55,7 +45,7 @@
   
   p/PTopological
   (topology [_]
-    (p/topology column-field))
+    (p/topology layer-3))
   p/PFeedForward
   (ff-topology [this]
     (topology/make-topology (conj (p/dims-of this)
@@ -87,8 +77,7 @@
     step-counter)
   p/PParameterised
   (params [_]
-    (merge (p/params column-field)
-           (p/params layer-3)))
+    (p/params layer-3))
   p/PResettable
   (reset [this]
     (-> (sensory-region (p/params this))
@@ -96,18 +85,15 @@
 
 (defn sensory-region
   "Constructs a cortical region with the given specification map. See
-   documentation on parameter defaults in the `columns` and `cells`
-   namespaces for possible keys. Any keys given here will override
-   those default values."
+   documentation on `cells/parameter-defaults` for possible keys. Any
+   keys given here will override those default values."
   [spec]
   (let [unk (set/difference (set (keys spec))
-                            (set (keys cells/cells-parameter-defaults))
-                            (set (keys columns/columns-parameter-defaults)))]
+                            (set (keys cells/parameter-defaults)))]
     (when (seq unk)
       (println "Warning: unknown keys in spec:" unk)))
   (map->SensoryRegion
-   {:column-field (columns/column-field spec)
-    :layer-3 (cells/layer-of-cells spec)
+   {:layer-3 (cells/layer-of-cells spec)
     :uuid (uuid/make-random)
     :step-counter 0}))
 
@@ -118,26 +104,9 @@
 (declare sensory-motor-region)
 
 (defrecord SensoryMotorRegion
-    [column-field layer-4 layer-3 uuid step-counter]
+    [layer-4 layer-3 uuid step-counter]
   ;; TODO
 )
-
-(defn sensory-motor-region
-  "Constructs a cortical region with the given specification map. See
-   documentation on parameter defaults in the `columns` and `cells`
-   namespaces for possible keys. Any keys given here will override
-   those default values."
-  [spec]
-  (map->SensoryMotorRegion
-   {:column-field (columns/column-field spec)
-    :layer-4 (cells/layer-of-cells (assoc spec
-                                     :motor-distal-size :TODO
-                                     :lateral-synapses? false))
-    :layer-3 (cells/layer-of-cells (assoc spec
-                                     :motor-distal-size 0
-                                     :lateral-synapses? true))
-    :uuid (uuid/make-random)
-    :step-counter 0}))
 
 (defrecord SensoryInput
     [init-value value transform encoder]
@@ -247,7 +216,7 @@
 ;; TODO - better way to do this
 (defn fb-dim-from-spec
   [spec]
-  (let [spec (merge cells/cells-parameter-defaults spec)]
+  (let [spec (merge cells/parameter-defaults spec)]
     (topology/make-topology (conj (:column-dimensions spec)
                                   (:depth spec)))))
 
@@ -445,17 +414,19 @@
   "Returns a map from input bit index to the number of connections to
    it from columns in the predictive state. `p-cols` is the column ids
    of columns containing predictive cells."
-  [rgn p-cols]
-  (let [cf (:column-field rgn)
-        sg (:ff-sg cf)]
-    (->> p-cols
-         (reduce (fn [m col]
-                   (let [ids (p/sources-connected-to sg col)]
-                     (reduce (fn [m id]
-                               (assoc! m id (inc (get m id 0))))
-                             m ids)))
-                 (transient {}))
-         (persistent!))))
+  ([rgn p-cols]
+     (predicted-bit-votes rgn p-cols :layer-3))
+  ([rgn p-cols layer-fn]
+     (let [lyr (layer-fn rgn)
+           sg (:proximal-sg lyr)]
+       (->> p-cols
+            (reduce (fn [m col]
+                      (let [ids (p/sources-connected-to sg col)]
+                        (reduce (fn [m id]
+                                  (assoc! m id (inc (get m id 0))))
+                                m ids)))
+                    (transient {}))
+            (persistent!)))))
 
 (defn predictions
   [model n-predictions]
