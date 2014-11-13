@@ -1,6 +1,6 @@
 # TODO
 
-* move proximal synapses into layer?
+* extend depolarisation over multiple time steps?
 
 * allow many more distal dendrite segments (avoid cols*depth*max-segs vector)
 
@@ -36,8 +36,6 @@
 
 * higher-levels regions only grow ff-synapses to learn-cells from below?
   (otherwise typically grow to all cells of a bursting column)
-
-* local activation - start from closest, loop outwards
 
 * turn off temporal pooling when no input
 

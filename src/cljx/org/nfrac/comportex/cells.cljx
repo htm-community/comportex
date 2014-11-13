@@ -146,12 +146,6 @@
      sufficient distal synapse excitation, even in the absence of any
      proximal synapse excitation.
 
-   * `alternative-learning?` - if true, an extra learning step
-     happens. Alternative predictions (i.e. depolarised cells) are
-     carried forward an extra time step (as if the predicted cells
-     were active); these forward-predicted cells learn on distal
-     segments in the current context (as if they were active).
-
    * `temporal-pooling-decay` - multiplier on the continuing
      excitation score of temporal pooling cells; as this reduces a
      temporal pooling cell is more likely to be interrupted by
@@ -196,7 +190,6 @@
    :inhibition-base-distance 1
    :distal-vs-proximal-weight 0
    :spontaneous-activation? false
-   :alternative-learning? false
 ;   :temporal-pooling-decay 0.9
 ;   :temporal-pooling-amp 1.1
    })
@@ -487,7 +480,7 @@
                   cell-segs (p/cell-segments distal-sg cell)
                   sc (most-active-segment cell-segs prior-ac pcon)
                   ;; if not depolarised by current active cells
-                  ;; (e.g. alternative) then fall back to bursting-like
+                  ;; (temporal pooling?) then fall back to bursting-like
                   sc (if (:segment-idx sc)
                        sc
                        (most-active-segment cell-segs prior-ac 0))]
@@ -497,35 +490,6 @@
         ;; finished
         {:learn-cells (persistent! lc)
          :learn-segs (persistent! lsegs)}))))
-
-(defn alternative-segs
-  "Carry forward predictions so the current context can learn them, as
-   if by analogy, rather than having to experience those alternative
-   paths directly.
-
-   Taking all prior depolarised cells (filtered to those which could
-   have predicted the current input). Find segments--and thereby
-   cells--potentially excited by them. These are the alternative
-   cells. Choose a segment on each to learn on."
-  [distal-sg ac burst-cols
-   prior-pred-cells prior-ac distal-exc topo inh-radius spec]
-  (let [analogy-cells (->> (set/difference prior-pred-cells prior-ac)
-                           (filter (fn [cell]
-                                     (some ac (p/targets-connected-from distal-sg
-                                                                        cell)))))]
-    (if (empty? analogy-cells)
-      {}
-      ;; find cells forward-predicted from analogy cells
-      (let [flow-seg-exc (syn/excitations distal-sg analogy-cells)
-            flow-cell-exc (cell-depolarisation flow-seg-exc
-                                               (:seg-stimulus-threshold spec))
-            flow-cols (set (map first (keys flow-cell-exc)))
-            flow-prox-exc (zipmap flow-cols (repeat 1.0))
-            {flow-cbc :active-cells-by-col
-             f-b-cols :burst-cols} (select-active-cells flow-prox-exc flow-cell-exc
-                                                        topo inh-radius spec)]
-        (-> (select-learning-segs flow-cbc f-b-cols distal-sg prior-ac spec)
-            (assoc :learn-cols (set (keys flow-cbc))))))))
 
 (defn tune-spec
   "Adjust stimulus threshold when using local inhibition to converge
@@ -599,34 +563,21 @@
           {lc :learn-cells
            lsegs :learn-segs} (select-learning-segs acbc burst-cols distal-sg
                                                     prior-active-cells spec)
-          {alt-cols :learn-cols
-           alt-c :learn-cells
-           alt-segs :learn-segs} (when (:alternative-learning? spec)
-                                   (alternative-segs distal-sg active-cells burst-cols
-                                                     prior-pred-cells prior-ac
-                                                     distal-exc topology 5 spec))
-          new-sg (cond->
-                  (learn-distal distal-sg lsegs burst-cols prior-ac prior-lc
-                                spec)
-                  ;; allow this phase of learning as an option
-                  (:distal-punish? spec)
-                  (punish-distal active-cells prior-ac pred-cells
-                                 prior-pred-cells spec)
-                  ;; experimental: back-flow bursting to depolarised cells
-                  (and (:alternative-learning? spec) alt-segs)
-                  (learn-distal alt-segs alt-cols prior-ac prior-lc spec))
-          new-psg (columns/learn-proximal proximal-sg input-topology topology
-                                          active-cols ff-bits overlaps spec)
-          ]
+          dsg (cond->
+               (learn-distal distal-sg lsegs burst-cols prior-ac prior-lc spec)
+               ;; allow this phase of learning as an option
+               (:distal-punish? spec)
+               (punish-distal active-cells prior-ac pred-cells prior-pred-cells
+                              spec))
+          psg (columns/learn-proximal proximal-sg input-topology topology
+                                      active-cols ff-bits overlaps spec)]
       (cond->
        (assoc this
          :spec new-spec
-         :alternative-cells alt-c
-         :alternative-segments alt-segs
          :learn-cells lc
          :learn-segments lsegs
-         :distal-sg new-sg
-         :proximal-sg new-psg)
+         :distal-sg dsg
+         :proximal-sg psg)
        true (update-in [:overlap-duty-cycles] columns/update-duty-cycles
                        (keys proximal-exc) dcp)
        true (update-in [:active-duty-cycles] columns/update-duty-cycles
