@@ -517,11 +517,18 @@
          (inh/inhibition-radius (:proximal-sg layer) (:topology layer)
                                 (:input-topology layer))))
 
+(defrecord LayerActiveState
+    [ff-bits signal-ff-bits
+     overlaps proximal-exc proximal-sig-exc
+     active-cols burst-cols active-cells signal-cells
+     learn-cells])
+
+(defrecord LayerPredictiveState
+    [distal-exc pred-cells])
+
 (defrecord LayerOfCells
     [spec topology input-topology inh-radius proximal-sg distal-sg
-     overlaps proximal-exc proximal-sig-exc distal-exc
-     active-cols burst-cols active-cells learn-cells signal-cells
-     prior-active-cells prior-learn-cells pred-cells prior-pred-cells
+     state prior-state pred-state prior-pred-state
      boosts active-duty-cycles overlap-duty-cycles]
   p/PLayerOfCells
   (layer-activate
@@ -529,6 +536,7 @@
     (let [om (syn/excitations proximal-sg ff-bits)
           prox-exc (columns/apply-overlap-boosting om boosts spec)
           sig-om (syn/excitations proximal-sg signal-ff-bits)
+          distal-exc (:distal-exc pred-state)
           {acbc :active-cells-by-col
            b-cols :burst-cols} (select-active-cells prox-exc distal-exc topology
                                                     inh-radius spec)
@@ -538,86 +546,95 @@
           ]
       (assoc this
         :timestep (inc (:timestep this 0))
-        :overlaps om
-        :proximal-exc prox-exc
-        :sig-overlaps sig-om
-        :active-cells-by-col acbc ;; for convenience / efficiency in other steps
-        :active-cells ac
-        :active-cols a-cols
-        :burst-cols b-cols
-        :signal-cells sig-ac
-        :prior-active-cells active-cells
-        :prior-learn-cells learn-cells
-        )))
+        :prior-state state
+        :state (map->LayerActiveState
+                {:ff-bits ff-bits
+                 :signal-ff-bits signal-ff-bits
+                 :overlaps om
+                 :proximal-exc prox-exc
+                 :sig-overlaps sig-om
+                 :active-cells ac
+                 :active-cols a-cols
+                 :burst-cols b-cols
+                 :signal-cells sig-ac
+                 ;; for convenience / efficiency in other steps
+                 :active-cells-by-col acbc}))))
   
   (layer-learn
-    [this ff-bits]
-    (let [dcp (:duty-cycle-period spec)
+    [this]
+    (let [ff-bits (:ff-bits state)
+          dcp (:duty-cycle-period spec)
           t (:timestep this)
           boost? (zero? (mod t dcp))
-          new-spec (tune-spec spec (/ (count active-cols) (p/size topology))
+          new-spec (tune-spec spec (/ (count (:active-cols state))
+                                      (p/size topology))
                               (count ff-bits))
-          prior-ac prior-active-cells
-          prior-lc prior-learn-cells
-          acbc (:active-cells-by-col this)
+          ac (:active-cells state)
+          prior-ac (:active-cells prior-state)
+          prior-lc (:learn-cells prior-state)
+          acbc (:active-cells-by-col state)
+          burst-cols (:burst-cols state)
           {lc :learn-cells
            lsegs :learn-segs} (select-learning-segs acbc burst-cols distal-sg
-                                                    prior-active-cells spec)
+                                                    prior-ac spec)
           dsg (cond->
                (learn-distal distal-sg lsegs burst-cols prior-ac prior-lc spec)
                ;; allow this phase of learning as an option
                (:distal-punish? spec)
-               (punish-distal active-cells prior-ac pred-cells prior-pred-cells
-                              spec))
+               (punish-distal ac prior-ac (:pred-cells pred-state)
+                              (:pred-cells prior-pred-state) spec))
           psg (columns/learn-proximal proximal-sg input-topology topology
-                                      active-cols ff-bits overlaps spec)]
+                                      (:active-cols state) ff-bits
+                                      (:overlaps state) spec)]
       (cond->
        (assoc this
          :spec new-spec
-         :learn-cells lc
-         :learn-segments lsegs
+         :state (assoc state
+                  :learn-cells lc
+                  :learn-segments lsegs)
          :distal-sg dsg
          :proximal-sg psg)
        true (update-in [:overlap-duty-cycles] columns/update-duty-cycles
-                       (keys proximal-exc) dcp)
+                       (keys (:proximal-exc state)) dcp)
        true (update-in [:active-duty-cycles] columns/update-duty-cycles
-                       active-cols dcp)
+                       (:active-cols state) dcp)
        boost? (columns/update-boosting)
        boost? (update-inhibition-radius))))
   
   (layer-depolarise
     [this distal-ff-bits distal-fb-bits]
     ;; TODO distal-bits
-    (let [seg-exc (syn/excitations distal-sg active-cells)
+    (let [seg-exc (syn/excitations distal-sg (:active-cells state))
           cell-exc (cell-depolarisation seg-exc (:seg-stimulus-threshold spec))
           pc (set (keys cell-exc))]
       (assoc this
-        :pred-cells pc
-        :prior-pred-cells pred-cells
-        :distal-exc cell-exc)))
+        :prior-pred-state pred-state
+        :pred-state (map->LayerPredictiveState
+                     {:distal-exc cell-exc
+                      :pred-cells pc}))))
   
   (layer-depth [_]
     (:depth spec))
-  (bursting-columns [this]
-    burst-cols)
+  (bursting-columns [_]
+    (:burst-cols state))
   (active-columns [_]
-    active-cols)
-  (active-cells [this]
-    (:active-cells this))
-  (learnable-cells [this]
-    learn-cells)
-  (signal-cells [this]
-    (:signal-cells this))
-  (temporal-pooling-cells [this]
+    (:active-cols state))
+  (active-cells [_]
+    (:active-cells state))
+  (learnable-cells [_]
+    (:learn-cells state))
+  (signal-cells [_]
+    (:signal-cells state))
+  (temporal-pooling-cells [_]
     #{})
-  (predictive-cells [this]
-    pred-cells)
-  (prior-predictive-cells [this]
-    prior-pred-cells)
-  (depolarisation [this]
-    distal-exc)
+  (predictive-cells [_]
+    (:pred-cells pred-state))
+  (prior-predictive-cells [_]
+    (:pred-cells prior-pred-state))
+  (depolarisation [_]
+    (:distal-exc pred-state))
   (column-excitation [_]
-    proximal-exc)
+    (:proximal-exc state))
   p/PTopological
   (topology [this]
     (:topology this))
@@ -643,7 +660,14 @@
                                                  (:max-segments spec)
                                                  (:distal-perm-connected spec)
                                                  (:seg-max-synapse-count spec)
-                                                 true)]
+                                                 true)
+        state (map->LayerActiveState
+               {:learn-cells #{}
+                :active-cells #{}
+                :active-cols #{}})
+        pred-state (map->LayerPredictiveState
+                    {:pred-cells #{}
+                     :distal-exc {}})]
     (->
      (map->LayerOfCells
       {:spec spec
@@ -652,17 +676,10 @@
        :inh-radius 1
        :proximal-sg proximal-sg
        :distal-sg distal-sg
-       :prox-exc {}
-       :overlaps {}
-       :sig-overlaps {}
-       :active-cols #{}
-       :burst-cols #{}
-       :active-cells #{}
-       :learn-cells #{}
-       :signal-cells #{}
-       :pred-cells #{}
-       :prior-pred-cells #{}
-       :distal-exc {}
+       :state state
+       :prior-state state
+       :pred-state pred-state
+       :prior-pred-state pred-state
        :boosts (vec (repeat n-cols 1.0))
        :active-duty-cycles (vec (repeat n-cols 0.0))
        :overlap-duty-cycles (vec (repeat n-cols 0.0))

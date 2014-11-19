@@ -22,7 +22,7 @@
   "Cortical regions need to extend this together with PTopological,
    PFeedForward, PTemporal, PParameterised."
   (region-activate [this ff-bits signal-ff-bits])
-  (region-learn [this ff-bits])
+  (region-learn [this])
   (region-depolarise [this distal-ff-bits distal-fb-bits]))
 
 (defn region-step
@@ -31,7 +31,7 @@
   ([this ff-bits signal-ff-bits distal-ff-bits distal-fb-bits]
      (-> this
          (region-activate ff-bits signal-ff-bits)
-         (region-learn ff-bits)
+         (region-learn)
          (region-depolarise distal-ff-bits distal-fb-bits))))
 
 (defprotocol PFeedForward
@@ -48,7 +48,7 @@
 
 (defprotocol PLayerOfCells
   (layer-activate [this ff-bits signal-ff-bits])
-  (layer-learn [this ff-bits])
+  (layer-learn [this])
   (layer-depolarise [this distal-ff-bits distal-fb-bits])
   (layer-depth [this])
   (column-excitation [this])

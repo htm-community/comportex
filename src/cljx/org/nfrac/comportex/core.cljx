@@ -32,11 +32,11 @@
       :layer-3 (p/layer-activate layer-3 ff-bits signal-ff-bits)))
 
   (region-learn
-    [this ff-bits]
+    [this]
     (if (:freeze? (p/params this))
       this
       (assoc this
-        :layer-3 (p/layer-learn layer-3 ff-bits))))
+        :layer-3 (p/layer-learn layer-3))))
 
   (region-depolarise
     [this distal-ff-bits distal-fb-bits]
@@ -251,14 +251,8 @@
 
   (htm-learn
     [this]
-    (let [rm (->> regions-map
-                  (pmap (fn [[id region]]
-                          (let [ff-ids (ff-deps-map id)
-                                ffs (map #(or (inputs-map %) (regions-map %))
-                                         ff-ids)]
-                            (p/region-learn
-                             region
-                             (combined-bits-value ffs :standard)))))
+    (let [rm (->> (vals regions-map)
+                  (pmap p/region-learn)
                   (zipmap (keys regions-map)))]
       (assoc this :regions-map rm)))
 
