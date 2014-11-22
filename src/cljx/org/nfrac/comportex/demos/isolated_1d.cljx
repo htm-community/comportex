@@ -1,12 +1,40 @@
 (ns org.nfrac.comportex.demos.isolated-1d
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.encoders :as enc]
-            [org.nfrac.comportex.util :as util]))
+            [org.nfrac.comportex.util :as util]
+            #+clj [clojure.core.async :as async]
+            #+cljs [cljs.core.async :as async]))
 
 (def bit-width 400)
 (def on-bits 25)
 (def numb-max 15)
 (def numb-domain [0 numb-max])
+
+(def spec
+  {:column-dimensions [1000]
+   :ff-init-frac 0.3
+   :ff-potential-radius 0.1
+   :ff-perm-inc 0.05
+   :ff-perm-dec 0.01
+   :ff-perm-connected 0.20
+   :ff-stimulus-threshold 3
+   :global-inhibition? false
+   :activation-level 0.02
+   :duty-cycle-period 100000
+   :max-boost 2.0
+   ;; sequence memory:
+   :depth 8
+   :max-segments 5
+   :seg-max-synapse-count 18
+   :seg-new-synapse-count 12
+   :seg-stimulus-threshold 9
+   :seg-learn-threshold 7
+   :distal-perm-connected 0.20
+   :distal-perm-inc 0.05
+   :distal-perm-dec 0.01
+   :distal-perm-init 0.16
+   :inhibition-base-distance 1
+   })
 
 (def patterns
   {:run-0-5 [0 1 2 3 4 5]
@@ -85,38 +113,15 @@
                      (enc/ensplat
                       (enc/linear-encoder bit-width on-bits numb-domain))))
 
-(def spec
-  {:column-dimensions [1000]
-   :ff-init-frac 0.3
-   :ff-potential-radius 0.1
-   :ff-perm-inc 0.05
-   :ff-perm-dec 0.01
-   :ff-perm-connected 0.20
-   :ff-stimulus-threshold 3
-   :global-inhibition? false
-   :activation-level 0.02
-   :duty-cycle-period 100000
-   :max-boost 2.0
-   ;; sequence memory:
-   :depth 8
-   :max-segments 5
-   :seg-max-synapse-count 18
-   :seg-new-synapse-count 12
-   :seg-stimulus-threshold 9
-   :seg-learn-threshold 7
-   :distal-perm-connected 0.20
-   :distal-perm-inc 0.05
-   :distal-perm-dec 0.01
-   :distal-perm-init 0.16
-   :inhibition-base-distance 1
-   })
-
-(defn input-gen
+(defn world
+  "Returns a channel of sensory input values."
   []
-  (core/sensory-input (initial-input) input-transform encoder))
+  (doto (async/chan)
+    (async/onto-chan (iterate input-transform (initial-input)))))
 
 (defn n-region-model
   ([n]
      (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/sensory-region (input-gen) n spec)))
+     (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+                             n spec)))

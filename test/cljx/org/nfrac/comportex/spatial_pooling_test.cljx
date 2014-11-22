@@ -6,9 +6,8 @@
             [clojure.set :as set]
             #+clj [clojure.test :as t
                    :refer (is deftest testing run-tests)]
-            #+cljs [cemerick.cljs.test :as t])
-  #+cljs (:require-macros [cemerick.cljs.test
-                           :refer (is deftest testing run-tests)]))
+            #+cljs [cemerick.cljs.test :as t
+                    :refer-macros (is deftest testing run-tests)]))
 
 (def numb-bits 127)
 (def numb-on-bits 21)
@@ -17,12 +16,8 @@
 (def n-in-items 5)
 (def bit-width (* numb-bits n-in-items))
 
-(def initial-input
-  (repeat n-in-items (quot numb-max 2)))
-
-(defn input-transform
-  "Ignore previous value, generate new random one."
-  [_]
+(defn input-gen
+  []
   (repeatedly n-in-items #(util/rand-int 0 numb-max)))
 
 (def spec {:column-dimensions [1000]
@@ -41,22 +36,19 @@
 
 (defn model
   []
-  (let [input (core/sensory-input initial-input input-transform encoder)]
-    (core/regions-in-series core/sensory-region input 1 spec)))
+  (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+                          1 spec))
 
 (deftest sp-test
   (util/set-seed! 0)
-  (let [model1 (->> (iterate (fn [m]
-                               (let [a-cols (-> (first (p/region-seq m))
-                                                :layer-3
-                                                p/active-columns)]
-                                 (-> (p/htm-step m)
-                                     (assoc-in [:active-columns-at (p/timestep m)]
-                                               a-cols))))
-                         (model))
-                (take 500)
-                (last))
-        rgn (first (p/region-seq model1))
+  (let [htm-step+cols (fn [this input]
+                        (let [x (p/htm-step this input)]
+                          (assoc-in x [:active-columns-at (p/timestep x)]
+                                    (-> (first (p/region-seq x))
+                                        :layer-3
+                                        p/active-columns))))
+        m1 (reduce htm-step+cols (model) (repeatedly 500 input-gen))
+        rgn (first (p/region-seq m1))
         lyr (:layer-3 rgn)
         n-cols (p/size-of lyr)]
     (testing "Column activation is distributed and moderated."
@@ -65,7 +57,7 @@
       (is (pos? (util/quantile (:active-duty-cycles lyr) 0.9))
           "At least 10% of columns have been active.")
       (let [nactive-ts (for [t (range 400 500)]
-                         (count (get-in model1 [:active-columns-at t])))]
+                         (count (get-in m1 [:active-columns-at t])))]
         (is (every? #(< % (* n-cols 0.20)) nactive-ts)
             "Inhibition limits active columns in each time step."))
       (let [sg (:proximal-sg lyr)

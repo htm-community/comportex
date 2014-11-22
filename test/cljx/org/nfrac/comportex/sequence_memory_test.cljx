@@ -5,9 +5,8 @@
             [org.nfrac.comportex.util :as util]
             #+clj [clojure.test :as t
                    :refer (is deftest testing run-tests)]
-            #+cljs [cemerick.cljs.test :as t])
-  #+cljs (:require-macros [cemerick.cljs.test
-                           :refer (is deftest testing run-tests)]))
+            #+cljs [cemerick.cljs.test :as t
+                    :refer-macros (is deftest testing run-tests)]))
 
 (def bit-width 200)
 (def items [:a :b :c :d :e :f :g :h])
@@ -59,13 +58,19 @@
 
 (defn model
   []
-  (let [input (core/sensory-input initial-input input-transform encoder)]
-    (core/regions-in-series core/sensory-region input 1 spec)))
+  (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+                          1 spec))
+
+(defn world-seq
+  "Returns a channel of sensory input values."
+  []
+  (iterate input-transform initial-input))
 
 (deftest sm-test
   (util/set-seed! 0)
-  (let [m1 (-> (iterate p/htm-step (model))
-               (nth 500))
+  (let [warmups (take 500 (world-seq))
+        continued (drop 500 (world-seq))
+        m1 (reduce p/htm-step (model) warmups)
         rgn (first (p/region-seq m1))]
     (testing "Numbers of lateral dendrite segments"
       (let [n-cols (p/size (p/topology rgn))
@@ -84,9 +89,8 @@
         (is (>= (apply max nsegs-by-cell) 2)
             "Some cells have grown multiple lateral dendrite segments.")))
     (testing "Column / cell activation"
-      (let [sums (->> m1
-                      (iterate p/htm-step)
-                      (take 100)
+      (let [sums (->> (take 100 continued)
+                      (reductions p/htm-step m1)
                       (map (comp first p/region-seq))
                       (map core/column-state-freqs)
                       (apply merge-with +))]

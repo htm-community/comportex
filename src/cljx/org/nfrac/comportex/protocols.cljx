@@ -1,8 +1,8 @@
 (ns org.nfrac.comportex.protocols)
 
 (defprotocol PHTM
-  "A network of regions and their inputs, forming Hierarchical Temporal Memory."
-  (htm-activate [this])
+  "A network of regions, forming Hierarchical Temporal Memory."
+  (htm-activate [this in-value])
   (htm-learn [this])
   (htm-depolarise [this])
   (region-seq [this])
@@ -12,9 +12,9 @@
      its UUID. Returns the modified HTM network."))
 
 (defn htm-step
-  [this]
+  [this in-value]
   (-> this
-      (htm-activate)
+      (htm-activate in-value)
       (htm-learn)
       (htm-depolarise)))
 
@@ -100,10 +100,9 @@
      index to a number of votes, typically the number of synapse
      connections from predictive cells."))
 
-(defprotocol PSensoryInput
+(defprotocol PInputSource
   "Inputs need to extend this together with PFeedForward."
-  (input-step [this])
-  (domain-value [this] "Value underlying the current sensory input."))
+  (input-step [this in-value]))
 
 (defprotocol PResettable
   (reset [this]))

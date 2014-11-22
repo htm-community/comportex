@@ -108,10 +108,11 @@
   ;; TODO
 )
 
-(defrecord SensoryInput
-    [init-value value transform encoder]
+(defrecord SensoryMotorInput
+    [encoder motor-encoder value]
   p/PTopological
   (topology [_]
+    ;; TODO combine dimensions with motor component?
     (p/topology encoder))
   p/PFeedForward
   (ff-topology [_]
@@ -127,66 +128,34 @@
     [i])
   p/PFeedForwardMotor
   (ff-motor-topology [_]
-    topology/empty-topology)
+    (if motor-encoder
+      (p/topology motor-encoder)
+      topology/empty-topology))
   (motor-bits-value
     [_ offset]
-    #{})
-  p/PSensoryInput
-  (input-step [this]
-    (assoc this :value (transform value)))
-  (domain-value [_]
-    value)
-  p/PResettable
-  (reset [this]
-    (assoc this :value init-value)))
+    (if motor-encoder
+      (p/encode motor-encoder offset value)
+      #{}))
+  p/PInputSource
+  (input-step [this in-value]
+    (assoc this :value in-value)))
 
 (defn sensory-input
-  "Creates an input stream from an initial value, a function to
-   transform the input to the next time step, and an encoder."
-  [init-value transform encoder]
-  (->SensoryInput init-value init-value transform encoder))
-
-(defrecord SensoryMotorInput
-    [init-value value transform encoder motor-encoder]
-  p/PTopological
-  (topology [_]
-    (p/topology encoder))
-  p/PFeedForward
-  (ff-topology [_]
-    (p/topology encoder))
-  (bits-value
-    [_ offset]
-    (p/encode encoder offset value))
-  (signal-bits-value
-    [_ offset]
-    #{})
-  (source-of-bit
-    [_ i]
-    [i])
-  p/PFeedForwardMotor
-  (ff-motor-topology [_]
-    (p/topology motor-encoder))
-  (motor-bits-value
-    [_ offset]
-    (p/encode motor-encoder offset value))
-  p/PSensoryInput
-  (input-step [this]
-    (assoc this :value (transform value)))
-  (domain-value [_]
-    value)
-  p/PResettable
-  (reset [this]
-    (assoc this :value init-value)))
+  "Creates an input source from an encoder."
+  [encoder]
+  (->SensoryMotorInput encoder nil nil))
 
 (defn sensory-motor-input
-  "Creates an input stream from an initial value, a function to
-   transform the input to the next time step, and two encoders
-   operating on the same value. Remember that HTM models go through
-   the three phases [activate -> learn -> depolarise] on each
-   timestep: therefore motor signals, which act to depolarise cells,
-   should appear the time step before a corresponding sensory signal."
-  [init-value transform encoder motor-encoder]
-  (->SensoryMotorInput init-value init-value transform encoder motor-encoder))
+  "Creates an input source from an encoder (for the proximal
+   feed-forward output) and a motor encoder (for the distal
+   feed-forward output). The encoders operate on the same value so
+   should select their relevant parts of it. Remember that HTM models
+   go through the three phases [activate -> learn -> depolarise] on
+   each timestep: therefore motor signals, which act to depolarise
+   cells, should appear the time step before a corresponding sensory
+   signal."
+  [encoder motor-encoder]
+  (->SensoryMotorInput encoder motor-encoder nil))
 
 (defn combined-bits-value
   "Returns the total bit set from a collection of sources satisfying
@@ -226,9 +195,9 @@
     [ff-deps-map fb-deps-map strata inputs-map regions-map uuid->id]
   p/PHTM
   (htm-activate
-    [this]
+    [this in-value]
     (let [im (zipmap (keys inputs-map)
-                     (pmap p/input-step (vals inputs-map)))
+                     (map p/input-step (vals inputs-map) (repeat in-value)))
           rm (-> (reduce
                   (fn [m stratum]
                     (->> stratum
@@ -292,8 +261,7 @@
     (assoc this
       :regions-map (->> (vals regions-map)
                         (pmap p/reset)
-                        (zipmap (keys regions-map)))
-      :inputs-map (util/remap p/reset inputs-map))))
+                        (zipmap (keys regions-map))))))
 
 (defn- in-vals-not-keys
   [deps-map]
