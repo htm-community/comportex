@@ -2865,7 +2865,7 @@ net.brehaut.ClojureTools = (function (SH) {
     build_tree: build_tree
   };
 })(SyntaxHighlighter);
-</script><title>org.nfrac/comportex -- Marginalia</title></head><body><table><tr><td class="docs"><div class="header"><h1 class="project-name"><a href="http://github.com/nupic-community/comportex/">org.nfrac/comportex</a></h1><h2 class="project-version">0.0.6</h2><br /><p>Functionally composable cortex, an implementation of Hierarchical Temporal Memory</p>
+</script><title>org.nfrac/comportex -- Marginalia</title></head><body><table><tr><td class="docs"><div class="header"><h1 class="project-name"><a href="http://github.com/nupic-community/comportex/">org.nfrac/comportex</a></h1><h2 class="project-version">0.0.7-SNAPSHOT</h2><br /><p>Functionally composable cortex, an implementation of Hierarchical Temporal Memory</p>
 </div><div class="dependencies"><h3>dependencies</h3><table><tr><td class="dep-name">org.clojure/clojure</td><td class="dotted"><hr /></td><td class="dep-version">1.6.0</td></tr><tr><td class="dep-name">org.clojure/core.async</td><td class="dotted"><hr /></td><td class="dep-version">0.1.346.0-17112a-alpha</td></tr><tr><td class="dep-name">com.cemerick/pprng</td><td class="dotted"><hr /></td><td class="dep-version">0.0.2</td></tr><tr><td class="dep-name">clj-http</td><td class="dotted"><hr /></td><td class="dep-version">1.0.1</td></tr><tr><td class="dep-name">cljs-http</td><td class="dotted"><hr /></td><td class="dep-version">0.1.19</td></tr><tr><td class="dep-name">cljs-uuid</td><td class="dotted"><hr /></td><td class="dep-version">0.0.4</td></tr></table></div></td><td class="codes" style="text-align: center; vertical-align: middle;color: #666;padding-right:20px"><br /><br /><br />(this space intentionally left almost blank)</td></tr><tr><td class="docs"><div class="toc"><a name="toc"><h3>namespaces</h3></a><ul><li><a href="#org.nfrac.comportex.algo-graph">org.nfrac.comportex.algo-graph</a></li><li><a href="#org.nfrac.comportex.cells">org.nfrac.comportex.cells</a></li><li><a href="#org.nfrac.comportex.columns">org.nfrac.comportex.columns</a></li><li><a href="#org.nfrac.comportex.core">org.nfrac.comportex.core</a></li><li><a href="#org.nfrac.comportex.cortical-io">org.nfrac.comportex.cortical-io</a></li><li><a href="#org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</a></li><li><a href="#org.nfrac.comportex.inhibition">org.nfrac.comportex.inhibition</a></li><li><a href="#org.nfrac.comportex.protocols">org.nfrac.comportex.protocols</a></li><li><a href="#org.nfrac.comportex.synapses">org.nfrac.comportex.synapses</a></li><li><a href="#org.nfrac.comportex.topology">org.nfrac.comportex.topology</a></li><li><a href="#org.nfrac.comportex.util">org.nfrac.comportex.util</a></li><li><a href="#org.nfrac.comportex.demos.directional-steps-1d">org.nfrac.comportex.demos.directional-steps-1d</a></li><li><a href="#org.nfrac.comportex.demos.isolated-1d">org.nfrac.comportex.demos.isolated-1d</a></li><li><a href="#org.nfrac.comportex.demos.isolated-2d">org.nfrac.comportex.demos.isolated-2d</a></li><li><a href="#org.nfrac.comportex.demos.mixed-gaps-1d">org.nfrac.comportex.demos.mixed-gaps-1d</a></li><li><a href="#org.nfrac.comportex.demos.simple-sentences">org.nfrac.comportex.demos.simple-sentences</a></li></ul></div></td><td class="codes">&nbsp;</td></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.algo-graph" name="org.nfrac.comportex.algo-graph"><h1 class="project-name">org.nfrac.comportex.algo-graph</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>copied from
 https://github.com/clojure/algo.graph/blob/03c740c61/src/main/clojure/clojure/algo/graph.clj
 because distributed snapshot release does not have clojurescript.</p>
@@ -3504,11 +3504,16 @@ because distributed snapshot release does not have clojurescript.</p>
   (assoc layer :inh-radius
          (inh/inhibition-radius (:proximal-sg layer) (:topology layer)
                                 (:input-topology layer))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defrecord LayerActiveState
+    [ff-bits signal-ff-bits
+     overlaps proximal-exc proximal-sig-exc
+     active-cols burst-cols active-cells signal-cells
+     learn-cells])</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defrecord LayerPredictiveState
+    [distal-exc pred-cells])</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defrecord LayerOfCells
     [spec topology input-topology inh-radius proximal-sg distal-sg
-     overlaps proximal-exc proximal-sig-exc distal-exc
-     active-cols burst-cols active-cells learn-cells signal-cells
-     prior-active-cells prior-learn-cells pred-cells prior-pred-cells
+     state prior-state pred-state prior-pred-state
      boosts active-duty-cycles overlap-duty-cycles]
   p/PLayerOfCells
   (layer-activate
@@ -3516,6 +3521,7 @@ because distributed snapshot release does not have clojurescript.</p>
     (let [om (syn/excitations proximal-sg ff-bits)
           prox-exc (columns/apply-overlap-boosting om boosts spec)
           sig-om (syn/excitations proximal-sg signal-ff-bits)
+          distal-exc (:distal-exc pred-state)
           {acbc :active-cells-by-col
            b-cols :burst-cols} (select-active-cells prox-exc distal-exc topology
                                                     inh-radius spec)
@@ -3525,82 +3531,92 @@ because distributed snapshot release does not have clojurescript.</p>
           ]
       (assoc this
         :timestep (inc (:timestep this 0))
-        :overlaps om
-        :proximal-exc prox-exc
-        :sig-overlaps sig-om
-        :active-cells-by-col acbc ;; for convenience / efficiency in other steps
-        :active-cells ac
-        :active-cols a-cols
-        :burst-cols b-cols
-        :signal-cells sig-ac
-        :prior-active-cells active-cells
-        :prior-learn-cells learn-cells)))
+        :prior-state state
+        :state (map-&gt;LayerActiveState
+                {:ff-bits ff-bits
+                 :signal-ff-bits signal-ff-bits
+                 :overlaps om
+                 :proximal-exc prox-exc
+                 :sig-overlaps sig-om
+                 :active-cells ac
+                 :active-cols a-cols
+                 :burst-cols b-cols
+                 :signal-cells sig-ac
+                 ;; for convenience / efficiency in other steps
+                 :active-cells-by-col acbc}))))
   (layer-learn
-    [this ff-bits]
-    (let [dcp (:duty-cycle-period spec)
+    [this]
+    (let [ff-bits (:ff-bits state)
+          dcp (:duty-cycle-period spec)
           t (:timestep this)
           boost? (zero? (mod t dcp))
-          new-spec (tune-spec spec (/ (count active-cols) (p/size topology))
+          new-spec (tune-spec spec (/ (count (:active-cols state))
+                                      (p/size topology))
                               (count ff-bits))
-          prior-ac prior-active-cells
-          prior-lc prior-learn-cells
-          acbc (:active-cells-by-col this)
+          ac (:active-cells state)
+          prior-ac (:active-cells prior-state)
+          prior-lc (:learn-cells prior-state)
+          acbc (:active-cells-by-col state)
+          burst-cols (:burst-cols state)
           {lc :learn-cells
            lsegs :learn-segs} (select-learning-segs acbc burst-cols distal-sg
-                                                    prior-active-cells spec)
+                                                    prior-ac spec)
           dsg (cond-&gt;
                (learn-distal distal-sg lsegs burst-cols prior-ac prior-lc spec)
                ;; allow this phase of learning as an option
                (:distal-punish? spec)
-               (punish-distal active-cells prior-ac pred-cells prior-pred-cells
-                              spec))
+               (punish-distal ac prior-ac (:pred-cells pred-state)
+                              (:pred-cells prior-pred-state) spec))
           psg (columns/learn-proximal proximal-sg input-topology topology
-                                      active-cols ff-bits overlaps spec)]
+                                      (:active-cols state) ff-bits
+                                      (:overlaps state) spec)]
       (cond-&gt;
        (assoc this
          :spec new-spec
-         :learn-cells lc
-         :learn-segments lsegs
+         :state (assoc state
+                  :learn-cells lc
+                  :learn-segments lsegs)
          :distal-sg dsg
          :proximal-sg psg)
        true (update-in [:overlap-duty-cycles] columns/update-duty-cycles
-                       (keys proximal-exc) dcp)
+                       (keys (:proximal-exc state)) dcp)
        true (update-in [:active-duty-cycles] columns/update-duty-cycles
-                       active-cols dcp)
+                       (:active-cols state) dcp)
        boost? (columns/update-boosting)
        boost? (update-inhibition-radius))))
   (layer-depolarise
     [this distal-ff-bits distal-fb-bits]
     ;; TODO distal-bits
-    (let [seg-exc (syn/excitations distal-sg active-cells)
+    (let [seg-exc (syn/excitations distal-sg (:active-cells state))
           cell-exc (cell-depolarisation seg-exc (:seg-stimulus-threshold spec))
           pc (set (keys cell-exc))]
       (assoc this
-        :pred-cells pc
-        :prior-pred-cells pred-cells
-        :distal-exc cell-exc)))
+        :prior-pred-state pred-state
+        :pred-state (map-&gt;LayerPredictiveState
+                     {:distal-exc cell-exc
+                      :pred-cells pc}))))
   (layer-depth [_]
     (:depth spec))
-  (bursting-columns [this]
-    burst-cols)
+  (bursting-columns [_]
+    (:burst-cols state))
   (active-columns [_]
-    active-cols)
-  (active-cells [this]
-    (:active-cells this))
-  (learnable-cells [this]
-    learn-cells)
-  (signal-cells [this]
-    (:signal-cells this))
-  (temporal-pooling-cells [this]
+    (:active-cols state))
+  (active-cells [_]
+    (:active-cells state))
+  (learnable-cells [_]
+    (:learn-cells state))
+  (signal-cells [_]
+    (:signal-cells state))
+  (temporal-pooling-cells [_]
     #{})
-  (predictive-cells [this]
-    pred-cells)
-  (prior-predictive-cells [this]
-    prior-pred-cells)
-  (depolarisation [this]
-    distal-exc)
+  (predictive-cells [_]
+    (:pred-cells pred-state))
+  (prior-predictive-cells [_]
+    (:pred-cells prior-pred-state))
+  (depolarisation [_]
+    (:distal-exc pred-state))
   (column-excitation [_]
-    proximal-exc)
+    (:proximal-exc state))
   p/PTopological
   (topology [this]
     (:topology this))
@@ -3625,7 +3641,14 @@ because distributed snapshot release does not have clojurescript.</p>
                                                  (:max-segments spec)
                                                  (:distal-perm-connected spec)
                                                  (:seg-max-synapse-count spec)
-                                                 true)]
+                                                 true)
+        state (map-&gt;LayerActiveState
+               {:learn-cells #{}
+                :active-cells #{}
+                :active-cols #{}})
+        pred-state (map-&gt;LayerPredictiveState
+                    {:pred-cells #{}
+                     :distal-exc {}})]
     (-&gt;
      (map-&gt;LayerOfCells
       {:spec spec
@@ -3634,17 +3657,10 @@ because distributed snapshot release does not have clojurescript.</p>
        :inh-radius 1
        :proximal-sg proximal-sg
        :distal-sg distal-sg
-       :prox-exc {}
-       :overlaps {}
-       :sig-overlaps {}
-       :active-cols #{}
-       :burst-cols #{}
-       :active-cells #{}
-       :learn-cells #{}
-       :signal-cells #{}
-       :pred-cells #{}
-       :prior-pred-cells #{}
-       :distal-exc {}
+       :state state
+       :prior-state state
+       :pred-state pred-state
+       :prior-pred-state pred-state
        :boosts (vec (repeat n-cols 1.0))
        :active-duty-cycles (vec (repeat n-cols 0.0))
        :overlap-duty-cycles (vec (repeat n-cols 0.0))
@@ -3870,11 +3886,11 @@ y[t] = (period-1) * y[t-1]  +  1
       :step-counter (inc step-counter)
       :layer-3 (p/layer-activate layer-3 ff-bits signal-ff-bits)))
   (region-learn
-    [this ff-bits]
+    [this]
     (if (:freeze? (p/params this))
       this
       (assoc this
-        :layer-3 (p/layer-learn layer-3 ff-bits))))
+        :layer-3 (p/layer-learn layer-3))))
   (region-depolarise
     [this distal-ff-bits distal-fb-bits]
     (assoc this
@@ -3937,45 +3953,11 @@ y[t] = (period-1) * y[t-1]  +  1
 </td><td class="codes"><pre class="brush: clojure">(defrecord SensoryMotorRegion
     [layer-4 layer-3 uuid step-counter]
   ;; TODO)</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defrecord SensoryInput
-    [init-value value transform encoder]
-  p/PTopological
-  (topology [_]
-    (p/topology encoder))
-  p/PFeedForward
-  (ff-topology [_]
-    (p/topology encoder))
-  (bits-value
-    [_ offset]
-    (p/encode encoder offset value))
-  (signal-bits-value
-    [_ offset]
-    #{})
-  (source-of-bit
-    [_ i]
-    [i])
-  p/PFeedForwardMotor
-  (ff-motor-topology [_]
-    topology/empty-topology)
-  (motor-bits-value
-    [_ offset]
-    #{})
-  p/PSensoryInput
-  (input-step [this]
-    (assoc this :value (transform value)))
-  (domain-value [_]
-    value)
-  p/PResettable
-  (reset [this]
-    (assoc this :value init-value)))</pre></td></tr><tr><td class="docs"><p>Creates an input stream from an initial value, a function to
-   transform the input to the next time step, and an encoder.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn sensory-input
-  [init-value transform encoder]
-  (-&gt;SensoryInput init-value init-value transform encoder))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defrecord SensoryMotorInput
-    [init-value value transform encoder motor-encoder]
+    [encoder motor-encoder value]
   p/PTopological
   (topology [_]
+    ;; TODO combine dimensions with motor component?
     (p/topology encoder))
   p/PFeedForward
   (ff-topology [_]
@@ -3991,26 +3973,30 @@ y[t] = (period-1) * y[t-1]  +  1
     [i])
   p/PFeedForwardMotor
   (ff-motor-topology [_]
-    (p/topology motor-encoder))
+    (if motor-encoder
+      (p/topology motor-encoder)
+      topology/empty-topology))
   (motor-bits-value
     [_ offset]
-    (p/encode motor-encoder offset value))
-  p/PSensoryInput
-  (input-step [this]
-    (assoc this :value (transform value)))
-  (domain-value [_]
-    value)
-  p/PResettable
-  (reset [this]
-    (assoc this :value init-value)))</pre></td></tr><tr><td class="docs"><p>Creates an input stream from an initial value, a function to
-   transform the input to the next time step, and two encoders
-   operating on the same value. Remember that HTM models go through
-   the three phases [activate -> learn -> depolarise] on each
-   timestep: therefore motor signals, which act to depolarise cells,
-   should appear the time step before a corresponding sensory signal.</p>
+    (if motor-encoder
+      (p/encode motor-encoder offset value)
+      #{}))
+  p/PInputSource
+  (input-step [this in-value]
+    (assoc this :value in-value)))</pre></td></tr><tr><td class="docs"><p>Creates an input source from an encoder.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn sensory-input
+  [encoder]
+  (-&gt;SensoryMotorInput encoder nil nil))</pre></td></tr><tr><td class="docs"><p>Creates an input source from an encoder (for the proximal
+   feed-forward output) and a motor encoder (for the distal
+   feed-forward output). The encoders operate on the same value so
+   should select their relevant parts of it. Remember that HTM models
+   go through the three phases [activate -> learn -> depolarise] on
+   each timestep: therefore motor signals, which act to depolarise
+   cells, should appear the time step before a corresponding sensory
+   signal.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn sensory-motor-input
-  [init-value transform encoder motor-encoder]
-  (-&gt;SensoryMotorInput init-value init-value transform encoder motor-encoder))</pre></td></tr><tr><td class="docs"><p>Returns the total bit set from a collection of sources satisfying
+  [encoder motor-encoder]
+  (-&gt;SensoryMotorInput encoder motor-encoder nil))</pre></td></tr><tr><td class="docs"><p>Returns the total bit set from a collection of sources satisfying
    <code>PFeedForward</code> or <code>PFeedForwardMotor</code>. <code>flavour</code> should
    be :standard, :signal or :motor.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn combined-bits-value
@@ -4041,9 +4027,9 @@ y[t] = (period-1) * y[t-1]  +  1
     [ff-deps-map fb-deps-map strata inputs-map regions-map uuid-&gt;id]
   p/PHTM
   (htm-activate
-    [this]
+    [this in-value]
     (let [im (zipmap (keys inputs-map)
-                     (pmap p/input-step (vals inputs-map)))
+                     (map p/input-step (vals inputs-map) (repeat in-value)))
           rm (-&gt; (reduce
                   (fn [m stratum]
                     (-&gt;&gt; stratum
@@ -4065,14 +4051,8 @@ y[t] = (period-1) * y[t-1]  +  1
       (assoc this :inputs-map im :regions-map rm)))
   (htm-learn
     [this]
-    (let [rm (-&gt;&gt; regions-map
-                  (pmap (fn [[id region]]
-                          (let [ff-ids (ff-deps-map id)
-                                ffs (map #(or (inputs-map %) (regions-map %))
-                                         ff-ids)]
-                            (p/region-learn
-                             region
-                             (combined-bits-value ffs :standard)))))
+    (let [rm (-&gt;&gt; (vals regions-map)
+                  (pmap p/region-learn)
                   (zipmap (keys regions-map)))]
       (assoc this :regions-map rm)))
   (htm-depolarise
@@ -4107,8 +4087,7 @@ y[t] = (period-1) * y[t-1]  +  1
     (assoc this
       :regions-map (-&gt;&gt; (vals regions-map)
                         (pmap p/reset)
-                        (zipmap (keys regions-map)))
-      :inputs-map (util/remap p/reset inputs-map))))</pre></td></tr><tr><td class="docs">
+                        (zipmap (keys regions-map))))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn- in-vals-not-keys
   [deps-map]
   (let [have-deps (set (keys deps-map))
@@ -4707,9 +4686,9 @@ will be clamped to this range.</p></li>
       ;; finished
       (keys (vec-&gt;map (persistent! emask))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/inhibition.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.protocols" name="org.nfrac.comportex.protocols"><h1 class="project-name">org.nfrac.comportex.protocols</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.protocols)</pre></td></tr><tr><td class="docs"><p>A network of regions and their inputs, forming Hierarchical Temporal Memory.</p>
+</td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.protocols)</pre></td></tr><tr><td class="docs"><p>A network of regions, forming Hierarchical Temporal Memory.</p>
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PHTM
-  (htm-activate [this])
+  (htm-activate [this in-value])
   (htm-learn [this])
   (htm-depolarise [this])
   (region-seq [this])
@@ -4718,15 +4697,15 @@ will be clamped to this range.</p></li>
     &quot;Applies function `f` to the region in a HTM network identified by
      its UUID. Returns the modified HTM network.&quot;))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn htm-step
-  [this]
+  [this in-value]
   (-&gt; this
-      (htm-activate)
+      (htm-activate in-value)
       (htm-learn)
       (htm-depolarise)))</pre></td></tr><tr><td class="docs"><p>Cortical regions need to extend this together with PTopological,
    PFeedForward, PTemporal, PParameterised.</p>
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PRegion
   (region-activate [this ff-bits signal-ff-bits])
-  (region-learn [this ff-bits])
+  (region-learn [this])
   (region-depolarise [this distal-ff-bits distal-fb-bits]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn region-step
   ([this ff-bits]
@@ -4734,7 +4713,7 @@ will be clamped to this range.</p></li>
   ([this ff-bits signal-ff-bits distal-ff-bits distal-fb-bits]
      (-&gt; this
          (region-activate ff-bits signal-ff-bits)
-         (region-learn ff-bits)
+         (region-learn)
          (region-depolarise distal-ff-bits distal-fb-bits))))</pre></td></tr><tr><td class="docs"><p>A feed-forward input source with a bit set representation. Could be
    sensory input or a region (where cells are bits).</p>
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PFeedForward
@@ -4747,7 +4726,7 @@ will be clamped to this range.</p></li>
   (motor-bits-value [this offset]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PLayerOfCells
   (layer-activate [this ff-bits signal-ff-bits])
-  (layer-learn [this ff-bits])
+  (layer-learn [this])
   (layer-depolarise [this distal-ff-bits distal-fb-bits])
   (layer-depth [this])
   (column-excitation [this])
@@ -4793,9 +4772,8 @@ will be clamped to this range.</p></li>
      decreasing. The argument `bit-votes` is a map from encoded bit
      index to a number of votes, typically the number of synapse
      connections from predictive cells.&quot;))</pre></td></tr><tr><td class="docs"><p>Inputs need to extend this together with PFeedForward.</p>
-</td><td class="codes"><pre class="brush: clojure">(defprotocol PSensoryInput
-  (input-step [this])
-  (domain-value [this] &quot;Value underlying the current sensory input.&quot;))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defprotocol PInputSource
+  (input-step [this in-value]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PResettable
   (reset [this]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PTemporal
@@ -5401,27 +5379,14 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.directional-steps-1d
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.encoders :as enc]
-            [org.nfrac.comportex.util :as util]))</pre></td></tr><tr><td class="docs">
+            [org.nfrac.comportex.util :as util]
+                  [clojure.core.async :as async]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def bit-width 300)
 (def cat-bit-width 60)
 (def numb-bit-width (- bit-width cat-bit-width))
 (def numb-max 7)
 (def numb-domain [0 numb-max])
 (def on-bits 30)</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def initial-input [:up 0])</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn input-transform
-  [[dir i]]
-  (let [new-i (-&gt; (case dir
-                    :up (inc i)
-                    :down (dec i))
-                  (min numb-max)
-                  (max 0))
-        new-dir (util/rand-nth [:up :down])]
-    [new-dir new-i]))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def encoder
-  (enc/encat 2
-             (enc/category-encoder cat-bit-width [:down :up])
-             (enc/linear-encoder numb-bit-width on-bits numb-domain)))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def spec
   {:column-dimensions [500]
    :ff-potential-radius 0.2
@@ -5445,23 +5410,65 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
    })</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn input-gen
+</td><td class="codes"><pre class="brush: clojure">(def initial-input-val [:up 0])</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn input-transform
+  [[dir i]]
+  (let [new-i (-&gt; (case dir
+                    :up (inc i)
+                    :down (dec i))
+                  (min numb-max)
+                  (max 0))
+        new-dir (util/rand-nth [:up :down])]
+    [new-dir new-i]))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def encoder
+  (enc/encat 2
+             (enc/category-encoder cat-bit-width [:down :up])
+             (enc/linear-encoder numb-bit-width on-bits numb-domain)))</pre></td></tr><tr><td class="docs"><p>Returns a channel of sensory input values.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn world
   []
-  (core/sensory-input initial-input input-transform encoder))</pre></td></tr><tr><td class="docs">
+  (doto (async/chan)
+    (async/onto-chan (iterate input-transform initial-input-val))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn n-region-model
   ([n]
      (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/sensory-region (input-gen) n spec)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/directional<em>steps</em>1d.cljx</p>
+     (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+                             n spec)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/directional<em>steps</em>1d.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.isolated-1d" name="org.nfrac.comportex.demos.isolated-1d"><h1 class="project-name">org.nfrac.comportex.demos.isolated-1d</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.isolated-1d
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.encoders :as enc]
-            [org.nfrac.comportex.util :as util]))</pre></td></tr><tr><td class="docs">
+            [org.nfrac.comportex.util :as util]
+                  [clojure.core.async :as async]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def bit-width 400)
 (def on-bits 25)
 (def numb-max 15)
 (def numb-domain [0 numb-max])</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def spec
+  {:column-dimensions [1000]
+   :ff-init-frac 0.3
+   :ff-potential-radius 0.1
+   :ff-perm-inc 0.05
+   :ff-perm-dec 0.01
+   :ff-perm-connected 0.20
+   :ff-stimulus-threshold 3
+   :global-inhibition? false
+   :activation-level 0.02
+   :duty-cycle-period 100000
+   :max-boost 2.0
+   ;; sequence memory:
+   :depth 8
+   :max-segments 5
+   :seg-max-synapse-count 18
+   :seg-new-synapse-count 12
+   :seg-stimulus-threshold 9
+   :seg-learn-threshold 7
+   :distal-perm-connected 0.20
+   :distal-perm-inc 0.05
+   :distal-perm-dec 0.01
+   :distal-perm-init 0.16
+   :inhibition-base-distance 1
+   })</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def patterns
   {:run-0-5 [0 1 2 3 4 5]
    :rev-5-1 [5 4 3 2 1]
@@ -5530,11 +5537,30 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
 </td><td class="codes"><pre class="brush: clojure">(def encoder
   (enc/pre-transform current-values
                      (enc/ensplat
-                      (enc/linear-encoder bit-width on-bits numb-domain))))</pre></td></tr><tr><td class="docs">
+                      (enc/linear-encoder bit-width on-bits numb-domain))))</pre></td></tr><tr><td class="docs"><p>Returns a channel of sensory input values.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn world
+  []
+  (doto (async/chan)
+    (async/onto-chan (iterate input-transform (initial-input)))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn n-region-model
+  ([n]
+     (n-region-model n spec))
+  ([n spec]
+     (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+                             n spec)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/isolated_1d.cljx</p>
+</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.isolated-2d" name="org.nfrac.comportex.demos.isolated-2d"><h1 class="project-name">org.nfrac.comportex.demos.isolated-2d</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.isolated-2d
+  (:require [org.nfrac.comportex.core :as core]
+            [org.nfrac.comportex.encoders :as enc]
+            [org.nfrac.comportex.util :as util]
+                  [clojure.core.async :as async]))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def input-size [50 50])
+(def on-bits 64)
+(def numb-domain [10 10])</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def spec
-  {:column-dimensions [1000]
+  {:column-dimensions [20 50]
    :ff-init-frac 0.3
-   :ff-potential-radius 0.1
+   :ff-potential-radius 0.2
    :ff-perm-inc 0.05
    :ff-perm-dec 0.01
    :ff-perm-connected 0.20
@@ -5547,31 +5573,15 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
    :depth 8
    :max-segments 5
    :seg-max-synapse-count 18
-   :seg-new-synapse-count 12
-   :seg-stimulus-threshold 9
-   :seg-learn-threshold 7
+   :seg-new-synapse-count 10
+   :seg-stimulus-threshold 5
+   :seg-learn-threshold 4
    :distal-perm-connected 0.20
    :distal-perm-inc 0.05
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
    :inhibition-base-distance 1
    })</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn input-gen
-  []
-  (core/sensory-input (initial-input) input-transform encoder))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn n-region-model
-  ([n]
-     (n-region-model n spec))
-  ([n spec]
-     (core/regions-in-series core/sensory-region (input-gen) n spec)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/isolated_1d.cljx</p>
-</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.isolated-2d" name="org.nfrac.comportex.demos.isolated-2d"><h1 class="project-name">org.nfrac.comportex.demos.isolated-2d</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.isolated-2d
-  (:require [org.nfrac.comportex.core :as core]
-            [org.nfrac.comportex.encoders :as enc]
-            [org.nfrac.comportex.util :as util]))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def input-size [50 50])
-(def on-bits 64)
-(def numb-domain [10 10])</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def patterns
   {:down-1 (mapv vector (repeat 1) (range 10))
    :down-right (into (mapv vector (repeat 1) (range 5))
@@ -5641,11 +5651,30 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
 </td><td class="codes"><pre class="brush: clojure">(def encoder
   (enc/pre-transform current-values
                      (enc/ensplat
-                      (enc/linear-2d-encoder input-size on-bits numb-domain))))</pre></td></tr><tr><td class="docs">
+                      (enc/linear-2d-encoder input-size on-bits numb-domain))))</pre></td></tr><tr><td class="docs"><p>Returns a channel of sensory input values.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn world
+  []
+  (doto (async/chan)
+    (async/onto-chan (iterate input-transform (initial-input)))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn n-region-model
+  ([n]
+     (n-region-model n spec))
+  ([n spec]
+     (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+                             n spec)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/isolated_2d.cljx</p>
+</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.mixed-gaps-1d" name="org.nfrac.comportex.demos.mixed-gaps-1d"><h1 class="project-name">org.nfrac.comportex.demos.mixed-gaps-1d</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.mixed-gaps-1d
+  (:require [org.nfrac.comportex.core :as core]
+            [org.nfrac.comportex.encoders :as enc]
+            [org.nfrac.comportex.util :as util]
+                  [clojure.core.async :as async]))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def bit-width 400)
+(def on-bits 25)
+(def numb-max 15)
+(def numb-domain [0 numb-max])</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def spec
-  {:column-dimensions [20 50]
-   :ff-init-frac 0.3
-   :ff-potential-radius 0.2
+  {:column-dimensions [1000]
+   :ff-potential-radius 0.1
    :ff-perm-inc 0.05
    :ff-perm-dec 0.01
    :ff-perm-connected 0.20
@@ -5658,32 +5687,14 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
    :depth 8
    :max-segments 5
    :seg-max-synapse-count 18
-   :seg-new-synapse-count 10
-   :seg-stimulus-threshold 5
-   :seg-learn-threshold 4
+   :seg-new-synapse-count 12
+   :seg-stimulus-threshold 9
+   :seg-learn-threshold 7
    :distal-perm-connected 0.20
    :distal-perm-inc 0.05
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
-   :inhibition-base-distance 1
    })</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn input-gen
-  []
-  (core/sensory-input (initial-input) input-transform encoder))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn n-region-model
-  ([n]
-     (n-region-model n spec))
-  ([n spec]
-     (core/regions-in-series core/sensory-region (input-gen) n spec)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/isolated_2d.cljx</p>
-</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.mixed-gaps-1d" name="org.nfrac.comportex.demos.mixed-gaps-1d"><h1 class="project-name">org.nfrac.comportex.demos.mixed-gaps-1d</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.mixed-gaps-1d
-  (:require [org.nfrac.comportex.core :as core]
-            [org.nfrac.comportex.encoders :as enc]
-            [org.nfrac.comportex.util :as util]))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def bit-width 400)
-(def on-bits 25)
-(def numb-max 15)
-(def numb-domain [0 numb-max])</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def patterns
   {:run-0-5 [0 1 2 3 4 5]
    :rev-5-1 [5 4 3 2 1]
@@ -5733,15 +5744,34 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
 </td><td class="codes"><pre class="brush: clojure">(def encoder
   (enc/pre-transform current-values
                      (enc/ensplat
-                      (enc/linear-encoder bit-width on-bits numb-domain))))</pre></td></tr><tr><td class="docs">
+                      (enc/linear-encoder bit-width on-bits numb-domain))))</pre></td></tr><tr><td class="docs"><p>Returns a channel of sensory input values.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn world
+  []
+  (doto (async/chan)
+    (async/onto-chan (iterate input-transform (initial-input)))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn n-region-model
+  ([n]
+     (n-region-model n spec))
+  ([n spec]
+     (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+                             n spec)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/mixed<em>gaps</em>1d.cljx</p>
+</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.simple-sentences" name="org.nfrac.comportex.demos.simple-sentences"><h1 class="project-name">org.nfrac.comportex.demos.simple-sentences</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.simple-sentences
+  (:require [org.nfrac.comportex.core :as core]
+            [org.nfrac.comportex.encoders :as enc]
+            [org.nfrac.comportex.util :as util]
+            [clojure.string :as str]
+                  [clojure.core.async :as async]))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def bits-per-word 35)</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def spec
   {:column-dimensions [1000]
-   :ff-potential-radius 0.1
+   :ff-init-frac 0.3
+   :ff-potential-radius 1.0
    :ff-perm-inc 0.05
-   :ff-perm-dec 0.01
+   :ff-perm-dec 0.005
    :ff-perm-connected 0.20
    :ff-stimulus-threshold 3
-   :global-inhibition? false
+   :global-inhibition? true
    :activation-level 0.02
    :duty-cycle-period 100000
    :max-boost 2.0
@@ -5756,21 +5786,9 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
    :distal-perm-inc 0.05
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
+   :distal-punish? false
+   :distal-vs-proximal-weight 0.5
    })</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn input-gen
-  []
-  (core/sensory-input (initial-input) input-transform encoder))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn n-region-model
-  ([n]
-     (n-region-model n spec))
-  ([n spec]
-     (core/regions-in-series core/sensory-region (input-gen) n spec)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/mixed<em>gaps</em>1d.cljx</p>
-</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.simple-sentences" name="org.nfrac.comportex.demos.simple-sentences"><h1 class="project-name">org.nfrac.comportex.demos.simple-sentences</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.simple-sentences
-  (:require [org.nfrac.comportex.core :as core]
-            [org.nfrac.comportex.encoders :as enc]
-            [org.nfrac.comportex.util :as util]
-            [clojure.string :as str]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def input-text
   ;; warmup to refine feed-forward synapse fields
 &quot;Jane.
@@ -5833,76 +5851,38 @@ does fox have a friend ? no.
 does fox have a tail ? yes.
 Jane has no tail.
 Chifung has no tail.
-&quot;)</pre></td></tr><tr><td class="docs"><p>Returns an input transform function of [[i j rep]]
-   [sentence index, word index, repeat number]</p>
-</td><td class="codes"><pre class="brush: clojure">(defn input-transform-fn
-  [split-sentences n-repeats]
-  (fn [[i j rep]]
-    (let [sen (get split-sentences i)
-          n-sen (count split-sentences)]
-      ;; check end of a sentence (+1 for gap)
-      (if (== j (count sen))
-        ;; reached the end of a sentence
-        (if (== rep (dec n-repeats))
-          ;; finished repeating this sentence, move on
-          [(mod (inc i) n-sen)
-           0
-           0]
-          ;; next repeat
-          [i
-           0
-           (inc rep)])
-        ;; continuing this sentence
-        [i (inc j) rep]))))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def bits-per-word 35)</pre></td></tr><tr><td class="docs">
+&quot;)</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn split-sentences
   [text]
   (-&gt;&gt; (str/split (str/trim text) #&quot;[^\w]*\.+[^\w]*&quot;)
        (mapv #(str/split % #&quot;[^\w']+&quot;))
        ;; add a start token, to avoid bursting the first word.
-       (mapv #(vec (concat [&quot;&gt;&quot;] % [&quot;.&quot;])))))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn sensory-input-from-text
-  [text n-repeats bits-per-word]
+       (mapv #(vec (concat [&quot;&gt;&quot;] % [&quot;.&quot;])))))</pre></td></tr><tr><td class="docs"><p>An input sequence consisting of words from the given text, with
+   periods separating sentences also included as distinct words. Each
+   sequence element has the form <code>{:word _, :index [i j]}</code>, where i is
+   the sentence index and j is the word index into sentence j.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn word-item-seq
+  [n-repeats text]
+  (for [[i sen] (map-indexed vector (split-sentences text))
+        rep (range n-repeats)
+        [j word] (map-indexed vector sen)]
+    {:word word :index [i j]}))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn make-encoder
+  [text]
   (let [split-sens (split-sentences text)
         uniq-words (distinct (apply concat split-sens))
-        bit-width (* bits-per-word (count uniq-words))
-        encoder (enc/pre-transform (fn [[i j _]]
-                                     (get-in split-sens [i j]))
-                                   (enc/category-encoder bit-width uniq-words))
-        xform (input-transform-fn split-sens n-repeats)]
-    ;; [sentence index, word index, repeat number]
-    (core/sensory-input [0 -1 0] xform encoder)))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def spec
-  {:column-dimensions [1000]
-   :ff-init-frac 0.3
-   :ff-potential-radius 1.0
-   :ff-perm-inc 0.05
-   :ff-perm-dec 0.005
-   :ff-perm-connected 0.20
-   :ff-stimulus-threshold 3
-   :global-inhibition? true
-   :activation-level 0.02
-   :duty-cycle-period 100000
-   :max-boost 2.0
-   ;; sequence memory:
-   :depth 8
-   :max-segments 5
-   :seg-max-synapse-count 18
-   :seg-new-synapse-count 12
-   :seg-stimulus-threshold 9
-   :seg-learn-threshold 7
-   :distal-perm-connected 0.20
-   :distal-perm-inc 0.05
-   :distal-perm-dec 0.01
-   :distal-perm-init 0.16
-   :distal-punish? false
-   :distal-vs-proximal-weight 0.5
-   })</pre></td></tr><tr><td class="docs">
+        bit-width (* bits-per-word (count uniq-words))]
+    (enc/pre-transform :word
+                       (enc/category-encoder bit-width uniq-words))))</pre></td></tr><tr><td class="docs"><p>Returns a channel of sensory input values.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn world
+  [text n-repeats]
+  (doto (async/chan)
+    (async/onto-chan (word-item-seq n-repeats text))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn n-region-model
   ([n]
      (n-region-model input-text 3 n spec))
-  ([text n-repeats n spec]
-     (let [inp (sensory-input-from-text text n-repeats bits-per-word)]
+  ([text n spec]
+     (let [inp (core/sensory-input (make-encoder text))]
        (core/regions-in-series core/sensory-region inp n spec))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/simple_sentences.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr></table><div class="footer">Generated by <a href="https://github.com/gdeer81/marginalia">Marginalia</a>.&nbsp;&nbsp;Syntax highlighting provided by Alex Gorbatchev's <a href="http://alexgorbatchev.com/SyntaxHighlighter/">SyntaxHighlighter</a><div id="floating-toc"><ul><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.algo-graph">org.nfrac.comportex.algo-graph</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.cells">org.nfrac.comportex.cells</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.columns">org.nfrac.comportex.columns</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.core">org.nfrac.comportex.core</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.cortical-io">org.nfrac.comportex.cortical-io</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.inhibition">org.nfrac.comportex.inhibition</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.protocols">org.nfrac.comportex.protocols</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.synapses">org.nfrac.comportex.synapses</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.topology">org.nfrac.comportex.topology</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.util">org.nfrac.comportex.util</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.directional-steps-1d">org.nfrac.comportex.demos.directional-steps-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.isolated-1d">org.nfrac.comportex.demos.isolated-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.isolated-2d">org.nfrac.comportex.demos.isolated-2d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.mixed-gaps-1d">org.nfrac.comportex.demos.mixed-gaps-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.simple-sentences">org.nfrac.comportex.demos.simple-sentences</li></ul></div></div><script type="text/javascript">SyntaxHighlighter.defaults['gutter'] = false;
 SyntaxHighlighter.all();
