@@ -106,7 +106,7 @@
 
 (defn three-d-topology
   [w h d]
-  (three-d-topology w h d))
+  (->ThreeDTopology w h d))
 
 (defn make-topology
   [dims]
