@@ -146,33 +146,36 @@
           #{}))
       (decode
         [this bit-votes n]
-        (if decode-locally?
-          (->> (enc/decode-by-brute-force this (keys @cache) bit-votes)
-               (take n))
-          ;; otherwise - remote request for similar terms
-          (let [bit-votes (if spatial-scramble?
-                            (zipmap (map unscramble-bit (keys bit-votes))
-                                    (vals bit-votes))
-                            bit-votes)
-                bits (elect-bits bit-votes min-votes max-bits)]
-            (if (empty? bits)
-              []
-              (let [total-votes (apply + (vals bit-votes))
-                    handle
-                    (fn [result]
-                      (if (http/unexceptional-status? (:status result))
-                        (->> (:body result)
-                             (map (fn [item]
-                                    (let [x-bits (set (get item [:fingerprint
-                                                                 :positions]))]
-                                      (-> (enc/prediction-stats x-bits bit-votes
-                                                                total-votes)
-                                          (assoc :value (get item :term))))))
-                             (take n))
-                        (println result)))]
-                #+clj ;; clj - synchronous
-                (handle (request-similar-terms api-key bits n))
-                #+cljs ;; cljs - asynchronous
-                {:channel
-                 (go
-                  (handle (<! (request-similar-terms api-key bits n))))}))))))))
+        (let [bit-votes (if spatial-scramble?
+                          (zipmap (map unscramble-bit (keys bit-votes))
+                                  (vals bit-votes))
+                          bit-votes)]
+          (if decode-locally?
+            (->> (enc/decode-by-brute-force this (keys @cache) bit-votes)
+                 (take n))
+            ;; otherwise - remote request for similar terms
+            (let [bits (elect-bits bit-votes min-votes max-bits)]
+              (if (empty? bits)
+                []
+                (let [total-votes (apply + (vals bit-votes))
+                      handle
+                      (fn [result]
+                        (if (http/unexceptional-status? (:status result))
+                          (->> (:body result)
+                               (map (fn [item]
+                                      (let [x-bits (set (get item [:fingerprint
+                                                                   :positions]))]
+                                        (println "received prediction results.")
+                                        (println "x-bits =" x-bits)
+                                        (println "bits =" bits)
+                                        (-> (enc/prediction-stats x-bits bit-votes
+                                                                  total-votes)
+                                            (assoc :value (get item :term))))))
+                               (take n))
+                          (println result)))]
+                  #+clj ;; clj - synchronous
+                  (handle (request-similar-terms api-key bits n))
+                  #+cljs ;; cljs - asynchronous
+                  {:channel
+                   (go
+                    (handle (<! (request-similar-terms api-key bits n))))})))))))))
