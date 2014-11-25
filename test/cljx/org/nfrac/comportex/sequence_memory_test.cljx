@@ -62,7 +62,7 @@
                           1 spec))
 
 (defn world-seq
-  "Returns a channel of sensory input values."
+  "Returns a sequence of sensory input values."
   []
   (iterate input-transform initial-input))
 
