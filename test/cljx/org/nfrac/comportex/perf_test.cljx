@@ -84,6 +84,7 @@
   (util/set-seed! 0)
   (let [topo (topology/make-topology [20 50])
         n (p/size topo)
+        n-on (util/round (* n 0.02))
         inh-radius 15
         inh-base-dist 1
         exc (->> (repeatedly #(let [x (util/rand 0 5.0)] (* x x))) ;; skew
@@ -93,9 +94,9 @@
     (testing info
       (println (str (newline) info))
       (crit/quick-bench
-       (inh/inhibit-locally exc topo inh-radius inh-base-dist)))
+       (inh/inhibit-locally exc topo inh-radius inh-base-dist n-on)))
     (let [info "[20 50], radius 0.2, global inhibition"]
       (testing info
         (println (str (newline) info))
         (crit/quick-bench
-         (inh/inhibit-globally exc 0.02 n))))))
+         (inh/inhibit-globally exc n-on))))))

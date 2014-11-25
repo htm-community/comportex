@@ -57,9 +57,8 @@
    map of column excitations `exc`, and the target activation rate
    `level`. Global inhibition is applied, i.e. the top N columns by
    excitation are selected."
-  [exc level n-cols]
-  (let [n-on (max 1 (round (* level n-cols)))]
-    (util/top-n-keys-by-value n-on exc)))
+  [exc n-on]
+  (util/top-n-keys-by-value n-on exc))
 
 (defn inhibits?
   "Whether a cell with excitation `x` inhibits a neighbour cell with
@@ -105,15 +104,20 @@
    map of column excitations `exc` and the column topology. Applies
    local inhibition to remove any columns dominated by their
    neighbours."
-  [exc topo inh-radius inh-base-dist]
-  (loop [cols (keys (sort-by val > exc))
+  [exc topo inh-radius inh-base-dist n-on]
+  (loop [sel-cols ()
+         more-cols (keys (sort-by val > exc))
          emask (transient (map->vec (p/size topo) exc))]
-    (if-let [col (first cols)]
-      (if-let [x (emask col)]
-        (recur (next cols)
-               (mask-out-inhibited-by-col emask col x topo inh-radius
-                                          inh-base-dist))
-        ;; already eliminated, skip
-        (recur (next cols) emask))
-      ;; finished
-      (keys (vec->map (persistent! emask))))))
+    (if (< (count sel-cols) n-on)
+      (if-let [col (first more-cols)]
+        (if-let [x (emask col)]
+          (recur (conj sel-cols col)
+                 (next more-cols)
+                 (mask-out-inhibited-by-col emask col x topo inh-radius
+                                            inh-base-dist))
+          ;; already eliminated, skip
+          (recur sel-cols (next more-cols) emask))
+        ;; finished
+        sel-cols)
+      ;; reached target level of activation
+      sel-cols)))

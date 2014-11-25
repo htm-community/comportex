@@ -269,10 +269,12 @@
                                (:distal-vs-proximal-weight spec)
                                (:spontaneous-activation? spec))
         level (:activation-level spec)
+        n-on (max 1 (round (* level (p/size topo))))
         a-cols (if (:global-inhibition? spec)
-                 (inh/inhibit-globally exc level (p/size topo))
+                 (inh/inhibit-globally exc n-on)
                  (inh/inhibit-locally exc topo inh-radius
-                                      (:inhibition-base-distance spec)))
+                                      (:inhibition-base-distance spec)
+                                      n-on))
         depth (:depth spec)]
     (loop [cols a-cols
            acbc (transient {})
@@ -491,24 +493,6 @@
         {:learn-cells (persistent! lc)
          :learn-segs (persistent! lsegs)}))))
 
-(defn tune-spec
-  "Adjust stimulus threshold when using local inhibition to converge
-   on the target level of activation."
-  [spec actual-activation-level n-inbits]
-  (if (or (:global-inhibition? spec false)
-          (zero? n-inbits)) ;; ignore case of no input (a gap)
-    spec
-    (let [target-level (:activation-level spec 0.02)]
-      (update-in spec [:ff-stimulus-threshold]
-                 (fn [x]
-                   ;; adjust threshold proportionally to error ratio
-                   ;; but dampened to 10%
-                   (let [scale (/ actual-activation-level target-level)
-                         delta (* x (- scale 1) 0.10)]
-                     (-> (+ x delta)
-                         (max 1.0)
-                         (min 1000.0))))))))
-
 ;;; ## Orchestration
 
 (defn update-inhibition-radius
@@ -566,9 +550,6 @@
           dcp (:duty-cycle-period spec)
           t (:timestep this)
           boost? (zero? (mod t dcp))
-          new-spec (tune-spec spec (/ (count (:active-cols state))
-                                      (p/size topology))
-                              (count ff-bits))
           ac (:active-cells state)
           prior-ac (:active-cells prior-state)
           prior-lc (:learn-cells prior-state)
@@ -588,7 +569,6 @@
                                       (:overlaps state) spec)]
       (cond->
        (assoc this
-         :spec new-spec
          :state (assoc state
                   :learn-cells lc
                   :learn-segments lsegs)
