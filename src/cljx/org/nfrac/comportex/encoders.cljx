@@ -4,7 +4,8 @@
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util]
-            [clojure.set :as set]))
+            [clojure.set :as set]
+            [cemerick.pprng :as rng]))
 
 (defn prediction-stats
   [x-bits bit-votes total-votes]
@@ -166,9 +167,9 @@
 
 (defn unique-encoder
   "This encoder gives a unique, persistent bit set to any value when
-   it is encountered. `input-size` is the dimensions as a vector."
-  [input-size on-bits]
-  (let [topo (topology/make-topology input-size)
+   it is encountered. `input-dim` is the dimensions as a vector."
+  [input-dim on-bits]
+  (let [topo (topology/make-topology input-dim)
         bit-width (p/size topo)
         cached-bits (atom {})
         gen #(set (take on-bits (util/shuffle (range bit-width))))]
@@ -232,3 +233,61 @@
           (->> (decode-by-brute-force this values bit-votes)
                (take n)))))))
 
+;; we only support up to 3D. beyond that, perf will be bad anyway.
+(defn coordinate-neighbours
+  [coord radii]
+  (case (count coord)
+    1 (let [[cx] coord
+            [rx] radii]
+        (for [x (range (- cx rx) (+ cx rx 1))]
+          [x]))
+    2 (let [[cx cy] coord
+            [rx ry] radii]
+        (for [x (range (- cx rx) (+ cx rx 1))
+              y (range (- cy ry) (+ cy ry 1))]
+          [x y]))
+    3 (let [[cx cy cz] coord
+            [rx ry rz] radii]
+        (for [x (range (- cx rx) (+ cx rx 1))
+              y (range (- cy ry) (+ cy ry 1))
+              z (range (- cz rz) (+ cz rz 1))]
+          [x y z]))))
+
+(defn coordinate-order
+  [coord]
+  (let [RNG (rng/rng (hash coord))]
+    (rng/double RNG)))
+
+(defn coordinate-bit
+  [size offset coord]
+  ;; need a different seed from coordinate-order here;
+  ;; otherwise highest orders always have highest bits!
+  ;; (in cljs, (rng/int) is just a scaling of (rng/double).)
+  (let [seedval (if (= 1 (count coord))
+                  (* size 2 (Math/sin (first coord)))
+                  (reverse coord))
+        RNG (rng/rng (hash seedval))]
+    (+ offset
+       (rng/int RNG size))))
+
+(defn coordinate-encoder
+  "Coordinate encoder over integer coordinates, unbounded (up to
+   platform limit), with one, two or three dimensions. Each dimension
+   has an associated radius within which there is some similarity in
+   encoded SDRs. Looks up keys :coord and :radii from the input value."
+  [input-dim on-bits]
+  (let [topo (topology/make-topology input-dim)
+        size (p/size topo)]
+    (reify
+      p/PTopological
+      (topology [_]
+        topo)
+      p/PEncodable
+      (encode
+        [_ offset {:keys [coord radii]}]
+        (let [neighs (coordinate-neighbours coord radii)]
+          (->> (zipmap neighs (map coordinate-order neighs))
+               (util/top-n-keys-by-value on-bits)
+               (map (partial coordinate-bit size offset))
+               (set))))
+      )))
