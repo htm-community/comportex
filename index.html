@@ -2865,8 +2865,8 @@ net.brehaut.ClojureTools = (function (SH) {
     build_tree: build_tree
   };
 })(SyntaxHighlighter);
-</script><title>org.nfrac/comportex -- Marginalia</title></head><body><table><tr><td class="docs"><div class="header"><h1 class="project-name"><a href="http://github.com/nupic-community/comportex/">org.nfrac/comportex</a></h1><h2 class="project-version">0.0.7-SNAPSHOT</h2><br /><p>Functionally composable cortex, an implementation of Hierarchical Temporal Memory</p>
-</div><div class="dependencies"><h3>dependencies</h3><table><tr><td class="dep-name">org.clojure/clojure</td><td class="dotted"><hr /></td><td class="dep-version">1.6.0</td></tr><tr><td class="dep-name">org.clojure/core.async</td><td class="dotted"><hr /></td><td class="dep-version">0.1.346.0-17112a-alpha</td></tr><tr><td class="dep-name">com.cemerick/pprng</td><td class="dotted"><hr /></td><td class="dep-version">0.0.2</td></tr><tr><td class="dep-name">clj-http</td><td class="dotted"><hr /></td><td class="dep-version">1.0.1</td></tr><tr><td class="dep-name">cljs-http</td><td class="dotted"><hr /></td><td class="dep-version">0.1.19</td></tr><tr><td class="dep-name">cljs-uuid</td><td class="dotted"><hr /></td><td class="dep-version">0.0.4</td></tr></table></div></td><td class="codes" style="text-align: center; vertical-align: middle;color: #666;padding-right:20px"><br /><br /><br />(this space intentionally left almost blank)</td></tr><tr><td class="docs"><div class="toc"><a name="toc"><h3>namespaces</h3></a><ul><li><a href="#org.nfrac.comportex.algo-graph">org.nfrac.comportex.algo-graph</a></li><li><a href="#org.nfrac.comportex.cells">org.nfrac.comportex.cells</a></li><li><a href="#org.nfrac.comportex.columns">org.nfrac.comportex.columns</a></li><li><a href="#org.nfrac.comportex.core">org.nfrac.comportex.core</a></li><li><a href="#org.nfrac.comportex.cortical-io">org.nfrac.comportex.cortical-io</a></li><li><a href="#org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</a></li><li><a href="#org.nfrac.comportex.inhibition">org.nfrac.comportex.inhibition</a></li><li><a href="#org.nfrac.comportex.protocols">org.nfrac.comportex.protocols</a></li><li><a href="#org.nfrac.comportex.synapses">org.nfrac.comportex.synapses</a></li><li><a href="#org.nfrac.comportex.topology">org.nfrac.comportex.topology</a></li><li><a href="#org.nfrac.comportex.util">org.nfrac.comportex.util</a></li><li><a href="#org.nfrac.comportex.demos.directional-steps-1d">org.nfrac.comportex.demos.directional-steps-1d</a></li><li><a href="#org.nfrac.comportex.demos.isolated-1d">org.nfrac.comportex.demos.isolated-1d</a></li><li><a href="#org.nfrac.comportex.demos.isolated-2d">org.nfrac.comportex.demos.isolated-2d</a></li><li><a href="#org.nfrac.comportex.demos.mixed-gaps-1d">org.nfrac.comportex.demos.mixed-gaps-1d</a></li><li><a href="#org.nfrac.comportex.demos.simple-sentences">org.nfrac.comportex.demos.simple-sentences</a></li></ul></div></td><td class="codes">&nbsp;</td></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.algo-graph" name="org.nfrac.comportex.algo-graph"><h1 class="project-name">org.nfrac.comportex.algo-graph</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>copied from
+</script><title>org.nfrac/comportex -- Marginalia</title></head><body><table><tr><td class="docs"><div class="header"><h1 class="project-name"><a href="http://github.com/nupic-community/comportex/">org.nfrac/comportex</a></h1><h2 class="project-version">0.0.8-SNAPSHOT</h2><br /><p>Functionally composable cortex, an implementation of Hierarchical Temporal Memory</p>
+</div><div class="dependencies"><h3>dependencies</h3><table><tr><td class="dep-name">org.clojure/clojure</td><td class="dotted"><hr /></td><td class="dep-version">1.6.0</td></tr><tr><td class="dep-name">org.clojure/core.async</td><td class="dotted"><hr /></td><td class="dep-version">0.1.346.0-17112a-alpha</td></tr><tr><td class="dep-name">com.cemerick/pprng</td><td class="dotted"><hr /></td><td class="dep-version">0.0.2</td></tr><tr><td class="dep-name">clj-http</td><td class="dotted"><hr /></td><td class="dep-version">1.0.1</td></tr><tr><td class="dep-name">cljs-http</td><td class="dotted"><hr /></td><td class="dep-version">0.1.19</td></tr><tr><td class="dep-name">cljs-uuid</td><td class="dotted"><hr /></td><td class="dep-version">0.0.4</td></tr></table></div></td><td class="codes" style="text-align: center; vertical-align: middle;color: #666;padding-right:20px"><br /><br /><br />(this space intentionally left almost blank)</td></tr><tr><td class="docs"><div class="toc"><a name="toc"><h3>namespaces</h3></a><ul><li><a href="#org.nfrac.comportex.algo-graph">org.nfrac.comportex.algo-graph</a></li><li><a href="#org.nfrac.comportex.cells">org.nfrac.comportex.cells</a></li><li><a href="#org.nfrac.comportex.columns">org.nfrac.comportex.columns</a></li><li><a href="#org.nfrac.comportex.core">org.nfrac.comportex.core</a></li><li><a href="#org.nfrac.comportex.cortical-io">org.nfrac.comportex.cortical-io</a></li><li><a href="#org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</a></li><li><a href="#org.nfrac.comportex.inhibition">org.nfrac.comportex.inhibition</a></li><li><a href="#org.nfrac.comportex.protocols">org.nfrac.comportex.protocols</a></li><li><a href="#org.nfrac.comportex.synapses">org.nfrac.comportex.synapses</a></li><li><a href="#org.nfrac.comportex.topology">org.nfrac.comportex.topology</a></li><li><a href="#org.nfrac.comportex.util">org.nfrac.comportex.util</a></li><li><a href="#org.nfrac.comportex.demos.coordinates-2d">org.nfrac.comportex.demos.coordinates-2d</a></li><li><a href="#org.nfrac.comportex.demos.directional-steps-1d">org.nfrac.comportex.demos.directional-steps-1d</a></li><li><a href="#org.nfrac.comportex.demos.isolated-1d">org.nfrac.comportex.demos.isolated-1d</a></li><li><a href="#org.nfrac.comportex.demos.isolated-2d">org.nfrac.comportex.demos.isolated-2d</a></li><li><a href="#org.nfrac.comportex.demos.mixed-gaps-1d">org.nfrac.comportex.demos.mixed-gaps-1d</a></li><li><a href="#org.nfrac.comportex.demos.simple-sentences">org.nfrac.comportex.demos.simple-sentences</a></li></ul></div></td><td class="codes">&nbsp;</td></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.algo-graph" name="org.nfrac.comportex.algo-graph"><h1 class="project-name">org.nfrac.comportex.algo-graph</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>copied from
 https://github.com/clojure/algo.graph/blob/03c740c61/src/main/clojure/clojure/algo/graph.clj
 because distributed snapshot release does not have clojurescript.</p>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>updated to use records not structs.</p>
@@ -3281,10 +3281,12 @@ because distributed snapshot release does not have clojurescript.</p>
                                (:distal-vs-proximal-weight spec)
                                (:spontaneous-activation? spec))
         level (:activation-level spec)
+        n-on (max 1 (round (* level (p/size topo))))
         a-cols (if (:global-inhibition? spec)
-                 (inh/inhibit-globally exc level (p/size topo))
+                 (inh/inhibit-globally exc n-on)
                  (inh/inhibit-locally exc topo inh-radius
-                                      (:inhibition-base-distance spec)))
+                                      (:inhibition-base-distance spec)
+                                      n-on))
         depth (:depth spec)]
     (loop [cols a-cols
            acbc (transient {})
@@ -3481,23 +3483,7 @@ because distributed snapshot release does not have clojurescript.</p>
                      (assoc! lsegs cell (:segment-idx sc))))))
         ;; finished
         {:learn-cells (persistent! lc)
-         :learn-segs (persistent! lsegs)}))))</pre></td></tr><tr><td class="docs"><p>Adjust stimulus threshold when using local inhibition to converge
-   on the target level of activation.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn tune-spec
-  [spec actual-activation-level n-inbits]
-  (if (or (:global-inhibition? spec false)
-          (zero? n-inbits)) ;; ignore case of no input (a gap)
-    spec
-    (let [target-level (:activation-level spec 0.02)]
-      (update-in spec [:ff-stimulus-threshold]
-                 (fn [x]
-                   ;; adjust threshold proportionally to error ratio
-                   ;; but dampened to 10%
-                   (let [scale (/ actual-activation-level target-level)
-                         delta (* x (- scale 1) 0.10)]
-                     (-&gt; (+ x delta)
-                         (max 1.0)
-                         (min 1000.0))))))))</pre></td></tr><tr><td class="docs"><h2>Orchestration</h2>
+         :learn-segs (persistent! lsegs)}))))</pre></td></tr><tr><td class="docs"><h2>Orchestration</h2>
 </td><td class="codes"></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn update-inhibition-radius
   [layer]
@@ -3550,9 +3536,6 @@ because distributed snapshot release does not have clojurescript.</p>
           dcp (:duty-cycle-period spec)
           t (:timestep this)
           boost? (zero? (mod t dcp))
-          new-spec (tune-spec spec (/ (count (:active-cols state))
-                                      (p/size topology))
-                              (count ff-bits))
           ac (:active-cells state)
           prior-ac (:active-cells prior-state)
           prior-lc (:learn-cells prior-state)
@@ -3572,7 +3555,6 @@ because distributed snapshot release does not have clojurescript.</p>
                                       (:overlaps state) spec)]
       (cond-&gt;
        (assoc this
-         :spec new-spec
          :state (assoc state
                   :learn-cells lc
                   :learn-segments lsegs)
@@ -4336,39 +4318,43 @@ y[t] = (period-1) * y[t-1]  +  1
           #{}))
       (decode
         [this bit-votes n]
-        (if decode-locally?
-          (-&gt;&gt; (enc/decode-by-brute-force this (keys @cache) bit-votes)
-               (take n))
-          ;; otherwise - remote request for similar terms
-          (let [bit-votes (if spatial-scramble?
-                            (zipmap (map unscramble-bit (keys bit-votes))
-                                    (vals bit-votes))
-                            bit-votes)
-                bits (elect-bits bit-votes min-votes max-bits)]
-            (if (empty? bits)
-              []
-              (let [total-votes (apply + (vals bit-votes))
-                    handle
-                    (fn [result]
-                      (if (http/unexceptional-status? (:status result))
-                        (-&gt;&gt; (:body result)
-                             (map (fn [item]
-                                    (let [x-bits (set (get item [:fingerprint
-                                                                 :positions]))]
-                                      (-&gt; (enc/prediction-stats x-bits bit-votes
-                                                                total-votes)
-                                          (assoc :value (get item :term))))))
-                             (take n))
-                        (println result)))]
-                      ;; clj - synchronous
-                (handle (request-similar-terms api-key bits n))))))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/cortical_io.cljx</p>
+        (let [bit-votes (if spatial-scramble?
+                          (zipmap (map unscramble-bit (keys bit-votes))
+                                  (vals bit-votes))
+                          bit-votes)]
+          (if decode-locally?
+            (-&gt;&gt; (enc/decode-by-brute-force this (keys @cache) bit-votes)
+                 (take n))
+            ;; otherwise - remote request for similar terms
+            (let [bits (elect-bits bit-votes min-votes max-bits)]
+              (if (empty? bits)
+                []
+                (let [total-votes (apply + (vals bit-votes))
+                      handle
+                      (fn [result]
+                        (if (http/unexceptional-status? (:status result))
+                          (-&gt;&gt; (:body result)
+                               (map (fn [item]
+                                      (let [x-bits (set (get item [:fingerprint
+                                                                   :positions]))]
+                                        (println &quot;received prediction results.&quot;)
+                                        (println &quot;x-bits =&quot; x-bits)
+                                        (println &quot;bits =&quot; bits)
+                                        (-&gt; (enc/prediction-stats x-bits bit-votes
+                                                                  total-votes)
+                                            (assoc :value (get item :term))))))
+                               (take n))
+                          (println result)))]
+                        ;; clj - synchronous
+                  (handle (request-similar-terms api-key bits n)))))))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/cortical_io.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.encoders" name="org.nfrac.comportex.encoders"><h1 class="project-name">org.nfrac.comportex.encoders</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>Methods of encoding data as distributed bit sets, for feeding as
    input to a cortical region.</p>
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.encoders
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util]
-            [clojure.set :as set]))</pre></td></tr><tr><td class="docs">
+            [clojure.set :as set]
+            [cemerick.pprng :as rng]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn prediction-stats
   [x-bits bit-votes total-votes]
   ;; calculate overlaps of prediction `x` bits with all votes
@@ -4516,10 +4502,10 @@ will be clamped to this range.</p></li>
         [this bit-votes n]
         (-&gt;&gt; (decode-by-brute-force this values bit-votes)
              (take n))))))</pre></td></tr><tr><td class="docs"><p>This encoder gives a unique, persistent bit set to any value when
-   it is encountered. <code>input-size</code> is the dimensions as a vector.</p>
+   it is encountered. <code>input-dim</code> is the dimensions as a vector.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn unique-encoder
-  [input-size on-bits]
-  (let [topo (topology/make-topology input-size)
+  [input-dim on-bits]
+  (let [topo (topology/make-topology input-dim)
         bit-width (p/size topo)
         cached-bits (atom {})
         gen #(set (take on-bits (util/shuffle (range bit-width))))]
@@ -4579,7 +4565,59 @@ will be clamped to this range.</p></li>
                            y (range y-max)]
                        [x y])]
           (-&gt;&gt; (decode-by-brute-force this values bit-votes)
-               (take n)))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/encoders.cljx</p>
+               (take n)))))))</pre></td></tr><tr><td class="docs"><p>we only support up to 3D. beyond that, perf will be bad anyway.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn coordinate-neighbours
+  [coord radii]
+  (case (count coord)
+    1 (let [[cx] coord
+            [rx] radii]
+        (for [x (range (- cx rx) (+ cx rx 1))]
+          [x]))
+    2 (let [[cx cy] coord
+            [rx ry] radii]
+        (for [x (range (- cx rx) (+ cx rx 1))
+              y (range (- cy ry) (+ cy ry 1))]
+          [x y]))
+    3 (let [[cx cy cz] coord
+            [rx ry rz] radii]
+        (for [x (range (- cx rx) (+ cx rx 1))
+              y (range (- cy ry) (+ cy ry 1))
+              z (range (- cz rz) (+ cz rz 1))]
+          [x y z]))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn coordinate-order
+  [coord]
+  (let [RNG (rng/rng (hash coord))]
+    (rng/double RNG)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn coordinate-bit
+  [size offset coord]
+  ;; need a different seed from coordinate-order here;
+  ;; otherwise highest orders always have highest bits!
+  ;; (in cljs, (rng/int) is just a scaling of (rng/double).)
+  (let [seedval (if (= 1 (count coord))
+                  (* size 2 (Math/sin (first coord)))
+                  (reverse coord))
+        RNG (rng/rng (hash seedval))]
+    (+ offset
+       (rng/int RNG size))))</pre></td></tr><tr><td class="docs"><p>Coordinate encoder over integer coordinates, unbounded (up to
+   platform limit), with one, two or three dimensions. Each dimension
+   has an associated radius within which there is some similarity in
+   encoded SDRs. Looks up keys :coord and :radii from the input value.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn coordinate-encoder
+  [input-dim on-bits]
+  (let [topo (topology/make-topology input-dim)
+        size (p/size topo)]
+    (reify
+      p/PTopological
+      (topology [_]
+        topo)
+      p/PEncodable
+      (encode
+        [_ offset {:keys [coord radii]}]
+        (let [neighs (coordinate-neighbours coord radii)]
+          (-&gt;&gt; (zipmap neighs (map coordinate-order neighs))
+               (util/top-n-keys-by-value on-bits)
+               (map (partial coordinate-bit size offset))
+               (set)))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/encoders.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.inhibition" name="org.nfrac.comportex.inhibition"><h1 class="project-name">org.nfrac.comportex.inhibition</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.inhibition
   (:require [org.nfrac.comportex.protocols :as p]
@@ -4632,9 +4670,8 @@ will be clamped to this range.</p></li>
    <code>level</code>. Global inhibition is applied, i.e. the top N columns by
    excitation are selected.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn inhibit-globally
-  [exc level n-cols]
-  (let [n-on (max 1 (round (* level n-cols)))]
-    (util/top-n-keys-by-value n-on exc)))</pre></td></tr><tr><td class="docs"><p>Whether a cell with excitation <code>x</code> inhibits a neighbour cell with
+  [exc n-on]
+  (util/top-n-keys-by-value n-on exc))</pre></td></tr><tr><td class="docs"><p>Whether a cell with excitation <code>x</code> inhibits a neighbour cell with
    excitation <code>nb-x</code> at a distance <code>dist</code> columns away.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn inhibits?
   [x nb-x dist max-dist base-dist]
@@ -4673,18 +4710,23 @@ will be clamped to this range.</p></li>
    local inhibition to remove any columns dominated by their
    neighbours.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn inhibit-locally
-  [exc topo inh-radius inh-base-dist]
-  (loop [cols (keys (sort-by val &gt; exc))
+  [exc topo inh-radius inh-base-dist n-on]
+  (loop [sel-cols ()
+         more-cols (keys (sort-by val &gt; exc))
          emask (transient (map-&gt;vec (p/size topo) exc))]
-    (if-let [col (first cols)]
-      (if-let [x (emask col)]
-        (recur (next cols)
-               (mask-out-inhibited-by-col emask col x topo inh-radius
-                                          inh-base-dist))
-        ;; already eliminated, skip
-        (recur (next cols) emask))
-      ;; finished
-      (keys (vec-&gt;map (persistent! emask))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/inhibition.cljx</p>
+    (if (&lt; (count sel-cols) n-on)
+      (if-let [col (first more-cols)]
+        (if-let [x (emask col)]
+          (recur (conj sel-cols col)
+                 (next more-cols)
+                 (mask-out-inhibited-by-col emask col x topo inh-radius
+                                            inh-base-dist))
+          ;; already eliminated, skip
+          (recur sel-cols (next more-cols) emask))
+        ;; finished
+        sel-cols)
+      ;; reached target level of activation
+      sel-cols)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/inhibition.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.protocols" name="org.nfrac.comportex.protocols"><h1 class="project-name">org.nfrac.comportex.protocols</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.protocols)</pre></td></tr><tr><td class="docs"><p>A network of regions, forming Hierarchical Temporal Memory.</p>
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PHTM
@@ -5128,7 +5170,7 @@ will be clamped to this range.</p></li>
          (abs (- zb za))))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn three-d-topology
   [w h d]
-  (three-d-topology w h d))</pre></td></tr><tr><td class="docs">
+  (-&gt;ThreeDTopology w h d))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn make-topology
   [dims]
   (let [[w h d q] dims]
@@ -5375,6 +5417,61 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
           ;; exclude this one
           :else
           (recur (next ms) am curr-min)))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/util.cljx</p>
+</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.coordinates-2d" name="org.nfrac.comportex.demos.coordinates-2d"><h1 class="project-name">org.nfrac.comportex.demos.coordinates-2d</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.coordinates-2d
+  (:require [org.nfrac.comportex.core :as core]
+            [org.nfrac.comportex.protocols :as p]
+            [org.nfrac.comportex.encoders :as enc]
+            [org.nfrac.comportex.util :as util :refer [abs]]
+                  [clojure.core.async :as async]))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def input-dim [30 30])
+(def on-bits 30)
+(def max-pos 45)
+(def max-vel 5)
+(def radius 15)</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def spec
+  {:column-dimensions [20 50]
+   :depth 8})</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def initial-input-val
+  {:x 10 :y 20 :vx 0 :vy 0 :ax 1 :ay 1})</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn clamp
+  [x lim]
+  (-&gt; x
+      (min lim)
+      (max (- lim))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn wrap
+  [x lim]
+  (-&gt; x
+      (+ lim)
+      (mod (* 2 lim))
+      (- lim)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn input-transform
+  [{:keys [x y vx vy ax ay]}]
+  {:x (wrap (+ x vx) max-pos)
+   :y (wrap (+ y vy) max-pos)
+   :vx (clamp (+ vx ax) max-vel)
+   :vy (clamp (+ vy ay) max-vel)
+   :ax (if (&lt; (abs y) (abs vy))
+         (if (pos? ax) -1 1)
+         ax)
+   :ay (if (&lt; (abs x) (abs vx))
+         (if (pos? ay) -1 1)
+         ay)})</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def encoder
+  (enc/pre-transform (fn [{:keys [x y]}]
+                       {:coord [x y]
+                        :radii [radius radius]})
+   (enc/coordinate-encoder input-dim on-bits)))</pre></td></tr><tr><td class="docs"><p>Returns a channel of sensory input values.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn world
+  []
+  (doto (async/chan)
+    (async/onto-chan (iterate input-transform initial-input-val))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn n-region-model
+  ([n]
+     (n-region-model n spec))
+  ([n spec]
+     (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+                             n spec)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/coordinates_2d.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.directional-steps-1d" name="org.nfrac.comportex.demos.directional-steps-1d"><h1 class="project-name">org.nfrac.comportex.demos.directional-steps-1d</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.directional-steps-1d
   (:require [org.nfrac.comportex.core :as core]
@@ -5884,7 +5981,7 @@ Chifung has no tail.
   ([text n spec]
      (let [inp (core/sensory-input (make-encoder text))]
        (core/regions-in-series core/sensory-region inp n spec))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/simple_sentences.cljx</p>
-</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr></table><div class="footer">Generated by <a href="https://github.com/gdeer81/marginalia">Marginalia</a>.&nbsp;&nbsp;Syntax highlighting provided by Alex Gorbatchev's <a href="http://alexgorbatchev.com/SyntaxHighlighter/">SyntaxHighlighter</a><div id="floating-toc"><ul><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.algo-graph">org.nfrac.comportex.algo-graph</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.cells">org.nfrac.comportex.cells</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.columns">org.nfrac.comportex.columns</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.core">org.nfrac.comportex.core</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.cortical-io">org.nfrac.comportex.cortical-io</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.inhibition">org.nfrac.comportex.inhibition</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.protocols">org.nfrac.comportex.protocols</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.synapses">org.nfrac.comportex.synapses</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.topology">org.nfrac.comportex.topology</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.util">org.nfrac.comportex.util</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.directional-steps-1d">org.nfrac.comportex.demos.directional-steps-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.isolated-1d">org.nfrac.comportex.demos.isolated-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.isolated-2d">org.nfrac.comportex.demos.isolated-2d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.mixed-gaps-1d">org.nfrac.comportex.demos.mixed-gaps-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.simple-sentences">org.nfrac.comportex.demos.simple-sentences</li></ul></div></div><script type="text/javascript">SyntaxHighlighter.defaults['gutter'] = false;
+</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr></table><div class="footer">Generated by <a href="https://github.com/gdeer81/marginalia">Marginalia</a>.&nbsp;&nbsp;Syntax highlighting provided by Alex Gorbatchev's <a href="http://alexgorbatchev.com/SyntaxHighlighter/">SyntaxHighlighter</a><div id="floating-toc"><ul><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.algo-graph">org.nfrac.comportex.algo-graph</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.cells">org.nfrac.comportex.cells</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.columns">org.nfrac.comportex.columns</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.core">org.nfrac.comportex.core</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.cortical-io">org.nfrac.comportex.cortical-io</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.inhibition">org.nfrac.comportex.inhibition</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.protocols">org.nfrac.comportex.protocols</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.synapses">org.nfrac.comportex.synapses</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.topology">org.nfrac.comportex.topology</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.util">org.nfrac.comportex.util</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.coordinates-2d">org.nfrac.comportex.demos.coordinates-2d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.directional-steps-1d">org.nfrac.comportex.demos.directional-steps-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.isolated-1d">org.nfrac.comportex.demos.isolated-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.isolated-2d">org.nfrac.comportex.demos.isolated-2d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.mixed-gaps-1d">org.nfrac.comportex.demos.mixed-gaps-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.simple-sentences">org.nfrac.comportex.demos.simple-sentences</li></ul></div></div><script type="text/javascript">SyntaxHighlighter.defaults['gutter'] = false;
 SyntaxHighlighter.all();
 
 // hackity hack
