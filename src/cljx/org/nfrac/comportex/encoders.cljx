@@ -4,7 +4,6 @@
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util]
-            [clojure.set :as set]
             [cemerick.pprng :as rng]))
 
 (defn prediction-stats
@@ -28,7 +27,7 @@
     (when (pos? total-votes)
       (->> try-values
            (map (fn [x]
-                  (let [x-bits (p/encode e 0 x)]
+                  (let [x-bits (p/encode e x)]
                     (-> (prediction-stats x-bits bit-votes total-votes)
                         (assoc :value x)))))
            (filter (comp pos? :votes-frac))
@@ -44,8 +43,8 @@
       (p/topology e))
     p/PEncodable
     (encode
-      [_ offset x]
-      (p/encode e offset (f x)))
+      [_ x]
+      (p/encode e (f x)))
     (decode
       [_ bit-votes n]
       (p/decode e bit-votes n))))
@@ -62,10 +61,10 @@
       (p/topology e))
     p/PEncodable
     (encode
-      [_ offset xs]
+      [_ xs]
       (->> xs
-           (map (fn [x] (p/encode e offset x)))
-           (apply set/union)))))
+           (mapcat (partial p/encode e))
+           (distinct)))))
 
 (defn encat
   "A higher-level encoder for a sequence of `n` values. The given
@@ -76,7 +75,6 @@
    collection."
   ([n e]
      (let [e-dim (p/dims-of e)
-           e-w (p/size-of e)
            dim (update-in e-dim [0] * n)
            topo (topology/make-topology dim)]
        (reify
@@ -85,15 +83,13 @@
            topo)
          p/PEncodable
          (encode
-           [_ offset xs]
+           [_ xs]
            (->> xs
-                (map-indexed (fn [i x]
-                               (p/encode e (+ offset (* i e-w)) x)))
-                (apply set/union))))))
+                (map (partial p/encode e))
+                (util/align-indices (repeat (p/size-of e))))))))
   ([n e & more]
      (let [es (list* e more)
            ws (map p/size-of es)
-           os (list* 0 (reductions + ws))
            dim (apply topology/combined-dimensions (map p/dims-of es))
            topo (topology/make-topology dim)]
        (reify
@@ -102,11 +98,10 @@
            topo)
          p/PEncodable
          (encode
-           [_ offset xs]
-           (->> (map (fn [e o x]
-                       (p/encode e (+ offset o) x))
-                     es os xs)
-                (apply set/union)))))))
+           [_ xs]
+           (->> xs
+                (map p/encode es)
+                (util/align-indices ws)))))))
 
 (defn linear-encoder
   "Returns a simple encoder for a single number. It encodes a
@@ -130,14 +125,13 @@
         topo)
       p/PEncodable
       (encode
-        [_ offset x]
+        [_ x]
         (if x
           (let [x (-> x (max lower) (min upper))
                 z (/ (- x lower) span)
                 i (long (* z (- bit-width on-bits)))]
-            (set (range (+ offset i)
-                        (+ offset i on-bits))))
-          #{}))
+            (range i (+ i on-bits)))
+          (sequence nil)))
       (decode
         [this bit-votes n]
         (let [values (range lower upper (if (< 5 span 250)
@@ -158,8 +152,8 @@
         (p/topology int-e))
       p/PEncodable
       (encode
-        [_ offset x]
-        (p/encode int-e offset (val-to-int x)))
+        [_ x]
+        (p/encode int-e (val-to-int x)))
       (decode
         [this bit-votes n]
         (->> (decode-by-brute-force this values bit-votes)
@@ -172,16 +166,16 @@
   (let [topo (topology/make-topology input-dim)
         bit-width (p/size topo)
         cached-bits (atom {})
-        gen #(set (take on-bits (util/shuffle (range bit-width))))]
+        gen #(take on-bits (util/shuffle (range bit-width)))]
     (reify
       p/PTopological
       (topology [_]
         topo)
       p/PEncodable
       (encode
-        [_ offset x]
+        [_ x]
         (if (nil? x)
-          #{}
+          (sequence nil)
           (or (get @cached-bits x)
               (get (swap! cached-bits assoc x (gen)) x))))
       (decode
@@ -209,7 +203,7 @@
         topo)
       p/PEncodable
       (encode
-        [_ offset [x y]]
+        [_ [x y]]
         (if x
           (let [x (-> x (max 0) (min x-max))
                 y (-> y (max 0) (min y-max))
@@ -221,10 +215,9 @@
                 idx (p/index-of-coordinates topo coord)]
             (->> (range 10)
                  (mapcat (fn [radius]
-                        (p/neighbours-indices topo idx radius (dec radius))))
-                 (take on-bits)
-                 (set)))
-          #{}))
+                           (p/neighbours-indices topo idx radius (dec radius))))
+                 (take on-bits)))
+          (sequence nil)))
       (decode
         [this bit-votes n]
         (let [values (for [x (range x-max)
@@ -259,7 +252,7 @@
     (rng/double RNG)))
 
 (defn coordinate-bit
-  [size offset coord]
+  [size coord]
   ;; need a different seed from coordinate-order here;
   ;; otherwise highest orders always have highest bits!
   ;; (in cljs, (rng/int) is just a scaling of (rng/double).)
@@ -267,8 +260,7 @@
                   (* size 2 (Math/sin (first coord)))
                   (reverse coord))
         RNG (rng/rng (hash seedval))]
-    (+ offset
-       (rng/int RNG size))))
+    (rng/int RNG size)))
 
 (defn coordinate-encoder
   "Coordinate encoder over integer coordinates, unbounded (up to
@@ -284,10 +276,9 @@
         topo)
       p/PEncodable
       (encode
-        [_ offset {:keys [coord radii]}]
+        [_ {:keys [coord radii]}]
         (let [neighs (coordinate-neighbours coord radii)]
           (->> (zipmap neighs (map coordinate-order neighs))
                (util/top-n-keys-by-value on-bits)
-               (map (partial coordinate-bit size offset))
-               (set))))
+               (map (partial coordinate-bit size)))))
       )))

@@ -198,3 +198,16 @@
           ;; exclude this one
           :else
           (recur (next ms) am curr-min)))))))
+
+(defn align-indices
+  "Using the provided widths and a coll of colls of indices, lazily adjust
+  each index so that each coll of indices starts where the previous coll ended.
+  Lazily concat all results."
+  ([widths]
+     ;; reserving arity -- this could become a transducer
+     :not-implemented)
+  ([widths collcoll]
+     (let [[leftmost & others] collcoll
+           offs (reductions + widths)]
+       (concat leftmost
+               (mapcat #(map (partial + %) %2) offs others)))))

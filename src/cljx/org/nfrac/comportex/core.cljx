@@ -12,8 +12,8 @@
             [clojure.set :as set]))
 
 (defn cell-id->inbit
-  [offset depth [col ci]]
-  (+ offset (* depth col) ci))
+  [depth [col ci]]
+  (-> depth (* col) (+ ci)))
 
 (defn inbit->cell-id
   [depth i]
@@ -42,7 +42,7 @@
     [this distal-ff-bits distal-fb-bits]
     (assoc this
       :layer-3 (p/layer-depolarise layer-3 distal-ff-bits distal-fb-bits)))
-  
+
   p/PTopological
   (topology [_]
     (p/topology layer-3))
@@ -51,17 +51,15 @@
     (topology/make-topology (conj (p/dims-of this)
                                   (p/layer-depth layer-3))))
   (bits-value
-    [this offset]
+    [this]
     (let [depth (p/layer-depth layer-3)]
       (->> (p/active-cells layer-3)
-           (mapv (partial cell-id->inbit offset depth))
-           (into #{}))))
+           (mapv (partial cell-id->inbit depth)))))
   (signal-bits-value
-    [_ offset]
+    [_]
     (let [depth (p/layer-depth layer-3)]
       (->> (p/signal-cells layer-3)
-           (mapv (partial cell-id->inbit offset depth))
-           (into #{}))))
+           (mapv (partial cell-id->inbit depth)))))
   (source-of-bit
     [_ i]
     (let [depth (p/layer-depth layer-3)]
@@ -70,8 +68,8 @@
   (ff-motor-topology [_]
     topology/empty-topology)
   (motor-bits-value
-    [_ offset]
-    #{})
+    [_]
+    (sequence nil))
   p/PTemporal
   (timestep [_]
     step-counter)
@@ -118,11 +116,11 @@
   (ff-topology [_]
     (p/topology encoder))
   (bits-value
-    [_ offset]
-    (p/encode encoder offset value))
+    [_]
+    (p/encode encoder value))
   (signal-bits-value
-    [_ offset]
-    #{})
+    [_]
+    (sequence nil))
   (source-of-bit
     [_ i]
     [i])
@@ -132,10 +130,10 @@
       (p/topology motor-encoder)
       topology/empty-topology))
   (motor-bits-value
-    [_ offset]
+    [_]
     (if motor-encoder
-      (p/encode motor-encoder offset value)
-      #{}))
+      (p/encode motor-encoder value)
+      (sequence nil)))
   p/PInputSource
   (input-step [this in-value]
     (assoc this :value in-value)))
@@ -170,10 +168,10 @@
                   :standard p/bits-value
                   :signal p/signal-bits-value
                   :motor p/motor-bits-value)
-        widths (map (comp p/size topo-fn) ffs)
-        offs (list* 0 (reductions + widths))]
-    (->> (map bits-fn ffs offs)
-         (apply set/union))))
+        widths (map (comp p/size topo-fn) ffs)]
+    (->> (map bits-fn ffs)
+         (util/align-indices widths)
+         (into #{}))))
 
 ;;; ## Region Networks
 
@@ -240,14 +238,14 @@
                              (combined-bits-value fbs :standard)))))
                   (zipmap (keys regions-map)))]
       (assoc this :regions-map rm)))
-  
+
   (region-seq [_]
     ;; topological sort. drop 1st stratum i.e. drop the inputs
     (map regions-map (apply concat (rest strata))))
-  
+
   (input-seq [_]
     (vals inputs-map))
-  
+
   (update-by-uuid
     [this region-uuid f]
     (update-in this [:regions-map (or (uuid->id region-uuid) region-uuid)]
