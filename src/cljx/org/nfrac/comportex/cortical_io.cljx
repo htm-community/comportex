@@ -44,8 +44,8 @@
 
 (defn random-sdr
   []
-  (set (repeatedly (* retina-size 0.02)
-                   #(util/rand-int (dec retina-size)))))
+  (distinct (repeatedly (* retina-size 0.02)
+                        #(util/rand-int (dec retina-size)))))
 
 (defn scramble-bit
   "Maps a retina fingerprint index to another index which is spatially
@@ -71,7 +71,7 @@
 
 (defn scramble-bitset
   [bits]
-  (into #{} (map scramble-bit bits)))
+  (map scramble-bit bits))
 
 (defn ?assoc
   "assoc, but not if the key already has a (truthy) value."
@@ -122,12 +122,6 @@
         (recur (inc min-votes))
         bits))))
 
-(defn apply-offset
-  [xs offset]
-  (->> xs
-       (map #(+ % offset))
-       (into (empty xs))))
-
 (defn cortical-io-encoder
   [api-key cache & {:keys [decode-locally? spatial-scramble?]}]
   (let [topo (topology/make-topology retina-dim)]
@@ -137,13 +131,12 @@
         topo)
       p/PEncodable
       (encode
-        [_ offset term]
+        [_ term]
         (if (seq term)
           (cond->
            (get-fingerprint cache term)
-           spatial-scramble? (scramble-bitset)
-           (not (zero? offset)) (apply-offset offset))
-          #{}))
+           spatial-scramble? (scramble-bitset))
+          (sequence nil)))
       (decode
         [this bit-votes n]
         (let [bit-votes (if spatial-scramble?

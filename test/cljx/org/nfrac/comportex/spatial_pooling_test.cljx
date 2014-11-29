@@ -77,7 +77,8 @@
                             [:mid 8]
                             [:far 25]]
                      :let [this-in (mapv (partial + d) in)
-                           rgn2 (p/region-step rgn (p/encode encoder 0 this-in))]]
+                           ff-bits (into #{} (p/encode encoder this-in))
+                           rgn2 (p/region-step rgn ff-bits)]]
                  [k (p/active-columns (:layer-3 rgn2))])
                (into {}))]
         (is (> (count (set/intersection (:orig m) (:near m)))

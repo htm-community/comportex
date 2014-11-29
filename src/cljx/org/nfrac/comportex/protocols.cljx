@@ -38,13 +38,13 @@
   "A feed-forward input source with a bit set representation. Could be
    sensory input or a region (where cells are bits)."
   (ff-topology [this])
-  (bits-value [this offset])
-  (signal-bits-value [this offset])
+  (bits-value [this])
+  (signal-bits-value [this])
   (source-of-bit [this i]))
 
 (defprotocol PFeedForwardMotor
   (ff-motor-topology [this])
-  (motor-bits-value [this offset]))
+  (motor-bits-value [this]))
 
 (defprotocol PLayerOfCells
   (layer-activate [this ff-bits signal-ff-bits])
@@ -89,9 +89,8 @@
 
 (defprotocol PEncodable
   "Encoders need to extend this together with PTopological."
-  (encode [this offset x]
-    "Encodes `x` as a set of integers which are the on-bits, starting
-     from the given offset.")
+  (encode [this x]
+    "Encodes `x` as a set of integers which are the on-bits.")
   (decode [this bit-votes n]
     "Finds `n` domain values matching the given bit set in a sequence
      of maps with keys `:value`, `:votes-frac`, `:votes-per-bit`,
