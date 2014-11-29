@@ -162,7 +162,7 @@
    :ff-perm-dec 0.005
    :ff-perm-connected 0.2
    :ff-perm-init 0.16
-   :ff-stimulus-threshold 3
+   :ff-stimulus-threshold 1
    :ff-grow-and-die? false
    :ff-grow-up-to-count 15
    :ff-max-synapse-count 1000

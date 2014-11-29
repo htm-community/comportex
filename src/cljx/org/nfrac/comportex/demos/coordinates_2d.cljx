@@ -14,7 +14,8 @@
 
 (def spec
   {:column-dimensions [20 50]
-   :depth 8})
+   :depth 8
+   :distal-punish? false})
 
 (def initial-input-val
   {:x 10 :y 20 :vx 0 :vy 0 :ax 1 :ay 1})

@@ -257,7 +257,7 @@
   ;; otherwise highest orders always have highest bits!
   ;; (in cljs, (rng/int) is just a scaling of (rng/double).)
   (let [seedval (if (= 1 (count coord))
-                  (* size 2 (Math/sin (first coord)))
+                  (let [[x] coord] (reverse (str x)))
                   (reverse coord))
         RNG (rng/rng (hash seedval))]
     (rng/int RNG size)))
@@ -277,8 +277,9 @@
       p/PEncodable
       (encode
         [_ {:keys [coord radii]}]
-        (let [neighs (coordinate-neighbours coord radii)]
-          (->> (zipmap neighs (map coordinate-order neighs))
-               (util/top-n-keys-by-value on-bits)
-               (map (partial coordinate-bit size)))))
+        (when coord
+          (let [neighs (coordinate-neighbours coord radii)]
+            (->> (zipmap neighs (map coordinate-order neighs))
+                 (util/top-n-keys-by-value on-bits)
+                 (map (partial coordinate-bit size))))))
       )))

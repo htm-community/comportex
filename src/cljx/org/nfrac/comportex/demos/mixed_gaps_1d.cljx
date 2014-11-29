@@ -7,16 +7,19 @@
 
 (def bit-width 400)
 (def on-bits 25)
+
+;; for block encoder
 (def numb-max 15)
 (def numb-domain [0 numb-max])
 
 (def spec
   {:column-dimensions [1000]
-   :ff-potential-radius 0.1
+   :ff-init-frac 0.2
+   :ff-potential-radius 1.0
    :ff-perm-inc 0.05
    :ff-perm-dec 0.01
    :ff-perm-connected 0.20
-   :ff-stimulus-threshold 3
+   :ff-stimulus-threshold 1
    :global-inhibition? false
    :activation-level 0.02
    :duty-cycle-period 100000
@@ -32,6 +35,7 @@
    :distal-perm-inc 0.05
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
+   :inhibition-base-distance 0
    })
 
 (def patterns
@@ -49,45 +53,33 @@
 
 (defn initial-input
   []
-  (->> patterns
-       (util/remap
-        (fn [xs]
-          {:seq xs, :index nil,
-           :gap-countdown (util/rand-int 0 gap-range)}))))
+  (assoc {} (first pattern-order) 0))
 
 (defn input-transform
   [input]
-  (->> input
-       (util/remap
-        (fn [m]
-          (cond
-           ;; reached end of sequence; begin gap
-           (= (:index m) (dec (count (:seq m))))
-           (assoc m :index nil
-                  :gap-countdown (util/rand-int 0 gap-range))
-           ;; in gap
-           (and (not (:index m))
-                (pos? (:gap-countdown m)))
-           (update-in m [:gap-countdown] dec)
-           ;; reached end of gap; restart sequence
-           (and (not (:index m))
-                (zero? (:gap-countdown m)))
-           (assoc m :index 0)
-           ;; in sequence
-           :else
-           (update-in m [:index] inc))))))
-
-(defn current-value
-  [m]
-  (when (:index m)
-    (get (:seq m) (:index m))))
+  (reduce (fn [m [id values]]
+            (if-let [index (m id)]
+              ;; pattern is currently active
+              (if (< index (dec (count (patterns id))))
+                ;; continue
+                (update-in m [id] inc)
+                ;; finished
+                (dissoc m id))
+              ;; pattern is not currently active
+              (if (zero? (util/rand-int gap-range))
+                ;; start
+                (assoc m id 0)
+                m)))
+          input
+          patterns))
 
 (defn current-values
   [input]
-  (map current-value
-       (map input pattern-order)))
+  (map (fn [[id index]]
+         (get-in patterns [id index]))
+       input))
 
-(def encoder
+(def block-encoder
   (enc/pre-transform current-values
                      (enc/ensplat
                       (enc/linear-encoder bit-width on-bits numb-domain))))
@@ -102,5 +94,6 @@
   ([n]
      (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+     (core/regions-in-series core/sensory-region
+                             (core/sensory-input block-encoder)
                              n spec)))

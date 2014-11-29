@@ -90,7 +90,7 @@
 (defprotocol PEncodable
   "Encoders need to extend this together with PTopological."
   (encode [this x]
-    "Encodes `x` as a set of integers which are the on-bits.")
+    "Encodes `x` as a collection of integers which are the on-bits.")
   (decode [this bit-votes n]
     "Finds `n` domain values matching the given bit set in a sequence
      of maps with keys `:value`, `:votes-frac`, `:votes-per-bit`,

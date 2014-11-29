@@ -7,7 +7,17 @@
 
 (def input-size [50 50])
 (def on-bits 64)
+
+;; for block encoder
 (def numb-domain [10 10])
+
+;; for coordinate encoder
+(def radius (-> (Math/sqrt (* 2 on-bits)) ;; select 50%
+                (/ 2)
+                (long)))
+;; number of coordinates between integers:
+(def resolution (* 2 radius
+                   0.8)) ;; 0.2 overlap between successive integers
 
 (def spec
   {:column-dimensions [20 50]
@@ -16,7 +26,7 @@
    :ff-perm-inc 0.05
    :ff-perm-dec 0.01
    :ff-perm-connected 0.20
-   :ff-stimulus-threshold 3
+   :ff-stimulus-threshold 1
    :global-inhibition? false
    :activation-level 0.02
    :duty-cycle-period 100000
@@ -40,8 +50,8 @@
    :down-right (into (mapv vector (repeat 1) (range 5))
                      (mapv vector (range 1 10 2) (repeat 5)))
    :diag-tl-br (mapv vector (range 10) (range 10))
-   :rand-10 (vec (repeatedly 10 #(vector (util/rand 0 10)
-                                         (util/rand 0 10))))
+   :rand-10 (vec (repeatedly 10 #(vector (util/rand-int 0 10)
+                                         (util/rand-int 0 10))))
    })
 
 (def pattern-order (keys patterns))
@@ -50,68 +60,42 @@
 
 (defn initial-input
   []
-  (-> (util/remap (fn [xs]
-                    {:seq xs :index nil})
-                  patterns)
-      (assoc ::current-pattern-index 0
-             ::gap-countdown nil)))
+  (let [id (first pattern-order)]
+    {:id id
+     :values (patterns id)
+     :index 0}))
 
 (defn input-transform
-  [input]
-  (let [k (nth pattern-order (::current-pattern-index input))
-        m (input k)
-        at-end? (= (:index m) (dec (count (:seq m))))
-        in-gap? (::gap-countdown input)]
-    (-> input
-        (update-in [k]
-                   (fn [m]
-                     (cond
-                      ;; reached end of sequence
-                      at-end?
-                      (assoc m :index nil)
-                      ;; in gap, wait
-                      in-gap?
-                      m
-                      ;; starting sequence
-                      (not (:index m))
-                      (assoc m :index 0)
-                      ;; in sequence
-                      :else
-                      (update-in m [:index] inc))))
-        (update-in [::current-pattern-index]
-                   (fn [i]
-                     (if at-end?
-                       (util/rand-int 0 (count patterns))
-                       i)))
-        (update-in [::gap-countdown]
-                   (fn [i]
-                     (cond
-                      ;; a pattern ended, start gap
-                      at-end?
-                      (dec gap-length)
-                      ;; continue gap
-                      (and in-gap? (pos? (dec i)))
-                      (dec i)
-                      ;; end of gap
-                      in-gap?
-                      nil
-                      :else
-                      i))))))
+  [{:keys [id values index] :as input}]
+  (if (< index (dec (count values)))
+    ;; continuing sequence
+    (update-in input [:index] inc)
+    ;; reached the end of a sequence
+    (if id
+      ;; start gap
+      {:id nil
+       :values (repeat gap-length nil)
+       :index 0}
+      ;; start another pattern
+      (let [id (util/rand-nth pattern-order)]
+        {:id id
+         :values (patterns id)
+         :index 0}))))
 
 (defn current-value
   [m]
-  (when (:index m)
-    (get (:seq m) (:index m))))
+  (get (:values m) (:index m)))
 
-(defn current-values
-  [input]
-  (map current-value
-       (map input pattern-order)))
+(def block-encoder
+  (enc/pre-transform current-value
+                     (enc/linear-2d-encoder input-size on-bits numb-domain)))
 
-(def encoder
-  (enc/pre-transform current-values
-                     (enc/ensplat
-                      (enc/linear-2d-encoder input-size on-bits numb-domain))))
+(def coord-encoder
+  (enc/pre-transform (fn [m]
+                       (when-let [xy (current-value m)]
+                         {:coord (mapv #(* % resolution) xy)
+                          :radii [radius radius]}))
+                     (enc/coordinate-encoder input-size on-bits)))
 
 (defn world
   "Returns a channel of sensory input values."
@@ -123,5 +107,6 @@
   ([n]
      (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+     (core/regions-in-series core/sensory-region
+                             (core/sensory-input block-encoder)
                              n spec)))
