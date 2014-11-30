@@ -143,7 +143,7 @@
   Example: In dimensions [64] the points [7] and [8] are adjacent.
   After splitting to [8 8], these points [0 7] [1 0] are further apart."
   [dims xsection-length]
-  (if-let [[x & rest] dims]
+  (when-let [[x & rest] dims]
     (when (zero? (rem x xsection-length))
       (into [(quot x xsection-length)]
             (assoc dims 0 xsection-length)))))
