@@ -543,7 +543,7 @@
                  :signal-cells sig-ac
                  ;; for convenience / efficiency in other steps
                  :active-cells-by-col acbc}))))
-  
+
   (layer-learn
     [this]
     (let [ff-bits (:ff-bits state)
@@ -580,7 +580,7 @@
                        (:active-cols state) dcp)
        boost? (columns/update-boosting)
        boost? (update-inhibition-radius))))
-  
+
   (layer-depolarise
     [this distal-ff-bits distal-fb-bits]
     ;; TODO distal-bits
@@ -592,7 +592,7 @@
         :pred-state (map->LayerPredictiveState
                      {:distal-exc cell-exc
                       :pred-cells pc}))))
-  
+
   (layer-depth [_]
     (:depth spec))
   (bursting-columns [_]
@@ -624,6 +624,10 @@
   p/PParameterised
   (params [_]
     spec))
+
+(util/print-method-truncate LayerOfCells [:boosts
+                                          :active-duty-cycles
+                                          :overlap-duty-cycles])
 
 (defn layer-of-cells
   [spec]

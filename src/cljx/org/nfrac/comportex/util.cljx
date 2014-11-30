@@ -1,5 +1,6 @@
 (ns org.nfrac.comportex.util
-  (:require [cemerick.pprng :as rng])
+  (:require [cemerick.pprng :as rng]
+            [clojure.pprint :as pprint])
   (:refer-clojure :exclude [rand rand-int rand-nth shuffle]))
 
 (defn abs
@@ -211,3 +212,33 @@
            offs (reductions + widths)]
        (concat leftmost
                (mapcat #(map (partial + %) %2) offs others)))))
+
+(defrecord TruncateOnPrint [v])
+
+#+clj
+(defmethod print-method TruncateOnPrint
+  [this ^java.io.Writer w]
+  (binding [*print-length* (apply min 3 *print-length*)]
+    (print-method (:v this) w)))
+
+#+clj
+(defmethod pprint/simple-dispatch TruncateOnPrint
+  [this]
+  (binding [*print-length* (apply min 3 *print-length*)]
+    (pprint/simple-dispatch (:v this))))
+
+(defn print-method-truncate
+  "Configure prn and pprint to truncate certain fields when printing an
+  instance of `recordclass`."
+  [recordclass noisykeys]
+
+  #+clj
+  (let [p (get-method print-method recordclass)
+        pp (get-method pprint/simple-dispatch recordclass)
+        truncated-record (fn [record]
+                           (reduce #(update-in % [%2] ->TruncateOnPrint)
+                                   record noisykeys))]
+    (defmethod print-method recordclass [r w]
+      (p (truncated-record r) w))
+    (defmethod pprint/simple-dispatch recordclass [r]
+      (pp (truncated-record r)))))
