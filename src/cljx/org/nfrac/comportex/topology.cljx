@@ -122,70 +122,71 @@
 (def empty-topology
   (make-topology [0]))
 
+(defn squash-last-dimension
+  "Project n dimensions to n-1 dimensions by eliminating the last dimension.
+
+  This removes potentially-valuable structure.
+  Example: in dimensions [8 7 6], the points [0 0 0] [0 1 0] are adjacent.
+  After squashing to [8 42], these points [0 0] [0 6] are much further apart."
+  [dims]
+  (-> dims
+      (update-in [(- (count dims) 2)]
+                 * (last dims))
+      butlast
+      vec))
+
+(defn split-first-dimension
+  "Project n dimensions to n+1 dimensions by dividing the first dimension
+  into cross sections.
+
+  This artificially adds structure. It can also disrupt existing structure.
+  Example: In dimensions [64] the points [7] and [8] are adjacent.
+  After splitting to [8 8], these points [0 7] [1 0] are further apart."
+  [dims xsection-length]
+  (when-let [[x & rest] dims]
+    (when (zero? (rem x xsection-length))
+      (into [(quot x xsection-length)]
+            (assoc dims 0 xsection-length)))))
+
 ;; We will pour the concatenated indices (and offsets) into this
 ;; combined topology. Note that region output is its cells, so will
 ;; add another dimension to column topology. e.g. 2D columns [x y]
 ;; becomes [x y z], where z = cell depth.
 
 (defn combined-dimensions
+  "Align n topologies along the x axis into a single topology.
+  If the topologies don't stack neatly, force compatibility via two
+  strategies:
+
+  1. Add dimensions to the lower-dimensional topology by splitting its first
+  dimension into cross sections. This is analogous to summing numbers encoded
+  in a mixed radix. If the sum of `higher` and `lower` can be expressed by only
+  changing the first digit of `higher`, then the two can be stacked in
+  `higher`'s radix (i.e. dimensions).
+
+  Default behavior: don't redistribute / mangle `lower`'s lower dimensions
+  (i.e. [y, z, ...]). To force mangling, provide a 1-dimensional `lower`.
+
+  2. Remove dimensions from the higher-dimension topology by squashing its
+  last two dimensions into one.
+
+  It's best to hand-pick compatible topologies if topology matters."
   ([]
      [0])
-  ([dims]
-     dims)
-  ([dims1 dims2]
-     (let [d1 (count dims1)
-           d2 (count dims2)
-           [x1 y1 z1] dims1
-           [x2 y2 z2] dims2]
-       (cond
-        ;; ensure higher dimensional one comes first
-        (> d2 d1)
-        (recur dims2 dims1)
-        ;; any empty
-        (or (zero? d2) (some zero? dims2))
-        dims1
-        ;; 1D & 1D
-        (and (== 1 d1) (== 1 d2))
-        [(+ x1 x2)]
-        ;; 2D & 2D compatible - direct case
-        (and (== 2 d1) (== 2 d2)
-             (== y1 y2))
-        [(+ x1 x2) y1]
-        ;; 2D & 2D incompatible - project to 2D & 1D
-        (and (== 2 d1) (== 2 d2))
-        (recur dims1 [(* x2 y2)])
-        ;; 2D & 1D compatible
-        (and (== 2 d1) (== 1 d2)
-             (zero? (rem x2 y1)))
-        [(+ x1 (quot x2 y1)) y1]
-        ;; 2D & 1D incompatible - project to 1D & 1D
-        (and (== 2 d1) (== 1 d2))
-        [(+ (* x1 y1) x2)]
-        ;; 3D & 3D compatible - direct case
-        (and (== 3 d1) (== 3 d2)
-             (== z1 z2)
-             (== y1 y2))
-        [(+ x1 x2) y1 z1]
-        ;; 3D & 3D incompatible - project to 3D & 2D
-        (and (== 3 d1) (== 3 d2))
-        (recur dims1 [x2 (* y2 z2)])
-        ;; 3D & 2D compatible - direct case 1
-        (and (== 3 d1) (== 2 d2)
-             (== y1 x2)
-             (== z1 y2))
-        [(+ x1 1) y1 z1]
-        ;; 3D & 2D incompatible - project to 2D & 2D
-        (and (== 3 d1) (== 2 d2))
-        (recur [x1 (* y1 z1)] dims2)
-        ;; 3D & 1D compatible
-        (and (== 3 d1) (== 1 d2)
-             (zero? (rem x2 z1)))
-        [x1 (+ y1 (quot x2 z1)) z1]
-        ;; 3D & 1D incompatible - project to 2D & 1D
-        (and (== 3 d1) (== 1 d2))
-        (recur [x1 (* y1 z1)] dims1)
-        )))
-  ([dims1 dims2 & more-dims]
-     (reduce combined-dimensions
-             (combined-dimensions dims1 dims2)
-             more-dims)))
+  ([& all-dims]
+     (reduce (fn [dims1 dims2]
+               (let [[lower higher] (->> [dims1 dims2]
+                                         (map #(if (empty? %) [0] %))
+                                         (sort-by count))
+                     disparity (- (count higher) (count lower))
+                     ;; match all dimensions except x
+                     [to-match must-already-match] (->> (rest higher)
+                                                        (split-at disparity))]
+                 (if-let [compatible (when (= (vec (rest lower))
+                                              (vec must-already-match))
+                                       (reduce split-first-dimension lower
+                                               (reverse to-match)))]
+                   ;; now that everything except x matches, sum the xs
+                   (update-in higher [0] + (first compatible))
+                   (recur (squash-last-dimension higher) lower))))
+             all-dims)))
