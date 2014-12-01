@@ -1,6 +1,6 @@
 # Comportex
 
-<img src="https://raw.githubusercontent.com/nupic-community/comportex/master/comportex-logo.jpg"
+<img src="https://raw.githubusercontent.com/nupic-community/comportex/master/comportex-logo.png"
  alt="Comportex logo" align="right" />
 
 Functionally composable cortex, an implementation of Hierarchical
