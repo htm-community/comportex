@@ -1,6 +1,6 @@
 (ns org.nfrac.comportex.util
   (:require [cemerick.pprng :as rng]
-            [clojure.pprint :as pprint])
+            #+clj [clojure.pprint :as pprint])
   (:refer-clojure :exclude [rand rand-int rand-nth shuffle]))
 
 (defn abs
@@ -215,17 +215,21 @@
 
 (defrecord TruncateOnPrint [v])
 
+(defn do-truncated [length f & args]
+  (binding [*print-length* (if *print-length*
+                             (min *print-length* length)
+                             length)]
+    (apply f args)))
+
 #+clj
 (defmethod print-method TruncateOnPrint
   [this ^java.io.Writer w]
-  (binding [*print-length* (apply min 3 *print-length*)]
-    (print-method (:v this) w)))
+  (do-truncated 3 print-method (:v this) w))
 
 #+clj
 (defmethod pprint/simple-dispatch TruncateOnPrint
   [this]
-  (binding [*print-length* (apply min 3 *print-length*)]
-    (pprint/simple-dispatch (:v this))))
+  (do-truncated 3 print-method (:v this)))
 
 (defn print-method-truncate
   "Configure prn and pprint to truncate certain fields when printing an
