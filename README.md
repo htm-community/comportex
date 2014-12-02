@@ -1,7 +1,7 @@
 # Comportex
 
 <img src="https://raw.githubusercontent.com/nupic-community/comportex/master/comportex-logo.png"
- alt="Comportex logo" style="float:right" />
+ alt="Comportex logo" align="right" />
 
 Functionally composable cortex, an implementation of Hierarchical
 Temporal Memory as a Clojure library.
