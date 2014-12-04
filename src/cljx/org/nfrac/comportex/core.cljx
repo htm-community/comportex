@@ -11,14 +11,26 @@
             [cljs-uuid.core :as uuid]
             [clojure.set :as set]))
 
-(defn cell-id->inbit
+(defn- cell-id->inbit
   [depth [col ci]]
   (-> depth (* col) (+ ci)))
 
-(defn inbit->cell-id
+(defn- inbit->cell-id
   [depth i]
   [(quot i depth)
    (rem i depth)])
+
+(defn- layer-ff
+  [layer]
+  (let [depth (p/layer-depth layer)]
+    (->> (p/active-cells layer)
+         (map (partial cell-id->inbit depth)))))
+
+(defn- layer-sig-ff
+  [layer]
+  (let [depth (p/layer-depth layer)]
+    (->> (p/signal-cells layer)
+         (map (partial cell-id->inbit depth)))))
 
 (declare sensory-region)
 
@@ -52,14 +64,10 @@
                                   (p/layer-depth layer-3))))
   (bits-value
     [this]
-    (let [depth (p/layer-depth layer-3)]
-      (->> (p/active-cells layer-3)
-           (mapv (partial cell-id->inbit depth)))))
+    (layer-ff layer-3))
   (signal-bits-value
     [_]
-    (let [depth (p/layer-depth layer-3)]
-      (->> (p/signal-cells layer-3)
-           (mapv (partial cell-id->inbit depth)))))
+    (layer-sig-ff layer-3))
   (source-of-bit
     [_ i]
     (let [depth (p/layer-depth layer-3)]
@@ -99,14 +107,95 @@
   [cells]
   (into #{} (mapv first cells)))
 
-(declare sensory-motor-region)
+(declare sensorimotor-region)
 
-(defrecord SensoryMotorRegion
+(defrecord SensoriMotorRegion
     [layer-4 layer-3 uuid step-counter]
-  ;; TODO
-)
+  p/PRegion
+  (region-activate
+    [this ff-bits signal-ff-bits]
+    (let [l4 (p/layer-activate layer-4 ff-bits signal-ff-bits)
+          l3 (p/layer-activate layer-3
+                               (set (layer-ff l4))
+                               (set (layer-sig-ff l4)))]
+      (assoc this
+       :step-counter (inc step-counter)
+       :layer-4 l4
+       :layer-3 l3)))
 
-(defrecord SensoryMotorInput
+  (region-learn
+    [this]
+    (if (:freeze? (p/params this))
+      this
+      (assoc this
+        :layer-4 (p/layer-learn layer-4)
+        :layer-3 (p/layer-learn layer-3))))
+
+  (region-depolarise
+    [this distal-ff-bits distal-fb-bits]
+    ;; TODO feedback from L3 to L4?
+    (let [l4 (p/layer-depolarise layer-4 distal-ff-bits #{})
+          l3 (p/layer-depolarise layer-3 #{} distal-fb-bits)]
+     (assoc this
+       :layer-4 l4
+       :layer-3 l3)))
+
+  p/PTopological
+  (topology [_]
+    (p/topology layer-3))
+  p/PFeedForward
+  (ff-topology [this]
+    (topology/make-topology (conj (p/dims-of this)
+                                  (p/layer-depth layer-3))))
+  (bits-value
+    [this]
+    (layer-ff layer-3))
+  (signal-bits-value
+    [_]
+    (layer-sig-ff layer-3))
+  (source-of-bit
+    [_ i]
+    (let [depth (p/layer-depth layer-3)]
+      (inbit->cell-id depth i)))
+  p/PFeedForwardMotor
+  (ff-motor-topology [_]
+    ;; TODO
+    topology/empty-topology)
+  (motor-bits-value
+    [_]
+    (sequence nil))
+  p/PTemporal
+  (timestep [_]
+    step-counter)
+  p/PParameterised
+  (params [_]
+    (p/params layer-4))
+  p/PResettable
+  (reset [this]
+    (-> (sensorimotor-region (p/params this))
+        (assoc :uuid uuid))))
+
+(defn sensorimotor-region
+  [spec]
+  (let [unk (set/difference (set (keys spec))
+                            (set (keys cells/parameter-defaults)))]
+    (when (seq unk)
+      (println "Warning: unknown keys in spec:" unk)))
+  (let [l4-spec (assoc spec
+                  :lateral-synapses? false)
+        l4 (cells/layer-of-cells spec)
+        l3-spec (assoc spec
+                  :input-dimensions (p/dimensions (p/ff-topology l4))
+                  :distal-motor-dimensions [0]
+                  :lateral-synapses? true)
+        l3 (cells/layer-of-cells l3-spec)]
+    (map->SensoriMotorRegion
+    {:layer-3 l3
+     :layer-4 l4
+     :uuid (uuid/make-random)
+     :step-counter 0})))
+
+(defrecord SensoriMotorInput
     [encoder motor-encoder value]
   p/PTopological
   (topology [_]
@@ -141,9 +230,9 @@
 (defn sensory-input
   "Creates an input source from an encoder."
   [encoder]
-  (->SensoryMotorInput encoder nil nil))
+  (->SensoriMotorInput encoder nil nil))
 
-(defn sensory-motor-input
+(defn sensorimotor-input
   "Creates an input source from an encoder (for the proximal
    feed-forward output) and a motor encoder (for the distal
    feed-forward output). The encoders operate on the same value so
@@ -153,7 +242,7 @@
    cells, should appear the time step before a corresponding sensory
    signal."
   [encoder motor-encoder]
-  (->SensoryMotorInput encoder motor-encoder nil))
+  (->SensoriMotorInput encoder motor-encoder nil))
 
 (defn combined-bits-value
   "Returns the total bit set from a collection of sources satisfying

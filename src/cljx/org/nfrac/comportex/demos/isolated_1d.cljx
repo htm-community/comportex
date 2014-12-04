@@ -26,7 +26,7 @@
    :ff-perm-dec 0.01
    :ff-perm-connected 0.20
    :ff-stimulus-threshold 1
-   :global-inhibition? false
+   :global-inhibition? true
    :activation-level 0.02
    :duty-cycle-period 100000
    :max-boost 2.0
