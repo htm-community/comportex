@@ -2866,7 +2866,7 @@ net.brehaut.ClojureTools = (function (SH) {
   };
 })(SyntaxHighlighter);
 </script><title>org.nfrac/comportex -- Marginalia</title></head><body><table><tr><td class="docs"><div class="header"><h1 class="project-name"><a href="http://github.com/nupic-community/comportex/">org.nfrac/comportex</a></h1><h2 class="project-version">0.0.8-SNAPSHOT</h2><br /><p>Functionally composable cortex, an implementation of Hierarchical Temporal Memory</p>
-</div><div class="dependencies"><h3>dependencies</h3><table><tr><td class="dep-name">org.clojure/clojure</td><td class="dotted"><hr /></td><td class="dep-version">1.6.0</td></tr><tr><td class="dep-name">org.clojure/core.async</td><td class="dotted"><hr /></td><td class="dep-version">0.1.346.0-17112a-alpha</td></tr><tr><td class="dep-name">com.cemerick/pprng</td><td class="dotted"><hr /></td><td class="dep-version">0.0.2</td></tr><tr><td class="dep-name">clj-http</td><td class="dotted"><hr /></td><td class="dep-version">1.0.1</td></tr><tr><td class="dep-name">cljs-http</td><td class="dotted"><hr /></td><td class="dep-version">0.1.19</td></tr><tr><td class="dep-name">cljs-uuid</td><td class="dotted"><hr /></td><td class="dep-version">0.0.4</td></tr></table></div></td><td class="codes" style="text-align: center; vertical-align: middle;color: #666;padding-right:20px"><br /><br /><br />(this space intentionally left almost blank)</td></tr><tr><td class="docs"><div class="toc"><a name="toc"><h3>namespaces</h3></a><ul><li><a href="#org.nfrac.comportex.algo-graph">org.nfrac.comportex.algo-graph</a></li><li><a href="#org.nfrac.comportex.cells">org.nfrac.comportex.cells</a></li><li><a href="#org.nfrac.comportex.columns">org.nfrac.comportex.columns</a></li><li><a href="#org.nfrac.comportex.core">org.nfrac.comportex.core</a></li><li><a href="#org.nfrac.comportex.cortical-io">org.nfrac.comportex.cortical-io</a></li><li><a href="#org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</a></li><li><a href="#org.nfrac.comportex.inhibition">org.nfrac.comportex.inhibition</a></li><li><a href="#org.nfrac.comportex.protocols">org.nfrac.comportex.protocols</a></li><li><a href="#org.nfrac.comportex.synapses">org.nfrac.comportex.synapses</a></li><li><a href="#org.nfrac.comportex.topology">org.nfrac.comportex.topology</a></li><li><a href="#org.nfrac.comportex.util">org.nfrac.comportex.util</a></li><li><a href="#org.nfrac.comportex.demos.coordinates-2d">org.nfrac.comportex.demos.coordinates-2d</a></li><li><a href="#org.nfrac.comportex.demos.directional-steps-1d">org.nfrac.comportex.demos.directional-steps-1d</a></li><li><a href="#org.nfrac.comportex.demos.isolated-1d">org.nfrac.comportex.demos.isolated-1d</a></li><li><a href="#org.nfrac.comportex.demos.isolated-2d">org.nfrac.comportex.demos.isolated-2d</a></li><li><a href="#org.nfrac.comportex.demos.mixed-gaps-1d">org.nfrac.comportex.demos.mixed-gaps-1d</a></li><li><a href="#org.nfrac.comportex.demos.simple-sentences">org.nfrac.comportex.demos.simple-sentences</a></li></ul></div></td><td class="codes">&nbsp;</td></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.algo-graph" name="org.nfrac.comportex.algo-graph"><h1 class="project-name">org.nfrac.comportex.algo-graph</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>copied from
+</div><div class="dependencies"><h3>dependencies</h3><table><tr><td class="dep-name">org.clojure/clojure</td><td class="dotted"><hr /></td><td class="dep-version">1.6.0</td></tr><tr><td class="dep-name">org.clojure/core.async</td><td class="dotted"><hr /></td><td class="dep-version">0.1.346.0-17112a-alpha</td></tr><tr><td class="dep-name">com.cemerick/pprng</td><td class="dotted"><hr /></td><td class="dep-version">0.0.2</td></tr><tr><td class="dep-name">clj-http</td><td class="dotted"><hr /></td><td class="dep-version">1.0.1</td></tr><tr><td class="dep-name">cljs-http</td><td class="dotted"><hr /></td><td class="dep-version">0.1.19</td></tr><tr><td class="dep-name">cljs-uuid</td><td class="dotted"><hr /></td><td class="dep-version">0.0.4</td></tr></table></div></td><td class="codes" style="text-align: center; vertical-align: middle;color: #666;padding-right:20px"><br /><br /><br />(this space intentionally left almost blank)</td></tr><tr><td class="docs"><div class="toc"><a name="toc"><h3>namespaces</h3></a><ul><li><a href="#org.nfrac.comportex.algo-graph">org.nfrac.comportex.algo-graph</a></li><li><a href="#org.nfrac.comportex.cells">org.nfrac.comportex.cells</a></li><li><a href="#org.nfrac.comportex.columns">org.nfrac.comportex.columns</a></li><li><a href="#org.nfrac.comportex.core">org.nfrac.comportex.core</a></li><li><a href="#org.nfrac.comportex.cortical-io">org.nfrac.comportex.cortical-io</a></li><li><a href="#org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</a></li><li><a href="#org.nfrac.comportex.inhibition">org.nfrac.comportex.inhibition</a></li><li><a href="#org.nfrac.comportex.protocols">org.nfrac.comportex.protocols</a></li><li><a href="#org.nfrac.comportex.synapses">org.nfrac.comportex.synapses</a></li><li><a href="#org.nfrac.comportex.topology">org.nfrac.comportex.topology</a></li><li><a href="#org.nfrac.comportex.util">org.nfrac.comportex.util</a></li><li><a href="#org.nfrac.comportex.demos.coordinates-2d">org.nfrac.comportex.demos.coordinates-2d</a></li><li><a href="#org.nfrac.comportex.demos.directional-steps-1d">org.nfrac.comportex.demos.directional-steps-1d</a></li><li><a href="#org.nfrac.comportex.demos.isolated-1d">org.nfrac.comportex.demos.isolated-1d</a></li><li><a href="#org.nfrac.comportex.demos.isolated-2d">org.nfrac.comportex.demos.isolated-2d</a></li><li><a href="#org.nfrac.comportex.demos.mixed-gaps-1d">org.nfrac.comportex.demos.mixed-gaps-1d</a></li><li><a href="#org.nfrac.comportex.demos.sensorimotor-1d">org.nfrac.comportex.demos.sensorimotor-1d</a></li><li><a href="#org.nfrac.comportex.demos.simple-sentences">org.nfrac.comportex.demos.simple-sentences</a></li></ul></div></td><td class="codes">&nbsp;</td></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.algo-graph" name="org.nfrac.comportex.algo-graph"><h1 class="project-name">org.nfrac.comportex.algo-graph</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs"><p>copied from
 https://github.com/clojure/algo.graph/blob/03c740c61/src/main/clojure/clojure/algo/graph.clj
 because distributed snapshot release does not have clojurescript.</p>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>updated to use records not structs.</p>
@@ -3067,7 +3067,9 @@ because distributed snapshot release does not have clojurescript.</p>
 <li><code>si</code> -- a segment id, an integer index in the cell.</li>
 <li><code>cell-id</code> -- a vector <code>[col ci]</code>.</li>
 <li><p><code>seg-path</code> -- a vector <code>[col ci si]</code>.</p></li>
-<li><p><code>ff-bits</code> -- the set of indices of any active feed-forward input bits.</p></li>
+<li><p><code>ff-bits</code> -- the set of indices of active bits/cells on proximal dendrites.</p></li>
+<li><code>aci</code> -- the set of indices of active bits/cells on distal dendrites.</li>
+<li><code>lci</code> -- the indices of learnable (winner) bits/cells on distal dendrites.</li>
 <li><code>ac</code> -- the set of ids of active cells.</li>
 <li><code>pc</code> -- the set of ids of predictive cells.</li>
 <li><code>tpc</code> -- the set of ids of temporal pooling cells.</li>
@@ -3185,7 +3187,7 @@ because distributed snapshot release does not have clojurescript.</p>
    :ff-perm-dec 0.005
    :ff-perm-connected 0.2
    :ff-perm-init 0.16
-   :ff-stimulus-threshold 3
+   :ff-stimulus-threshold 1
    :ff-grow-and-die? false
    :ff-grow-up-to-count 15
    :ff-max-synapse-count 1000
@@ -3215,24 +3217,48 @@ because distributed snapshot release does not have clojurescript.</p>
    :spontaneous-activation? false
 ;   :temporal-pooling-decay 0.9
 ;   :temporal-pooling-amp 1.1
-   })</pre></td></tr><tr><td class="docs"><h2>Activation</h2>
+   })</pre></td></tr><tr><td class="docs"><h2>Synapse tracing</h2>
+</td><td class="codes"></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn distal-sources-widths
+  [spec]
+  [(if (:lateral-synapses? spec)
+     (reduce * (:depth spec) (:column-dimensions spec))
+     0)
+   (reduce * (:distal-motor-dimensions spec))
+   (reduce * (:distal-topdown-dimensions spec))])</pre></td></tr><tr><td class="docs"><p>applies to cells in the current layer only</p>
+</td><td class="codes"><pre class="brush: clojure">(defn cell-&gt;id
+  [depth [col ci]]
+  (+ (* col depth) ci))</pre></td></tr><tr><td class="docs"><p>applies to cells in the current layer only</p>
+</td><td class="codes"><pre class="brush: clojure">(defn id-&gt;cell
+  [depth id]
+  [(quot id depth)
+   (rem id depth)])</pre></td></tr><tr><td class="docs"><p>Returns a vector [k v] where k is one of :this, :ff, :fb. In the
+   case of :this, v is [col ci], otherwise v gives the index in the
+   feed-forward or feed-back input field.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn id-&gt;source
+  [spec id]
+  (let [[this-w ff-w fb-w] (distal-sources-widths spec)]
+    (cond
+     (&lt; id this-w) [:this (id-&gt;cell (:depth spec) id)]
+     (&lt; id (+ this-w ff-w)) [:ff (- id this-w)]
+     (&lt; id (+ this-w ff-w fb-w)) [:fb (- id this-w ff-w)])))</pre></td></tr><tr><td class="docs"><h2>Activation</h2>
 </td><td class="codes"></td></tr><tr><td class="docs"><p>Returns the number of active cells to which the synapses are
    connected, i.e. where synapse permanence is equal to or greater than
    <code>pcon</code>.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn segment-activation
-  [syns ac pcon]
+  [syns aci pcon]
   (count-filter (fn [[id p]]
                   (and (&gt;= p pcon)
-                       (ac id)))
+                       (aci id)))
                 syns))</pre></td></tr><tr><td class="docs"><p>Returns a seq of the segments in the cell with activation at or
    above the activation threshold <code>th</code>, only considering synapses with
    permanence values at or above <code>pcon</code>. Each segment has its
    activation level (number of active segments) added under key
    <code>:activation</code> and its index under key <code>:segment-idx</code>.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn cell-active-segments
-  [cell-segs ac th pcon]
+  [cell-segs aci th pcon]
   (keep-indexed (fn [si syns]
-                  (let [act (segment-activation syns ac pcon)]
+                  (let [act (segment-activation syns aci pcon)]
                     (when (&gt;= act th)
                       {:activation act :segment-idx si})))
                 cell-segs))</pre></td></tr><tr><td class="docs"><p>Returns the degree of cell depolarisation: the greatest number of
@@ -3311,8 +3337,8 @@ because distributed snapshot release does not have clojurescript.</p>
    with keys <code>:segment-idx</code> and <code>:activation</code>. If no segments exist,
    then <code>:segment-idx</code> is nil and <code>:activation</code> is zero.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn most-active-segment
-  [cell-segs ac pcon]
-  (let [acts (cell-active-segments cell-segs ac 0 pcon)]
+  [cell-segs aci pcon]
+  (let [acts (cell-active-segments cell-segs aci 0 pcon)]
     (if (seq acts)
       (apply max-key :activation acts)
       ;; no segments exist
@@ -3328,13 +3354,13 @@ because distributed snapshot release does not have clojurescript.</p>
    representation, so always return the first cell. This is a sequence
    reset mechanism.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn best-matching-segment-and-cell
-  [distal-sg cell-ids ac spec]
+  [distal-sg cell-ids aci spec]
   ;; special case if no activity at all previously: sequence reset.
-  (if (empty? ac)
+  (if (empty? aci)
     {:cell-id (first cell-ids)}
     (let [maxs (map (fn [cell-id]
                       (let [segs (p/cell-segments distal-sg cell-id)]
-                        (assoc (most-active-segment segs ac 0.0)
+                        (assoc (most-active-segment segs aci 0.0)
                           :cell-id cell-id)))
                     cell-ids)
           best (apply max-key :activation maxs)]
@@ -3354,7 +3380,7 @@ because distributed snapshot release does not have clojurescript.</p>
         max-syns (:seg-max-synapse-count spec)
         min-syns (:seg-learn-threshold spec)
         pcon (:distal-perm-connected spec)
-        segs (syn/cell-segments-raw distal-sg [col ci])]
+        segs (p/cell-segments distal-sg [col ci])]
     (if (&gt;= (count segs) max-segs)
       ;; select the one with fewest connected, or fewest synapses, or first
       (apply min-key (fn [si]
@@ -3365,29 +3391,33 @@ because distributed snapshot release does not have clojurescript.</p>
                             (/ si (count segs)))))
              (range (count segs)))
       ;; have not reached limit; append
-      (count segs))))</pre></td></tr><tr><td class="docs"><p>Returns a collection of up to n cell ids chosen from the learnable
-   cells <code>lc</code>. May be less than <code>n</code> if the random samples have
+      (count segs))))</pre></td></tr><tr><td class="docs"><p>Returns a collection of up to n ids chosen from the learnable cell
+   bits <code>lci-vec</code>. May be less than <code>n</code> if the random samples have
    duplicates or some already exist on the segment, or if there are
    fewer than <code>n</code> learnable cells. Connections to the host column are
    not allowed. However, connections can be made to a cell even if
    there is already a connection to another cell in the same column.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn segment-new-synapse-cell-ids
-  [seg host-col lc-vec n]
-  (when (seq lc-vec)
-    (-&gt;&gt; lc-vec
+</td><td class="codes"><pre class="brush: clojure">(defn segment-new-synapse-source-ids
+  [seg lci-vec n exclude]
+  (when (seq lci-vec)
+    (-&gt;&gt; lci-vec
          (util/sample n)
          (distinct)
-         (remove (fn [cell-id]
-                   (or (seg cell-id)
-                       (= host-col (first cell-id))))))))</pre></td></tr><tr><td class="docs"><p>Adds a new segment on the cell with synapses to a selection of the
+         (remove (fn [id]
+                   (or (seg id)
+                       (exclude id)))))))</pre></td></tr><tr><td class="docs"><p>Adds a new segment on the cell with synapses to a selection of the
    learn cells from previous time step, unless there are too few to
    meet the minimum threshold.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn grow-new-segment
-  [distal-sg col ci lc-vec spec]
+  [distal-sg col ci lci-vec spec]
   (let [n (:seg-new-synapse-count spec)
         min-syns (:seg-learn-threshold spec)
         si (new-segment-id distal-sg col ci spec)
-        syn-cell-ids (segment-new-synapse-cell-ids {} col lc-vec n)]
+        depth (:depth spec)
+        exclude-col (if (:lateral-synapses? spec)
+                      (fn [id] (= col (first (id-&gt;cell depth id))))
+                      (constantly false))
+        syn-cell-ids (segment-new-synapse-source-ids {} lci-vec n exclude-col)]
     (if (&lt; (count syn-cell-ids) min-syns)
       distal-sg
       ;; clear out any existing synapses first
@@ -3398,63 +3428,67 @@ because distributed snapshot release does not have clojurescript.</p>
                 true (p/conj-synapses seg-path syn-cell-ids
                                       (:distal-perm-init spec)))))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn segment-extend
-  [distal-sg seg-path ac lc-vec spec]
+  [distal-sg seg-path aci lci-vec spec]
   (let [col (first seg-path)
         seg (p/in-synapses distal-sg seg-path)
-        na (segment-activation seg ac 0.0) ;; include disconnected
+        na (segment-activation seg aci 0.0) ;; include disconnected
         n (- (:seg-new-synapse-count spec) na)]
     (if (pos? n)
-      (let [ids (segment-new-synapse-cell-ids seg col lc-vec n)]
+      (let [depth (:depth spec)
+            exclude-col (if (:lateral-synapses? spec)
+                          (fn [id] (= col (first (id-&gt;cell depth id))))
+                          (constantly false))
+            ids (segment-new-synapse-source-ids seg lci-vec n exclude-col)]
         (p/conj-synapses distal-sg seg-path ids (:distal-perm-init spec)))
       distal-sg)))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn segment-reinforce
-  [sg seg-path ac pinc pdec]
-  (p/reinforce-in-synapses sg seg-path (constantly false) ac pinc pdec))</pre></td></tr><tr><td class="docs">
+  [sg seg-path aci pinc pdec]
+  (p/reinforce-in-synapses sg seg-path (constantly false) aci pinc pdec))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn segment-punish
-  [sg seg-path ac pdec]
-  (p/reinforce-in-synapses sg seg-path ac (constantly false) 0.0 pdec))</pre></td></tr><tr><td class="docs">
+  [sg seg-path aci pdec]
+  (p/reinforce-in-synapses sg seg-path aci (constantly false) 0.0 pdec))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn learn-on-segment
-  [distal-sg col ci si bursting? prev-lc-vec prev-ac spec]
+  [distal-sg col ci si bursting? lci-vec aci spec]
   (let [pinc (:distal-perm-inc spec)
         pdec (:distal-perm-dec spec)]
     (if si
       ;; there is a matching segment, reinforce and/or extend it
       (cond-&gt; distal-sg
-              true (segment-reinforce [col ci si] prev-ac pinc pdec)
-              bursting? (segment-extend [col ci si] prev-ac prev-lc-vec spec))
+              true (segment-reinforce [col ci si] aci pinc pdec)
+              bursting? (segment-extend [col ci si] aci lci-vec spec))
       ;; no matching segment, create a new one
-      (grow-new-segment distal-sg col ci prev-lc-vec spec))))</pre></td></tr><tr><td class="docs">
+      (grow-new-segment distal-sg col ci lci-vec spec))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn learn-distal
-  [distal-sg lsegs b-cols prior-ac prior-lc spec]
-  (let [prior-lc-vec (vec prior-lc)]
+  [distal-sg lsegs b-cols prior-aci prior-lci spec]
+  (let [prior-lci-vec (vec prior-lci)]
     (reduce-kv (fn [sg [col ci] si]
-                 (learn-on-segment sg col ci si (b-cols col) prior-lc-vec
-                                   prior-ac spec))
+                 (learn-on-segment sg col ci si (b-cols col) prior-lci-vec
+                                   prior-aci spec))
                distal-sg
                lsegs)))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn punish-cell
-  [distal-sg col ci prev-ac th pcon pdec]
+  [distal-sg col ci prior-aci th pcon pdec]
   (let [cell-segs (p/cell-segments distal-sg [col ci])
-        asegs (cell-active-segments cell-segs prev-ac th pcon)]
+        asegs (cell-active-segments cell-segs prior-aci th pcon)]
     (reduce (fn [sg seg]
               (let [si (:segment-idx seg)]
-                (segment-punish sg [col ci si] prev-ac pdec)))
+                (segment-punish sg [col ci si] prior-aci pdec)))
             distal-sg asegs)))</pre></td></tr><tr><td class="docs"><p>Punish segments which predicted activation on cells which did
    not become active. Ignore any which are still predictive.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn punish-distal
-  [distal-sg ac prev-ac pc prev-pc spec]
+  [distal-sg prior-pc pc ac prior-aci spec]
   (let [th (:seg-stimulus-threshold spec)
         pcon (:distal-perm-connected spec)
         pdec (:distal-perm-dec spec)
-        bad-cells (set/difference prev-pc
-                                  ac
-                                  pc)]
+        bad-cells (set/difference prior-pc
+                                  pc
+                                  ac)]
     (reduce (fn [sg [col ci]]
-              (punish-cell sg col ci prev-ac th pcon pdec))
+              (punish-cell sg col ci prior-aci th pcon pdec))
             distal-sg
             bad-cells)))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn select-learning-segs
-  [acbc b-cols distal-sg prior-ac spec]
+  [acbc b-cols distal-sg prior-aci spec]
   (let [pcon (:distal-perm-connected spec)]
     (loop [acbc (seq acbc)
            lc (transient #{})
@@ -3463,7 +3497,7 @@ because distributed snapshot release does not have clojurescript.</p>
         (let [[col cells] x]
           (if (b-cols col)
             ;; bursting column - choose a learning segment and cell
-            (let [sc (best-matching-segment-and-cell distal-sg cells prior-ac
+            (let [sc (best-matching-segment-and-cell distal-sg cells prior-aci
                                                      spec)
                   cell (:cell-id sc)]
               (recur (next acbc)
@@ -3472,12 +3506,12 @@ because distributed snapshot release does not have clojurescript.</p>
             ;; predicted column - the active cell is the learning cell
             (let [cell (first cells)
                   cell-segs (p/cell-segments distal-sg cell)
-                  sc (most-active-segment cell-segs prior-ac pcon)
+                  sc (most-active-segment cell-segs prior-aci pcon)
                   ;; if not depolarised by current active cells
                   ;; (temporal pooling?) then fall back to bursting-like
                   sc (if (:segment-idx sc)
                        sc
-                       (most-active-segment cell-segs prior-ac 0))]
+                       (most-active-segment cell-segs prior-aci 0))]
               (recur (next acbc)
                      (conj! lc cell)
                      (assoc! lsegs cell (:segment-idx sc))))))
@@ -3495,11 +3529,11 @@ because distributed snapshot release does not have clojurescript.</p>
      overlaps proximal-exc proximal-sig-exc
      active-cols burst-cols active-cells signal-cells
      learn-cells])</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defrecord LayerPredictiveState
-    [distal-exc pred-cells])</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defrecord LayerDistalState
+    [distal-bits distal-lc-bits distal-exc pred-cells])</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defrecord LayerOfCells
     [spec topology input-topology inh-radius proximal-sg distal-sg
-     state prior-state pred-state prior-pred-state
+     state prior-state distal-state prior-distal-state
      boosts active-duty-cycles overlap-duty-cycles]
   p/PLayerOfCells
   (layer-activate
@@ -3507,7 +3541,7 @@ because distributed snapshot release does not have clojurescript.</p>
     (let [om (syn/excitations proximal-sg ff-bits)
           prox-exc (columns/apply-overlap-boosting om boosts spec)
           sig-om (syn/excitations proximal-sg signal-ff-bits)
-          distal-exc (:distal-exc pred-state)
+          distal-exc (:distal-exc distal-state)
           {acbc :active-cells-by-col
            b-cols :burst-cols} (select-active-cells prox-exc distal-exc topology
                                                     inh-radius spec)
@@ -3536,20 +3570,22 @@ because distributed snapshot release does not have clojurescript.</p>
           dcp (:duty-cycle-period spec)
           t (:timestep this)
           boost? (zero? (mod t dcp))
-          ac (:active-cells state)
-          prior-ac (:active-cells prior-state)
-          prior-lc (:learn-cells prior-state)
+          prior-aci (:distal-bits distal-state)
+          prior-lci (:distal-lc-bits distal-state)
           acbc (:active-cells-by-col state)
           burst-cols (:burst-cols state)
           {lc :learn-cells
            lsegs :learn-segs} (select-learning-segs acbc burst-cols distal-sg
-                                                    prior-ac spec)
+                                                    prior-aci spec)
           dsg (cond-&gt;
-               (learn-distal distal-sg lsegs burst-cols prior-ac prior-lc spec)
+               (learn-distal distal-sg lsegs burst-cols prior-aci prior-lci spec)
                ;; allow this phase of learning as an option
                (:distal-punish? spec)
-               (punish-distal ac prior-ac (:pred-cells pred-state)
-                              (:pred-cells prior-pred-state) spec))
+               (punish-distal (:pred-cells prior-distal-state)
+                              (:pred-cells distal-state)
+                              (:active-cells state)
+                              (:distal-bits prior-distal-state)
+                              spec))
           psg (columns/learn-proximal proximal-sg input-topology topology
                                       (:active-cols state) ff-bits
                                       (:overlaps state) spec)]
@@ -3568,15 +3604,32 @@ because distributed snapshot release does not have clojurescript.</p>
        boost? (update-inhibition-radius))))
   (layer-depolarise
     [this distal-ff-bits distal-fb-bits]
-    ;; TODO distal-bits
-    (let [seg-exc (syn/excitations distal-sg (:active-cells state))
+    (let [depth (:depth spec)
+          cells-&gt;bits #(map (partial cell-&gt;id depth) %)
+          widths (distal-sources-widths spec)
+          aci (util/align-indices widths
+                                  [(if (:lateral-synapses? spec)
+                                     (cells-&gt;bits (:active-cells state))
+                                     [])
+                                   distal-ff-bits
+                                   (if (:use-feedback? spec) distal-fb-bits [])])
+          ;; possibly should pass in separate lc sets as arguments
+          lci (util/align-indices widths
+                                  [(if (:lateral-synapses? spec)
+                                     (cells-&gt;bits (:learn-cells state))
+                                     [])
+                                   distal-ff-bits
+                                   (if (:use-feedback? spec) distal-fb-bits [])])
+          seg-exc (syn/excitations distal-sg aci)
           cell-exc (cell-depolarisation seg-exc (:seg-stimulus-threshold spec))
           pc (set (keys cell-exc))]
       (assoc this
-        :prior-pred-state pred-state
-        :pred-state (map-&gt;LayerPredictiveState
-                     {:distal-exc cell-exc
-                      :pred-cells pc}))))
+        :prior-distal-state distal-state
+        :distal-state (map-&gt;LayerDistalState
+                       {:distal-bits (set aci)
+                        :distal-lc-bits lci
+                        :distal-exc cell-exc
+                        :pred-cells pc}))))
   (layer-depth [_]
     (:depth spec))
   (bursting-columns [_]
@@ -3592,11 +3645,11 @@ because distributed snapshot release does not have clojurescript.</p>
   (temporal-pooling-cells [_]
     #{})
   (predictive-cells [_]
-    (:pred-cells pred-state))
+    (:pred-cells distal-state))
   (prior-predictive-cells [_]
-    (:pred-cells prior-pred-state))
+    (:pred-cells prior-distal-state))
   (depolarisation [_]
-    (:distal-exc pred-state))
+    (:distal-exc distal-state))
   (column-excitation [_]
     (:proximal-exc state))
   p/PTopological
@@ -3608,19 +3661,27 @@ because distributed snapshot release does not have clojurescript.</p>
   p/PParameterised
   (params [_]
     spec))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(util/print-method-truncate LayerOfCells [:boosts
+                                          :active-duty-cycles
+                                          :overlap-duty-cycles])</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn layer-of-cells
   [spec]
   (let [spec (merge parameter-defaults spec)
         input-topo (topology/make-topology (:input-dimensions spec))
         col-topo (topology/make-topology (:column-dimensions spec))
         n-cols (p/size col-topo)
-        all-syns (columns/uniform-ff-synapses col-topo input-topo spec)
-        proximal-sg (syn/synapse-graph all-syns (p/size input-topo)
+        n-distal (+ (if (:lateral-synapses? spec)
+                      (* n-cols (:depth spec)) 0)
+                    (reduce * (:distal-motor-dimensions spec))
+                    (reduce * (:distal-topdown-dimensions spec)))
+        prox-syns (columns/uniform-ff-synapses col-topo input-topo spec)
+        proximal-sg (syn/synapse-graph prox-syns (p/size input-topo)
                                        (:ff-perm-connected spec)
                                        (:ff-max-synapse-count spec)
                                        (:ff-grow-and-die? spec))
         distal-sg (syn/synapse-graph-by-segments n-cols (:depth spec)
                                                  (:max-segments spec)
+                                                 n-distal
                                                  (:distal-perm-connected spec)
                                                  (:seg-max-synapse-count spec)
                                                  true)
@@ -3628,9 +3689,10 @@ because distributed snapshot release does not have clojurescript.</p>
                {:learn-cells #{}
                 :active-cells #{}
                 :active-cols #{}})
-        pred-state (map-&gt;LayerPredictiveState
-                    {:pred-cells #{}
-                     :distal-exc {}})]
+        distal-state (map-&gt;LayerDistalState
+                      {:distal-bits #{}
+                       :pred-cells #{}
+                       :distal-exc {}})]
     (-&gt;
      (map-&gt;LayerOfCells
       {:spec spec
@@ -3641,8 +3703,8 @@ because distributed snapshot release does not have clojurescript.</p>
        :distal-sg distal-sg
        :state state
        :prior-state state
-       :pred-state pred-state
-       :prior-pred-state pred-state
+       :distal-state distal-state
+       :prior-distal-state distal-state
        :boosts (vec (repeat n-cols 1.0))
        :active-duty-cycles (vec (repeat n-cols 0.0))
        :overlap-duty-cycles (vec (repeat n-cols 0.0))
@@ -3851,13 +3913,23 @@ y[t] = (period-1) * y[t-1]  +  1
             [org.nfrac.comportex.algo-graph :as graph]
             [cljs-uuid.core :as uuid]
             [clojure.set :as set]))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn cell-id-&gt;inbit
-  [offset depth [col ci]]
-  (+ offset (* depth col) ci))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn inbit-&gt;cell-id
+</td><td class="codes"><pre class="brush: clojure">(defn- cell-id-&gt;inbit
+  [depth [col ci]]
+  (-&gt; depth (* col) (+ ci)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn- inbit-&gt;cell-id
   [depth i]
   [(quot i depth)
    (rem i depth)])</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn- layer-ff
+  [layer]
+  (let [depth (p/layer-depth layer)]
+    (-&gt;&gt; (p/active-cells layer)
+         (map (partial cell-id-&gt;inbit depth)))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn- layer-sig-ff
+  [layer]
+  (let [depth (p/layer-depth layer)]
+    (-&gt;&gt; (p/signal-cells layer)
+         (map (partial cell-id-&gt;inbit depth)))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(declare sensory-region)</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defrecord SensoryRegion
     [layer-3 uuid step-counter]
@@ -3885,17 +3957,11 @@ y[t] = (period-1) * y[t-1]  +  1
     (topology/make-topology (conj (p/dims-of this)
                                   (p/layer-depth layer-3))))
   (bits-value
-    [this offset]
-    (let [depth (p/layer-depth layer-3)]
-      (-&gt;&gt; (p/active-cells layer-3)
-           (mapv (partial cell-id-&gt;inbit offset depth))
-           (into #{}))))
+    [this]
+    (layer-ff layer-3))
   (signal-bits-value
-    [_ offset]
-    (let [depth (p/layer-depth layer-3)]
-      (-&gt;&gt; (p/signal-cells layer-3)
-           (mapv (partial cell-id-&gt;inbit offset depth))
-           (into #{}))))
+    [_]
+    (layer-sig-ff layer-3))
   (source-of-bit
     [_ i]
     (let [depth (p/layer-depth layer-3)]
@@ -3904,8 +3970,8 @@ y[t] = (period-1) * y[t-1]  +  1
   (ff-motor-topology [_]
     topology/empty-topology)
   (motor-bits-value
-    [_ offset]
-    #{})
+    [_]
+    (sequence nil))
   p/PTemporal
   (timestep [_]
     step-counter)
@@ -3931,11 +3997,89 @@ y[t] = (period-1) * y[t-1]  +  1
 </td><td class="codes"><pre class="brush: clojure">(defn cells-&gt;cols
   [cells]
   (into #{} (mapv first cells)))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(declare sensory-motor-region)</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defrecord SensoryMotorRegion
+</td><td class="codes"><pre class="brush: clojure">(declare sensorimotor-region)</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defrecord SensoriMotorRegion
     [layer-4 layer-3 uuid step-counter]
-  ;; TODO)</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defrecord SensoryMotorInput
+  p/PRegion
+  (region-activate
+    [this ff-bits signal-ff-bits]
+    (let [l4 (p/layer-activate layer-4 ff-bits signal-ff-bits)
+          l3 (p/layer-activate layer-3
+                               (set (layer-ff l4))
+                               (set (layer-sig-ff l4)))]
+      (assoc this
+       :step-counter (inc step-counter)
+       :layer-4 l4
+       :layer-3 l3)))
+  (region-learn
+    [this]
+    (if (:freeze? (p/params this))
+      this
+      (assoc this
+        :layer-4 (p/layer-learn layer-4)
+        :layer-3 (p/layer-learn layer-3))))
+  (region-depolarise
+    [this distal-ff-bits distal-fb-bits]
+    ;; TODO feedback from L3 to L4?
+    (let [l4 (p/layer-depolarise layer-4 distal-ff-bits #{})
+          l3 (p/layer-depolarise layer-3 #{} distal-fb-bits)]
+     (assoc this
+       :layer-4 l4
+       :layer-3 l3)))
+  p/PTopological
+  (topology [_]
+    (p/topology layer-3))
+  p/PFeedForward
+  (ff-topology [this]
+    (topology/make-topology (conj (p/dims-of this)
+                                  (p/layer-depth layer-3))))
+  (bits-value
+    [this]
+    (layer-ff layer-3))
+  (signal-bits-value
+    [_]
+    (layer-sig-ff layer-3))
+  (source-of-bit
+    [_ i]
+    (let [depth (p/layer-depth layer-3)]
+      (inbit-&gt;cell-id depth i)))
+  p/PFeedForwardMotor
+  (ff-motor-topology [_]
+    ;; TODO
+    topology/empty-topology)
+  (motor-bits-value
+    [_]
+    (sequence nil))
+  p/PTemporal
+  (timestep [_]
+    step-counter)
+  p/PParameterised
+  (params [_]
+    (p/params layer-4))
+  p/PResettable
+  (reset [this]
+    (-&gt; (sensorimotor-region (p/params this))
+        (assoc :uuid uuid))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn sensorimotor-region
+  [spec]
+  (let [unk (set/difference (set (keys spec))
+                            (set (keys cells/parameter-defaults)))]
+    (when (seq unk)
+      (println &quot;Warning: unknown keys in spec:&quot; unk)))
+  (let [l4-spec (assoc spec
+                  :lateral-synapses? false)
+        l4 (cells/layer-of-cells spec)
+        l3-spec (assoc spec
+                  :input-dimensions (p/dimensions (p/ff-topology l4))
+                  :distal-motor-dimensions [0]
+                  :lateral-synapses? true)
+        l3 (cells/layer-of-cells l3-spec)]
+    (map-&gt;SensoriMotorRegion
+    {:layer-3 l3
+     :layer-4 l4
+     :uuid (uuid/make-random)
+     :step-counter 0})))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defrecord SensoriMotorInput
     [encoder motor-encoder value]
   p/PTopological
   (topology [_]
@@ -3945,11 +4089,11 @@ y[t] = (period-1) * y[t-1]  +  1
   (ff-topology [_]
     (p/topology encoder))
   (bits-value
-    [_ offset]
-    (p/encode encoder offset value))
+    [_]
+    (p/encode encoder value))
   (signal-bits-value
-    [_ offset]
-    #{})
+    [_]
+    (sequence nil))
   (source-of-bit
     [_ i]
     [i])
@@ -3959,16 +4103,16 @@ y[t] = (period-1) * y[t-1]  +  1
       (p/topology motor-encoder)
       topology/empty-topology))
   (motor-bits-value
-    [_ offset]
+    [_]
     (if motor-encoder
-      (p/encode motor-encoder offset value)
-      #{}))
+      (p/encode motor-encoder value)
+      (sequence nil)))
   p/PInputSource
   (input-step [this in-value]
     (assoc this :value in-value)))</pre></td></tr><tr><td class="docs"><p>Creates an input source from an encoder.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn sensory-input
   [encoder]
-  (-&gt;SensoryMotorInput encoder nil nil))</pre></td></tr><tr><td class="docs"><p>Creates an input source from an encoder (for the proximal
+  (-&gt;SensoriMotorInput encoder nil nil))</pre></td></tr><tr><td class="docs"><p>Creates an input source from an encoder (for the proximal
    feed-forward output) and a motor encoder (for the distal
    feed-forward output). The encoders operate on the same value so
    should select their relevant parts of it. Remember that HTM models
@@ -3976,9 +4120,9 @@ y[t] = (period-1) * y[t-1]  +  1
    each timestep: therefore motor signals, which act to depolarise
    cells, should appear the time step before a corresponding sensory
    signal.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn sensory-motor-input
+</td><td class="codes"><pre class="brush: clojure">(defn sensorimotor-input
   [encoder motor-encoder]
-  (-&gt;SensoryMotorInput encoder motor-encoder nil))</pre></td></tr><tr><td class="docs"><p>Returns the total bit set from a collection of sources satisfying
+  (-&gt;SensoriMotorInput encoder motor-encoder nil))</pre></td></tr><tr><td class="docs"><p>Returns the total bit set from a collection of sources satisfying
    <code>PFeedForward</code> or <code>PFeedForwardMotor</code>. <code>flavour</code> should
    be :standard, :signal or :motor.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn combined-bits-value
@@ -3991,10 +4135,10 @@ y[t] = (period-1) * y[t-1]  +  1
                   :standard p/bits-value
                   :signal p/signal-bits-value
                   :motor p/motor-bits-value)
-        widths (map (comp p/size topo-fn) ffs)
-        offs (list* 0 (reductions + widths))]
-    (-&gt;&gt; (map bits-fn ffs offs)
-         (apply set/union))))</pre></td></tr><tr><td class="docs"><h2>Region Networks</h2>
+        widths (map (comp p/size topo-fn) ffs)]
+    (-&gt;&gt; (map bits-fn ffs)
+         (util/align-indices widths)
+         (into #{}))))</pre></td></tr><tr><td class="docs"><h2>Region Networks</h2>
 </td><td class="codes"></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn topo-union
   [topos]
@@ -4234,8 +4378,8 @@ y[t] = (period-1) * y[t-1]  +  1
               :headers {&quot;api-key&quot; api-key}}))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn random-sdr
   []
-  (set (repeatedly (* retina-size 0.02)
-                   #(util/rand-int (dec retina-size)))))</pre></td></tr><tr><td class="docs"><p>Maps a retina fingerprint index to another index which is spatially
+  (distinct (repeatedly (* retina-size 0.02)
+                        #(util/rand-int (dec retina-size)))))</pre></td></tr><tr><td class="docs"><p>Maps a retina fingerprint index to another index which is spatially
    scrambled. Meaning that direct neighbours in the retina are now
    offset from each other by around 17 units. This is a complete
    mapping, i.e. the following holds:</p>
@@ -4256,7 +4400,7 @@ y[t] = (period-1) * y[t-1]  +  1
       (quot 17)))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn scramble-bitset
   [bits]
-  (into #{} (map scramble-bit bits)))</pre></td></tr><tr><td class="docs"><p>assoc, but not if the key already has a (truthy) value.</p>
+  (map scramble-bit bits))</pre></td></tr><tr><td class="docs"><p>assoc, but not if the key already has a (truthy) value.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn ?assoc
   [m k v]
   (if (m k) m (assoc m k v)))</pre></td></tr><tr><td class="docs"><p>Makes a request to cortical.io to look up the fingerprint for the
@@ -4295,11 +4439,6 @@ y[t] = (period-1) * y[t-1]  +  1
       (if (&gt; (count bits) max-bits)
         (recur (inc min-votes))
         bits))))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn apply-offset
-  [xs offset]
-  (-&gt;&gt; xs
-       (map #(+ % offset))
-       (into (empty xs))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn cortical-io-encoder
   [api-key cache &amp; {:keys [decode-locally? spatial-scramble?]}]
   (let [topo (topology/make-topology retina-dim)]
@@ -4309,13 +4448,12 @@ y[t] = (period-1) * y[t-1]  +  1
         topo)
       p/PEncodable
       (encode
-        [_ offset term]
+        [_ term]
         (if (seq term)
           (cond-&gt;
            (get-fingerprint cache term)
-           spatial-scramble? (scramble-bitset)
-           (not (zero? offset)) (apply-offset offset))
-          #{}))
+           spatial-scramble? (scramble-bitset))
+          (sequence nil)))
       (decode
         [this bit-votes n]
         (let [bit-votes (if spatial-scramble?
@@ -4353,7 +4491,6 @@ y[t] = (period-1) * y[t-1]  +  1
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util]
-            [clojure.set :as set]
             [cemerick.pprng :as rng]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn prediction-stats
   [x-bits bit-votes total-votes]
@@ -4375,7 +4512,7 @@ y[t] = (period-1) * y[t-1]  +  1
     (when (pos? total-votes)
       (-&gt;&gt; try-values
            (map (fn [x]
-                  (let [x-bits (p/encode e 0 x)]
+                  (let [x-bits (p/encode e x)]
                     (-&gt; (prediction-stats x-bits bit-votes total-votes)
                         (assoc :value x)))))
            (filter (comp pos? :votes-frac))
@@ -4389,8 +4526,8 @@ y[t] = (period-1) * y[t-1]  +  1
       (p/topology e))
     p/PEncodable
     (encode
-      [_ offset x]
-      (p/encode e offset (f x)))
+      [_ x]
+      (p/encode e (f x)))
     (decode
       [_ bit-votes n]
       (p/decode e bit-votes n))))</pre></td></tr><tr><td class="docs"><p>A higher-level encoder for a sequence of values. The given encoder
@@ -4405,10 +4542,10 @@ y[t] = (period-1) * y[t-1]  +  1
       (p/topology e))
     p/PEncodable
     (encode
-      [_ offset xs]
+      [_ xs]
       (-&gt;&gt; xs
-           (map (fn [x] (p/encode e offset x)))
-           (apply set/union)))))</pre></td></tr><tr><td class="docs"><p>A higher-level encoder for a sequence of <code>n</code> values. The given
+           (mapcat (partial p/encode e))
+           (distinct)))))</pre></td></tr><tr><td class="docs"><p>A higher-level encoder for a sequence of <code>n</code> values. The given
    encoder will be applied to each value, and the resulting encodings
    concatenated; i.e. the bit width of the combined encoding is the
    sum of the component bit widths. If multiple (<code>n</code>) encoders are
@@ -4417,7 +4554,6 @@ y[t] = (period-1) * y[t-1]  +  1
 </td><td class="codes"><pre class="brush: clojure">(defn encat
   ([n e]
      (let [e-dim (p/dims-of e)
-           e-w (p/size-of e)
            dim (update-in e-dim [0] * n)
            topo (topology/make-topology dim)]
        (reify
@@ -4426,15 +4562,13 @@ y[t] = (period-1) * y[t-1]  +  1
            topo)
          p/PEncodable
          (encode
-           [_ offset xs]
+           [_ xs]
            (-&gt;&gt; xs
-                (map-indexed (fn [i x]
-                               (p/encode e (+ offset (* i e-w)) x)))
-                (apply set/union))))))
+                (map (partial p/encode e))
+                (util/align-indices (repeat (p/size-of e))))))))
   ([n e &amp; more]
      (let [es (list* e more)
            ws (map p/size-of es)
-           os (list* 0 (reductions + ws))
            dim (apply topology/combined-dimensions (map p/dims-of es))
            topo (topology/make-topology dim)]
        (reify
@@ -4443,11 +4577,10 @@ y[t] = (period-1) * y[t-1]  +  1
            topo)
          p/PEncodable
          (encode
-           [_ offset xs]
-           (-&gt;&gt; (map (fn [e o x]
-                       (p/encode e (+ offset o) x))
-                     es os xs)
-                (apply set/union)))))))</pre></td></tr><tr><td class="docs"><p>Returns a simple encoder for a single number. It encodes a
+           [_ xs]
+           (-&gt;&gt; xs
+                (map p/encode es)
+                (util/align-indices ws)))))))</pre></td></tr><tr><td class="docs"><p>Returns a simple encoder for a single number. It encodes a
    number by its position on a continuous scale within a numeric
    range. It does not represent any other features of a number (its
    component digits, integral/fractional parts, factors, etc).</p>
@@ -4469,14 +4602,13 @@ will be clamped to this range.</p></li>
         topo)
       p/PEncodable
       (encode
-        [_ offset x]
+        [_ x]
         (if x
           (let [x (-&gt; x (max lower) (min upper))
                 z (/ (- x lower) span)
                 i (long (* z (- bit-width on-bits)))]
-            (set (range (+ offset i)
-                        (+ offset i on-bits))))
-          #{}))
+            (range i (+ i on-bits)))
+          (sequence nil)))
       (decode
         [this bit-votes n]
         (let [values (range lower upper (if (&lt; 5 span 250)
@@ -4496,8 +4628,8 @@ will be clamped to this range.</p></li>
         (p/topology int-e))
       p/PEncodable
       (encode
-        [_ offset x]
-        (p/encode int-e offset (val-to-int x)))
+        [_ x]
+        (p/encode int-e (val-to-int x)))
       (decode
         [this bit-votes n]
         (-&gt;&gt; (decode-by-brute-force this values bit-votes)
@@ -4508,16 +4640,16 @@ will be clamped to this range.</p></li>
   (let [topo (topology/make-topology input-dim)
         bit-width (p/size topo)
         cached-bits (atom {})
-        gen #(set (take on-bits (util/shuffle (range bit-width))))]
+        gen #(take on-bits (util/shuffle (range bit-width)))]
     (reify
       p/PTopological
       (topology [_]
         topo)
       p/PEncodable
       (encode
-        [_ offset x]
+        [_ x]
         (if (nil? x)
-          #{}
+          (sequence nil)
           (or (get @cached-bits x)
               (get (swap! cached-bits assoc x (gen)) x))))
       (decode
@@ -4543,7 +4675,7 @@ will be clamped to this range.</p></li>
         topo)
       p/PEncodable
       (encode
-        [_ offset [x y]]
+        [_ [x y]]
         (if x
           (let [x (-&gt; x (max 0) (min x-max))
                 y (-&gt; y (max 0) (min y-max))
@@ -4555,10 +4687,9 @@ will be clamped to this range.</p></li>
                 idx (p/index-of-coordinates topo coord)]
             (-&gt;&gt; (range 10)
                  (mapcat (fn [radius]
-                        (p/neighbours-indices topo idx radius (dec radius))))
-                 (take on-bits)
-                 (set)))
-          #{}))
+                           (p/neighbours-indices topo idx radius (dec radius))))
+                 (take on-bits)))
+          (sequence nil)))
       (decode
         [this bit-votes n]
         (let [values (for [x (range x-max)
@@ -4589,16 +4720,15 @@ will be clamped to this range.</p></li>
   (let [RNG (rng/rng (hash coord))]
     (rng/double RNG)))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn coordinate-bit
-  [size offset coord]
+  [size coord]
   ;; need a different seed from coordinate-order here;
   ;; otherwise highest orders always have highest bits!
   ;; (in cljs, (rng/int) is just a scaling of (rng/double).)
   (let [seedval (if (= 1 (count coord))
-                  (* size 2 (Math/sin (first coord)))
+                  (let [[x] coord] (reverse (str x)))
                   (reverse coord))
         RNG (rng/rng (hash seedval))]
-    (+ offset
-       (rng/int RNG size))))</pre></td></tr><tr><td class="docs"><p>Coordinate encoder over integer coordinates, unbounded (up to
+    (rng/int RNG size)))</pre></td></tr><tr><td class="docs"><p>Coordinate encoder over integer coordinates, unbounded (up to
    platform limit), with one, two or three dimensions. Each dimension
    has an associated radius within which there is some similarity in
    encoded SDRs. Looks up keys :coord and :radii from the input value.</p>
@@ -4612,12 +4742,12 @@ will be clamped to this range.</p></li>
         topo)
       p/PEncodable
       (encode
-        [_ offset {:keys [coord radii]}]
-        (let [neighs (coordinate-neighbours coord radii)]
-          (-&gt;&gt; (zipmap neighs (map coordinate-order neighs))
-               (util/top-n-keys-by-value on-bits)
-               (map (partial coordinate-bit size offset))
-               (set)))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/encoders.cljx</p>
+        [_ {:keys [coord radii]}]
+        (when coord
+          (let [neighs (coordinate-neighbours coord radii)]
+            (-&gt;&gt; (zipmap neighs (map coordinate-order neighs))
+                 (util/top-n-keys-by-value on-bits)
+                 (map (partial coordinate-bit size)))))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/encoders.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.inhibition" name="org.nfrac.comportex.inhibition"><h1 class="project-name">org.nfrac.comportex.inhibition</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.inhibition
   (:require [org.nfrac.comportex.protocols :as p]
@@ -4760,12 +4890,12 @@ will be clamped to this range.</p></li>
    sensory input or a region (where cells are bits).</p>
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PFeedForward
   (ff-topology [this])
-  (bits-value [this offset])
-  (signal-bits-value [this offset])
+  (bits-value [this])
+  (signal-bits-value [this])
   (source-of-bit [this i]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PFeedForwardMotor
   (ff-motor-topology [this])
-  (motor-bits-value [this offset]))</pre></td></tr><tr><td class="docs">
+  (motor-bits-value [this]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PLayerOfCells
   (layer-activate [this ff-bits signal-ff-bits])
   (layer-learn [this])
@@ -4804,9 +4934,8 @@ will be clamped to this range.</p></li>
   (cell-segments [this cell-id]
     &quot;A vector of segments on the cell, each being a synapse map.&quot;))</pre></td></tr><tr><td class="docs"><p>Encoders need to extend this together with PTopological.</p>
 </td><td class="codes"><pre class="brush: clojure">(defprotocol PEncodable
-  (encode [this offset x]
-    &quot;Encodes `x` as a set of integers which are the on-bits, starting
-     from the given offset.&quot;)
+  (encode [this x]
+    &quot;Encodes `x` as a collection of integers which are the on-bits.&quot;)
   (decode [this bit-votes n]
     &quot;Finds `n` domain values matching the given bit set in a sequence
      of maps with keys `:value`, `:votes-frac`, `:votes-per-bit`,
@@ -4835,7 +4964,7 @@ will be clamped to this range.</p></li>
   (coord-distance [this coord-a coord-b]))</pre></td></tr><tr><td class="docs"><p>The total number of elements indexed in the topology.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn size
   [topo]
-  (apply * (dimensions topo)))</pre></td></tr><tr><td class="docs"><p>The dimensions of a PTopological as an n-tuple vector.</p>
+  (reduce * (dimensions topo)))</pre></td></tr><tr><td class="docs"><p>The dimensions of a PTopological as an n-tuple vector.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn dims-of
   [x]
   (dimensions (topology x)))</pre></td></tr><tr><td class="docs"><p>The total number of elements in a PTopological.</p>
@@ -4859,8 +4988,7 @@ will be clamped to this range.</p></li>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.synapses" name="org.nfrac.comportex.synapses"><h1 class="project-name">org.nfrac.comportex.synapses</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.synapses
   (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.util :as util
-             :refer [remap]]))</pre></td></tr><tr><td class="docs">
+            [org.nfrac.comportex.util :as util]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defrecord SynapseGraph
     [syns-by-target targets-by-source pcon max-syns cull-zeros?]
   p/PSynapseGraph
@@ -4944,6 +5072,7 @@ will be clamped to this range.</p></li>
                    (fn [syns] (apply dissoc syns syn-source-ids)))
         (update-in [:targets-by-source]
                    util/update-each syn-source-ids #(disj % target-id)))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(util/print-method-truncate SynapseGraph [:syns-by-target :targets-by-source])</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn empty-synapse-graph
   [n-targets n-sources pcon max-syns cull-zeros?]
   (map-&gt;SynapseGraph
@@ -4979,14 +5108,6 @@ will be clamped to this range.</p></li>
                (transient {}))
        (persistent!)))</pre></td></tr><tr><td class="docs"><h2>Dendrite segments</h2>
 </td><td class="codes"></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn cell-uidx
-  [depth [col ci]]
-  (+ (* col depth)
-     ci))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn cell-path
-  [depth uidx]
-  [(quot uidx depth)
-   (rem uidx depth)])</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn seg-uidx
   [depth max-segs [col ci si]]
   (+ (* col depth max-segs)
@@ -4997,77 +5118,61 @@ will be clamped to this range.</p></li>
   (let [col (quot uidx (* depth max-segs))
         col-rem (rem uidx (* depth max-segs))]
     [col
-    (quot col-rem max-segs)
-    (rem col-rem max-segs)]))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn remap-keys
-  [f m]
-  (zipmap (map f (keys m))
-          (vals m)))</pre></td></tr><tr><td class="docs">
+     (quot col-rem max-segs)
+     (rem col-rem max-segs)]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defrecord SynapseGraphBySegments
-    [raw-sg depth max-segs
-     src-&gt;i i-&gt;src tgt-&gt;i i-&gt;tgt]
+    [raw-sg max-segs tgt-&gt;i i-&gt;tgt]
   p/PSynapseGraph
   (in-synapses
     [_ target-id]
-    (-&gt;&gt; (p/in-synapses raw-sg (tgt-&gt;i target-id))
-         (remap-keys i-&gt;src)))
+    (p/in-synapses raw-sg (tgt-&gt;i target-id)))
   (sources-connected-to
     [_ target-id]
-    (-&gt;&gt; (p/sources-connected-to raw-sg (tgt-&gt;i target-id))
-         (map src-&gt;i)))
+    (p/sources-connected-to raw-sg (tgt-&gt;i target-id)))
   (targets-connected-from
     [_ source-id]
-    (-&gt;&gt; (p/targets-connected-from raw-sg (src-&gt;i source-id))
+    (-&gt;&gt; (p/targets-connected-from raw-sg source-id)
          (map i-&gt;tgt)))
   (reinforce-in-synapses
     [this target-id skip? reinforce? pinc pdec]
     (-&gt; this
         (update-in [:raw-sg] p/reinforce-in-synapses (tgt-&gt;i target-id)
-                   (comp skip? i-&gt;src) (comp reinforce? i-&gt;src)
+                   skip? reinforce?
                    pinc pdec)))
   (conj-synapses
     [this target-id syn-source-ids p]
     (-&gt; this
         (update-in [:raw-sg] p/conj-synapses (tgt-&gt;i target-id)
-                   (map src-&gt;i syn-source-ids) p)))
+                   syn-source-ids p)))
   (disj-synapses
     [this target-id syn-source-ids]
     (-&gt; this
         (update-in [:raw-sg] p/disj-synapses (tgt-&gt;i target-id)
-                   (map src-&gt;i syn-source-ids))))
+                   syn-source-ids)))
   p/PSegments
   (cell-segments
     [this cell-id]
     (let [[col ci] cell-id]
       (mapv #(p/in-synapses this [col ci %])
-            (range max-segs)))))</pre></td></tr><tr><td class="docs">
+            (range max-segs)))))</pre></td></tr><tr><td class="docs"><p>A synapse graph where the targets refer to individual dendrite
+   segments on cells, which themselves are arranged in columns.
+   Accordingly <code>target-id</code> is passed and returned not as an integer
+   but as a 3-tuple <code>[col ci si]</code>, column id, cell id, segment id.
+   Sources often refer to cells but are passed and returned as
+   <strong>integers</strong>, so any conversion to/from cell ids should happen
+   externally.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn synapse-graph-by-segments
-  [n-cols depth max-segs pcon max-syns cull-zeros?]
+  [n-cols depth max-segs n-sources pcon max-syns cull-zeros?]
   (let [n-targets (* n-cols depth max-segs)
-        n-sources (* n-cols depth)
         raw-sg (empty-synapse-graph n-targets n-sources pcon max-syns cull-zeros?)
         tgt-&gt;i (partial seg-uidx depth max-segs)
-        i-&gt;tgt (partial seg-path depth max-segs)
-        src-&gt;i (partial cell-uidx depth)
-        i-&gt;src (partial cell-path depth)]
+        i-&gt;tgt (partial seg-path depth max-segs)]
     (map-&gt;SynapseGraphBySegments
      {:raw-sg raw-sg
       :max-segs max-segs
       :tgt-&gt;i tgt-&gt;i
       :i-&gt;tgt i-&gt;tgt
-      :src-&gt;i src-&gt;i
-      :i-&gt;src i-&gt;src
-      })))</pre></td></tr><tr><td class="docs"><p>Same as <code>cell-segments</code> but leaves the keys of each synapse map as
-   the internal integer ids, rather than translating them to cell path
-   vectors. Thus it is cheaper to call. e.g. to find number of
-   segments.</p>
-</td><td class="codes"><pre class="brush: clojure">(defn cell-segments-raw
-  [this cell-id]
-  (let [this-raw (:raw-sg this)
-        tgt-&gt;i (:tgt-&gt;i this)
-        [col ci] cell-id]
-      (mapv #(p/in-synapses this-raw (tgt-&gt;i [col ci %]))
-            (range (:max-segs this)))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/synapses.cljx</p>
+      })))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/synapses.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.topology" name="org.nfrac.comportex.topology"><h1 class="project-name">org.nfrac.comportex.topology</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.topology
   (:require [org.nfrac.comportex.protocols :as p]))</pre></td></tr><tr><td class="docs">
@@ -5181,75 +5286,74 @@ will be clamped to this range.</p></li>
       3 (three-d-topology w h d)
       4 (three-d-topology w h (* d q)))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def empty-topology
-  (make-topology [0]))</pre></td></tr><tr><td class="docs"><p>We will pour the concatenated indices (and offsets) into this
+  (make-topology [0]))</pre></td></tr><tr><td class="docs"><p>Project n dimensions to n-1 dimensions by eliminating the last dimension.</p>
+
+<p>  This removes potentially-valuable structure.
+  Example: in dimensions [8 7 6], the points [0 0 0] [0 1 0] are adjacent.
+  After squashing to [8 42], these points [0 0] [0 6] are much further apart.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn squash-last-dimension
+  [dims]
+  (-&gt; dims
+      (update-in [(- (count dims) 2)]
+                 * (last dims))
+      butlast
+      vec))</pre></td></tr><tr><td class="docs"><p>Project n dimensions to n+1 dimensions by dividing the first dimension
+  into cross sections.</p>
+
+<p>  This artificially adds structure. It can also disrupt existing structure.
+  Example: In dimensions [64] the points [7] and [8] are adjacent.
+  After splitting to [8 8], these points [0 7] [1 0] are further apart.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn split-first-dimension
+  [dims xsection-length]
+  (when-let [[x &amp; rest] dims]
+    (when (zero? (rem x xsection-length))
+      (into [(quot x xsection-length)]
+            (assoc dims 0 xsection-length)))))</pre></td></tr><tr><td class="docs"><p>We will pour the concatenated indices (and offsets) into this
 combined topology. Note that region output is its cells, so will
 add another dimension to column topology. e.g. 2D columns [x y]
 becomes [x y z], where z = cell depth.</p>
-</td><td class="codes"></td></tr><tr><td class="docs">
+</td><td class="codes"></td></tr><tr><td class="docs"><p>Align n topologies along the x axis into a single topology.
+  If the topologies don't stack neatly, force compatibility via two
+  strategies:</p>
+
+<ol>
+<li><p>Add dimensions to the lower-dimensional topology by splitting its first
+dimension into cross sections. This is analogous to summing numbers encoded
+in a mixed radix. If the sum of <code>higher</code> and <code>lower</code> can be expressed by only
+changing the first digit of <code>higher</code>, then the two can be stacked in
+<code>higher</code>'s radix (i.e. dimensions).</p>
+
+<p>Default behavior: don't redistribute / mangle <code>lower</code>'s lower dimensions
+(i.e. [y, z, ...]). To force mangling, provide a 1-dimensional <code>lower</code>.</p></li>
+<li><p>Remove dimensions from the higher-dimension topology by squashing its
+last two dimensions into one.</p>
+
+<p>It's best to hand-pick compatible topologies if topology matters.</p></li>
+</ol>
 </td><td class="codes"><pre class="brush: clojure">(defn combined-dimensions
   ([]
      [0])
-  ([dims]
-     dims)
-  ([dims1 dims2]
-     (let [d1 (count dims1)
-           d2 (count dims2)
-           [x1 y1 z1] dims1
-           [x2 y2 z2] dims2]
-       (cond
-        ;; ensure higher dimensional one comes first
-        (&gt; d2 d1)
-        (recur dims2 dims1)
-        ;; any empty
-        (or (zero? d2) (some zero? dims2))
-        dims1
-        ;; 1D &amp; 1D
-        (and (== 1 d1) (== 1 d2))
-        [(+ x1 x2)]
-        ;; 2D &amp; 2D compatible - direct case
-        (and (== 2 d1) (== 2 d2)
-             (== y1 y2))
-        [(+ x1 x2) y1]
-        ;; 2D &amp; 2D incompatible - project to 2D &amp; 1D
-        (and (== 2 d1) (== 2 d2))
-        (recur dims1 [(* x2 y2)])
-        ;; 2D &amp; 1D compatible
-        (and (== 2 d1) (== 1 d2)
-             (zero? (rem x2 y1)))
-        [(+ x1 (quot x2 y1)) y1]
-        ;; 2D &amp; 1D incompatible - project to 1D &amp; 1D
-        (and (== 2 d1) (== 1 d2))
-        [(+ (* x1 y1) x2)]
-        ;; 3D &amp; 3D compatible - direct case
-        (and (== 3 d1) (== 3 d2)
-             (== z1 z2)
-             (== y1 y2))
-        [(+ x1 x2) y1 z1]
-        ;; 3D &amp; 3D incompatible - project to 3D &amp; 2D
-        (and (== 3 d1) (== 3 d2))
-        (recur dims1 [x2 (* y2 z2)])
-        ;; 3D &amp; 2D compatible - direct case 1
-        (and (== 3 d1) (== 2 d2)
-             (== y1 x2)
-             (== z1 y2))
-        [(+ x1 1) y1 z1]
-        ;; 3D &amp; 2D incompatible - project to 2D &amp; 2D
-        (and (== 3 d1) (== 2 d2))
-        (recur [x1 (* y1 z1)] dims2)
-        ;; 3D &amp; 1D compatible
-        (and (== 3 d1) (== 1 d2)
-             (zero? (rem x2 z1)))
-        [x1 (+ y1 (quot x2 z1)) z1]
-        ;; 3D &amp; 1D incompatible - project to 2D &amp; 1D
-        (and (== 3 d1) (== 1 d2))
-        (recur [x1 (* y1 z1)] dims1))))
-  ([dims1 dims2 &amp; more-dims]
-     (reduce combined-dimensions
-             (combined-dimensions dims1 dims2)
-             more-dims)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/topology.cljx</p>
+  ([&amp; all-dims]
+     (reduce (fn [dims1 dims2]
+               (let [[lower higher] (-&gt;&gt; [dims1 dims2]
+                                         (map #(if (empty? %) [0] %))
+                                         (sort-by count))
+                     disparity (- (count higher) (count lower))
+                     ;; match all dimensions except x
+                     [to-match must-already-match] (-&gt;&gt; (rest higher)
+                                                        (split-at disparity))]
+                 (if-let [compatible (when (= (vec (rest lower))
+                                              (vec must-already-match))
+                                       (reduce split-first-dimension lower
+                                               (reverse to-match)))]
+                   ;; now that everything except x matches, sum the xs
+                   (update-in higher [0] + (first compatible))
+                   (recur (squash-last-dimension higher) lower))))
+             all-dims)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/topology.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.util" name="org.nfrac.comportex.util"><h1 class="project-name">org.nfrac.comportex.util</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.util
-  (:require [cemerick.pprng :as rng])
+  (:require [cemerick.pprng :as rng]
+                  [clojure.pprint :as pprint])
   (:refer-clojure :exclude [rand rand-int rand-nth shuffle]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn abs
   [x]
@@ -5416,7 +5520,42 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
                    (double (first (vals new-am)))))
           ;; exclude this one
           :else
-          (recur (next ms) am curr-min)))))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/util.cljx</p>
+          (recur (next ms) am curr-min)))))))</pre></td></tr><tr><td class="docs"><p>Using the provided widths and a coll of colls of indices, lazily adjust
+  each index so that each coll of indices starts where the previous coll ended.
+  Lazily concat all results.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn align-indices
+  ([widths]
+     ;; reserving arity -- this could become a transducer
+     :not-implemented)
+  ([widths collcoll]
+     (let [[leftmost &amp; others] collcoll
+           offs (reductions + widths)]
+       (concat leftmost
+               (mapcat #(map (partial + %) %2) offs others)))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defrecord TruncateOnPrint [v])</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn do-truncated [length f &amp; args]
+  (binding [*print-length* (if *print-length*
+                             (min *print-length* length)
+                             length)]
+    (apply f args)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defmethod print-method TruncateOnPrint
+  [this ^java.io.Writer w]
+  (do-truncated 3 print-method (:v this) w))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defmethod pprint/simple-dispatch TruncateOnPrint
+  [this]
+  (do-truncated 3 print-method (:v this)))</pre></td></tr><tr><td class="docs"><p>Configure prn and pprint to truncate certain fields when printing an
+  instance of <code>recordclass</code>.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn print-method-truncate
+  [recordclass noisykeys]
+  (let [p (get-method print-method recordclass)
+        pp (get-method pprint/simple-dispatch recordclass)
+        truncated-record (fn [record]
+                           (reduce #(update-in % [%2] -&gt;TruncateOnPrint)
+                                   record noisykeys))]
+    (defmethod print-method recordclass [r w]
+      (p (truncated-record r) w))
+    (defmethod pprint/simple-dispatch recordclass [r]
+      (pp (truncated-record r)))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/util.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.coordinates-2d" name="org.nfrac.comportex.demos.coordinates-2d"><h1 class="project-name">org.nfrac.comportex.demos.coordinates-2d</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.coordinates-2d
   (:require [org.nfrac.comportex.core :as core]
@@ -5431,7 +5570,8 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
 (def radius 15)</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def spec
   {:column-dimensions [20 50]
-   :depth 8})</pre></td></tr><tr><td class="docs">
+   :depth 8
+   :distal-punish? false})</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def initial-input-val
   {:x 10 :y 20 :vx 0 :vy 0 :ax 1 :ay 1})</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn clamp
@@ -5537,19 +5677,24 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
                   [clojure.core.async :as async]))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def bit-width 400)
-(def on-bits 25)
-(def numb-max 15)
-(def numb-domain [0 numb-max])</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def bit-width 300)
+(def on-bits 20)</pre></td></tr><tr><td class="docs"><p>for block encoder</p>
+</td><td class="codes"><pre class="brush: clojure">(def numb-max 15)
+(def numb-domain [0 numb-max])</pre></td></tr><tr><td class="docs"><p>for coordinate encoder</p>
+</td><td class="codes"><pre class="brush: clojure">(def radius on-bits) ;; select 50%</pre></td></tr><tr><td class="docs"><p>select 50%
+number of coordinates between integers:</p>
+</td><td class="codes"><pre class="brush: clojure">(def resolution (* 2 radius
+                   0.8)) ;; 0.2 overlap between successive integers</pre></td></tr><tr><td class="docs"><p>0.2 overlap between successive integers</p>
+</td><td class="codes"></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def spec
   {:column-dimensions [1000]
-   :ff-init-frac 0.3
-   :ff-potential-radius 0.1
+   :ff-init-frac 0.2
+   :ff-potential-radius 1.0
    :ff-perm-inc 0.05
    :ff-perm-dec 0.01
    :ff-perm-connected 0.20
-   :ff-stimulus-threshold 3
-   :global-inhibition? false
+   :ff-stimulus-threshold 1
+   :global-inhibition? true
    :activation-level 0.02
    :duty-cycle-period 100000
    :max-boost 2.0
@@ -5564,7 +5709,7 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
    :distal-perm-inc 0.05
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
-   :inhibition-base-distance 1
+   :inhibition-base-distance 0
    })</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def patterns
   {:run-0-5 [0 1 2 3 4 5]
@@ -5577,64 +5722,38 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
 </td><td class="codes"><pre class="brush: clojure">(def gap-length 5)</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn initial-input
   []
-  (-&gt; (util/remap (fn [xs]
-                    {:seq xs :index nil})
-                  patterns)
-      (assoc ::current-pattern-index 0
-             ::gap-countdown nil)))</pre></td></tr><tr><td class="docs">
+  (let [id (first pattern-order)]
+    {:id id
+     :values (patterns id)
+     :index 0}))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn input-transform
-  [input]
-  (let [k (nth pattern-order (::current-pattern-index input))
-        m (input k)
-        at-end? (= (:index m) (dec (count (:seq m))))
-        in-gap? (::gap-countdown input)]
-    (-&gt; input
-        (update-in [k]
-                   (fn [m]
-                     (cond
-                      ;; reached end of sequence
-                      at-end?
-                      (assoc m :index nil)
-                      ;; in gap, wait
-                      in-gap?
-                      m
-                      ;; starting sequence
-                      (not (:index m))
-                      (assoc m :index 0)
-                      ;; in sequence
-                      :else
-                      (update-in m [:index] inc))))
-        (update-in [::current-pattern-index]
-                   (fn [i]
-                     (if at-end?
-                       (util/rand-int 0 (count patterns))
-                       i)))
-        (update-in [::gap-countdown]
-                   (fn [i]
-                     (cond
-                      ;; a pattern ended, start gap
-                      at-end?
-                      (dec gap-length)
-                      ;; continue gap
-                      (and in-gap? (pos? (dec i)))
-                      (dec i)
-                      ;; end of gap
-                      in-gap?
-                      nil
-                      :else
-                      i))))))</pre></td></tr><tr><td class="docs">
+  [{:keys [id values index] :as input}]
+  (if (&lt; index (dec (count values)))
+    ;; continuing sequence
+    (update-in input [:index] inc)
+    ;; reached the end of a sequence
+    (if id
+      ;; start gap
+      {:id nil
+       :values (repeat gap-length nil)
+       :index 0}
+      ;; start another pattern
+      (let [id (util/rand-nth pattern-order)]
+        {:id id
+         :values (patterns id)
+         :index 0}))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn current-value
   [m]
-  (when (:index m)
-    (get (:seq m) (:index m))))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn current-values
-  [input]
-  (map current-value
-       (map input pattern-order)))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def encoder
-  (enc/pre-transform current-values
-                     (enc/ensplat
-                      (enc/linear-encoder bit-width on-bits numb-domain))))</pre></td></tr><tr><td class="docs"><p>Returns a channel of sensory input values.</p>
+  (get (:values m) (:index m)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def block-encoder
+  (enc/pre-transform current-value
+                     (enc/linear-encoder bit-width on-bits numb-domain)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def coord-encoder
+  (enc/pre-transform (fn [m]
+                       (when-let [x (current-value m)]
+                         {:coord [(* x resolution)]
+                          :radii [radius]}))
+                     (enc/coordinate-encoder [bit-width] on-bits)))</pre></td></tr><tr><td class="docs"><p>Returns a channel of sensory input values.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn world
   []
   (doto (async/chan)
@@ -5643,7 +5762,8 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
   ([n]
      (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+     (core/regions-in-series core/sensory-region
+                             (core/sensory-input block-encoder)
                              n spec)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/isolated_1d.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.isolated-2d" name="org.nfrac.comportex.demos.isolated-2d"><h1 class="project-name">org.nfrac.comportex.demos.isolated-2d</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.isolated-2d
@@ -5652,8 +5772,14 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
             [org.nfrac.comportex.util :as util]
                   [clojure.core.async :as async]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def input-size [50 50])
-(def on-bits 64)
-(def numb-domain [10 10])</pre></td></tr><tr><td class="docs">
+(def on-bits 64)</pre></td></tr><tr><td class="docs"><p>for block encoder</p>
+</td><td class="codes"><pre class="brush: clojure">(def numb-domain [10 10])</pre></td></tr><tr><td class="docs"><p>for coordinate encoder</p>
+</td><td class="codes"><pre class="brush: clojure">(def radius (-&gt; (Math/sqrt (* 2 on-bits)) ;; select 50%
+                (/ 2)
+                (long)))</pre></td></tr><tr><td class="docs"><p>number of coordinates between integers:</p>
+</td><td class="codes"><pre class="brush: clojure">(def resolution (* 2 radius
+                   0.8)) ;; 0.2 overlap between successive integers</pre></td></tr><tr><td class="docs"><p>0.2 overlap between successive integers</p>
+</td><td class="codes"></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def spec
   {:column-dimensions [20 50]
    :ff-init-frac 0.3
@@ -5661,7 +5787,7 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
    :ff-perm-inc 0.05
    :ff-perm-dec 0.01
    :ff-perm-connected 0.20
-   :ff-stimulus-threshold 3
+   :ff-stimulus-threshold 1
    :global-inhibition? false
    :activation-level 0.02
    :duty-cycle-period 100000
@@ -5684,71 +5810,45 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
    :down-right (into (mapv vector (repeat 1) (range 5))
                      (mapv vector (range 1 10 2) (repeat 5)))
    :diag-tl-br (mapv vector (range 10) (range 10))
-   :rand-10 (vec (repeatedly 10 #(vector (util/rand 0 10)
-                                         (util/rand 0 10))))
+   :rand-10 (vec (repeatedly 10 #(vector (util/rand-int 0 10)
+                                         (util/rand-int 0 10))))
    })</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def pattern-order (keys patterns))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def gap-length 1)</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn initial-input
   []
-  (-&gt; (util/remap (fn [xs]
-                    {:seq xs :index nil})
-                  patterns)
-      (assoc ::current-pattern-index 0
-             ::gap-countdown nil)))</pre></td></tr><tr><td class="docs">
+  (let [id (first pattern-order)]
+    {:id id
+     :values (patterns id)
+     :index 0}))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn input-transform
-  [input]
-  (let [k (nth pattern-order (::current-pattern-index input))
-        m (input k)
-        at-end? (= (:index m) (dec (count (:seq m))))
-        in-gap? (::gap-countdown input)]
-    (-&gt; input
-        (update-in [k]
-                   (fn [m]
-                     (cond
-                      ;; reached end of sequence
-                      at-end?
-                      (assoc m :index nil)
-                      ;; in gap, wait
-                      in-gap?
-                      m
-                      ;; starting sequence
-                      (not (:index m))
-                      (assoc m :index 0)
-                      ;; in sequence
-                      :else
-                      (update-in m [:index] inc))))
-        (update-in [::current-pattern-index]
-                   (fn [i]
-                     (if at-end?
-                       (util/rand-int 0 (count patterns))
-                       i)))
-        (update-in [::gap-countdown]
-                   (fn [i]
-                     (cond
-                      ;; a pattern ended, start gap
-                      at-end?
-                      (dec gap-length)
-                      ;; continue gap
-                      (and in-gap? (pos? (dec i)))
-                      (dec i)
-                      ;; end of gap
-                      in-gap?
-                      nil
-                      :else
-                      i))))))</pre></td></tr><tr><td class="docs">
+  [{:keys [id values index] :as input}]
+  (if (&lt; index (dec (count values)))
+    ;; continuing sequence
+    (update-in input [:index] inc)
+    ;; reached the end of a sequence
+    (if id
+      ;; start gap
+      {:id nil
+       :values (repeat gap-length nil)
+       :index 0}
+      ;; start another pattern
+      (let [id (util/rand-nth pattern-order)]
+        {:id id
+         :values (patterns id)
+         :index 0}))))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn current-value
   [m]
-  (when (:index m)
-    (get (:seq m) (:index m))))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn current-values
-  [input]
-  (map current-value
-       (map input pattern-order)))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def encoder
-  (enc/pre-transform current-values
-                     (enc/ensplat
-                      (enc/linear-2d-encoder input-size on-bits numb-domain))))</pre></td></tr><tr><td class="docs"><p>Returns a channel of sensory input values.</p>
+  (get (:values m) (:index m)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def block-encoder
+  (enc/pre-transform current-value
+                     (enc/linear-2d-encoder input-size on-bits numb-domain)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def coord-encoder
+  (enc/pre-transform (fn [m]
+                       (when-let [xy (current-value m)]
+                         {:coord (mapv #(* % resolution) xy)
+                          :radii [radius radius]}))
+                     (enc/coordinate-encoder input-size on-bits)))</pre></td></tr><tr><td class="docs"><p>Returns a channel of sensory input values.</p>
 </td><td class="codes"><pre class="brush: clojure">(defn world
   []
   (doto (async/chan)
@@ -5757,7 +5857,8 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
   ([n]
      (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+     (core/regions-in-series core/sensory-region
+                             (core/sensory-input block-encoder)
                              n spec)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/isolated_2d.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.mixed-gaps-1d" name="org.nfrac.comportex.demos.mixed-gaps-1d"><h1 class="project-name">org.nfrac.comportex.demos.mixed-gaps-1d</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.mixed-gaps-1d
@@ -5766,16 +5867,17 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
             [org.nfrac.comportex.util :as util]
                   [clojure.core.async :as async]))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def bit-width 400)
-(def on-bits 25)
-(def numb-max 15)
+(def on-bits 25)</pre></td></tr><tr><td class="docs"><p>for block encoder</p>
+</td><td class="codes"><pre class="brush: clojure">(def numb-max 15)
 (def numb-domain [0 numb-max])</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def spec
   {:column-dimensions [1000]
-   :ff-potential-radius 0.1
+   :ff-init-frac 0.2
+   :ff-potential-radius 1.0
    :ff-perm-inc 0.05
    :ff-perm-dec 0.01
    :ff-perm-connected 0.20
-   :ff-stimulus-threshold 3
+   :ff-stimulus-threshold 1
    :global-inhibition? false
    :activation-level 0.02
    :duty-cycle-period 100000
@@ -5791,6 +5893,7 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
    :distal-perm-inc 0.05
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
+   :inhibition-base-distance 0
    })</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(def patterns
   {:run-0-5 [0 1 2 3 4 5]
@@ -5804,41 +5907,30 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
   (-&gt;&gt; (vals patterns) (map count) (reduce +) (long) (* 2)))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn initial-input
   []
-  (-&gt;&gt; patterns
-       (util/remap
-        (fn [xs]
-          {:seq xs, :index nil,
-           :gap-countdown (util/rand-int 0 gap-range)}))))</pre></td></tr><tr><td class="docs">
+  (assoc {} (first pattern-order) 0))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn input-transform
   [input]
-  (-&gt;&gt; input
-       (util/remap
-        (fn [m]
-          (cond
-           ;; reached end of sequence; begin gap
-           (= (:index m) (dec (count (:seq m))))
-           (assoc m :index nil
-                  :gap-countdown (util/rand-int 0 gap-range))
-           ;; in gap
-           (and (not (:index m))
-                (pos? (:gap-countdown m)))
-           (update-in m [:gap-countdown] dec)
-           ;; reached end of gap; restart sequence
-           (and (not (:index m))
-                (zero? (:gap-countdown m)))
-           (assoc m :index 0)
-           ;; in sequence
-           :else
-           (update-in m [:index] inc))))))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(defn current-value
-  [m]
-  (when (:index m)
-    (get (:seq m) (:index m))))</pre></td></tr><tr><td class="docs">
+  (reduce (fn [m [id values]]
+            (if-let [index (m id)]
+              ;; pattern is currently active
+              (if (&lt; index (dec (count (patterns id))))
+                ;; continue
+                (update-in m [id] inc)
+                ;; finished
+                (dissoc m id))
+              ;; pattern is not currently active
+              (if (zero? (util/rand-int gap-range))
+                ;; start
+                (assoc m id 0)
+                m)))
+          input
+          patterns))</pre></td></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(defn current-values
   [input]
-  (map current-value
-       (map input pattern-order)))</pre></td></tr><tr><td class="docs">
-</td><td class="codes"><pre class="brush: clojure">(def encoder
+  (map (fn [[id index]]
+         (get-in patterns [id index]))
+       input))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def block-encoder
   (enc/pre-transform current-values
                      (enc/ensplat
                       (enc/linear-encoder bit-width on-bits numb-domain))))</pre></td></tr><tr><td class="docs"><p>Returns a channel of sensory input values.</p>
@@ -5850,8 +5942,62 @@ https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53
   ([n]
      (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+     (core/regions-in-series core/sensory-region
+                             (core/sensory-input block-encoder)
                              n spec)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/mixed<em>gaps</em>1d.cljx</p>
+</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.sensorimotor-1d" name="org.nfrac.comportex.demos.sensorimotor-1d"><h1 class="project-name">org.nfrac.comportex.demos.sensorimotor-1d</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.sensorimotor-1d
+  (:require [org.nfrac.comportex.core :as core]
+            [org.nfrac.comportex.encoders :as enc]
+            [org.nfrac.comportex.util :as util]
+                  [clojure.core.async :as async]))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def bit-width 300)
+(def motor-bit-width 100)
+(def n-elements 10)
+(def elements (range n-elements))
+(def max-saccade 2)
+(def saccades (range (- max-saccade) (inc max-saccade)))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def spec
+  {:column-dimensions [1000]
+   :depth 8
+   :distal-punish? false})</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn make-static-field
+  [n]
+  (vec (repeatedly n #(util/rand-nth elements))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn initial-input
+  []
+  {:world (make-static-field n-elements)
+   :position 0
+   :saccade nil
+   :next-saccade 1})</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn input-transform
+  [m]
+  (let [x (:position m)
+        dx (:next-saccade m)
+        next-x (util/rand-int (max 0 (- x max-saccade))
+                              (min (count (:world m))
+                                   (inc (+ x max-saccade))))]
+    (assoc m
+      :position (+ x dx)
+      :saccade dx
+      :next-saccade (- next-x x))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(def block-input
+  (core/sensorimotor-input
+   (enc/pre-transform :position
+                      (enc/category-encoder bit-width elements))
+   (enc/pre-transform :next-saccade
+                      (enc/category-encoder motor-bit-width saccades))))</pre></td></tr><tr><td class="docs"><p>Returns a channel of sensory input values.</p>
+</td><td class="codes"><pre class="brush: clojure">(defn world
+  []
+  (doto (async/chan)
+    (async/onto-chan (iterate input-transform (initial-input)))))</pre></td></tr><tr><td class="docs">
+</td><td class="codes"><pre class="brush: clojure">(defn n-region-model
+  ([n]
+     (n-region-model n spec))
+  ([n spec]
+     (core/regions-in-series core/sensorimotor-region
+                             block-input
+                             n spec)))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/sensorimotor_1d.cljx</p>
 </td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr><tr><td class="docs"><div class="docs-header"><a class="anchor" href="#org.nfrac.comportex.demos.simple-sentences" name="org.nfrac.comportex.demos.simple-sentences"><h1 class="project-name">org.nfrac.comportex.demos.simple-sentences</h1><a class="toc-link" href="#toc">toc</a></a></div></td><td class="codes" /></tr><tr><td class="docs">
 </td><td class="codes"><pre class="brush: clojure">(ns org.nfrac.comportex.demos.simple-sentences
   (:require [org.nfrac.comportex.core :as core]
@@ -5981,7 +6127,7 @@ Chifung has no tail.
   ([text n spec]
      (let [inp (core/sensory-input (make-encoder text))]
        (core/regions-in-series core/sensory-region inp n spec))))</pre></td></tr><tr><td class="docs"><p>This file autogenerated from src/cljx/org/nfrac/comportex/demos/simple_sentences.cljx</p>
-</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr></table><div class="footer">Generated by <a href="https://github.com/gdeer81/marginalia">Marginalia</a>.&nbsp;&nbsp;Syntax highlighting provided by Alex Gorbatchev's <a href="http://alexgorbatchev.com/SyntaxHighlighter/">SyntaxHighlighter</a><div id="floating-toc"><ul><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.algo-graph">org.nfrac.comportex.algo-graph</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.cells">org.nfrac.comportex.cells</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.columns">org.nfrac.comportex.columns</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.core">org.nfrac.comportex.core</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.cortical-io">org.nfrac.comportex.cortical-io</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.inhibition">org.nfrac.comportex.inhibition</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.protocols">org.nfrac.comportex.protocols</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.synapses">org.nfrac.comportex.synapses</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.topology">org.nfrac.comportex.topology</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.util">org.nfrac.comportex.util</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.coordinates-2d">org.nfrac.comportex.demos.coordinates-2d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.directional-steps-1d">org.nfrac.comportex.demos.directional-steps-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.isolated-1d">org.nfrac.comportex.demos.isolated-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.isolated-2d">org.nfrac.comportex.demos.isolated-2d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.mixed-gaps-1d">org.nfrac.comportex.demos.mixed-gaps-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.simple-sentences">org.nfrac.comportex.demos.simple-sentences</li></ul></div></div><script type="text/javascript">SyntaxHighlighter.defaults['gutter'] = false;
+</td><td class="codes"></td></tr><tr><td class="spacer docs">&nbsp;</td><td class="codes" /></tr></table><div class="footer">Generated by <a href="https://github.com/gdeer81/marginalia">Marginalia</a>.&nbsp;&nbsp;Syntax highlighting provided by Alex Gorbatchev's <a href="http://alexgorbatchev.com/SyntaxHighlighter/">SyntaxHighlighter</a><div id="floating-toc"><ul><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.algo-graph">org.nfrac.comportex.algo-graph</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.cells">org.nfrac.comportex.cells</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.columns">org.nfrac.comportex.columns</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.core">org.nfrac.comportex.core</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.cortical-io">org.nfrac.comportex.cortical-io</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.encoders">org.nfrac.comportex.encoders</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.inhibition">org.nfrac.comportex.inhibition</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.protocols">org.nfrac.comportex.protocols</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.synapses">org.nfrac.comportex.synapses</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.topology">org.nfrac.comportex.topology</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.util">org.nfrac.comportex.util</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.coordinates-2d">org.nfrac.comportex.demos.coordinates-2d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.directional-steps-1d">org.nfrac.comportex.demos.directional-steps-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.isolated-1d">org.nfrac.comportex.demos.isolated-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.isolated-2d">org.nfrac.comportex.demos.isolated-2d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.mixed-gaps-1d">org.nfrac.comportex.demos.mixed-gaps-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.sensorimotor-1d">org.nfrac.comportex.demos.sensorimotor-1d</li><li class="floating-toc-li" id="floating-toc_org.nfrac.comportex.demos.simple-sentences">org.nfrac.comportex.demos.simple-sentences</li></ul></div></div><script type="text/javascript">SyntaxHighlighter.defaults['gutter'] = false;
 SyntaxHighlighter.all();
 
 // hackity hack
