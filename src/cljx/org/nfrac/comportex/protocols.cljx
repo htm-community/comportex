@@ -129,7 +129,7 @@
 (defn size
   "The total number of elements indexed in the topology."
   [topo]
-  (apply * (dimensions topo)))
+  (reduce * (dimensions topo)))
 
 (defn dims-of
   "The dimensions of a PTopological as an n-tuple vector."
