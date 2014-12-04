@@ -1,7 +1,6 @@
 (ns org.nfrac.comportex.synapses
   (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.util :as util
-             :refer [remap]]))
+            [org.nfrac.comportex.util :as util]))
 
 (defrecord SynapseGraph
     [syns-by-target targets-by-source pcon max-syns cull-zeros?]
@@ -127,16 +126,6 @@
 
 ;;; ## Dendrite segments
 
-(defn cell-uidx
-  [depth [col ci]]
-  (+ (* col depth)
-     ci))
-
-(defn cell-path
-  [depth uidx]
-  [(quot uidx depth)
-   (rem uidx depth)])
-
 (defn seg-uidx
   [depth max-segs [col ci si]]
   (+ (* col depth max-segs)
@@ -148,46 +137,38 @@
   (let [col (quot uidx (* depth max-segs))
         col-rem (rem uidx (* depth max-segs))]
     [col
-    (quot col-rem max-segs)
-    (rem col-rem max-segs)]))
-
-(defn remap-keys
-  [f m]
-  (zipmap (map f (keys m))
-          (vals m)))
+     (quot col-rem max-segs)
+     (rem col-rem max-segs)]))
 
 (defrecord SynapseGraphBySegments
-    [raw-sg depth max-segs
-     src->i i->src tgt->i i->tgt]
+    [raw-sg max-segs tgt->i i->tgt]
   p/PSynapseGraph
   (in-synapses
     [_ target-id]
-    (->> (p/in-synapses raw-sg (tgt->i target-id))
-         (remap-keys i->src)))
+    (p/in-synapses raw-sg (tgt->i target-id)))
   (sources-connected-to
     [_ target-id]
-    (->> (p/sources-connected-to raw-sg (tgt->i target-id))
-         (map src->i)))
+    (p/sources-connected-to raw-sg (tgt->i target-id)))
   (targets-connected-from
     [_ source-id]
-    (->> (p/targets-connected-from raw-sg (src->i source-id))
+    (->> (p/targets-connected-from raw-sg source-id)
          (map i->tgt)))
   (reinforce-in-synapses
     [this target-id skip? reinforce? pinc pdec]
     (-> this
         (update-in [:raw-sg] p/reinforce-in-synapses (tgt->i target-id)
-                   (comp skip? i->src) (comp reinforce? i->src)
+                   skip? reinforce?
                    pinc pdec)))
   (conj-synapses
     [this target-id syn-source-ids p]
     (-> this
         (update-in [:raw-sg] p/conj-synapses (tgt->i target-id)
-                   (map src->i syn-source-ids) p)))
+                   syn-source-ids p)))
   (disj-synapses
     [this target-id syn-source-ids]
     (-> this
         (update-in [:raw-sg] p/disj-synapses (tgt->i target-id)
-                   (map src->i syn-source-ids))))
+                   syn-source-ids)))
   p/PSegments
   (cell-segments
     [this cell-id]
@@ -196,31 +177,22 @@
             (range max-segs)))))
 
 (defn synapse-graph-by-segments
-  [n-cols depth max-segs pcon max-syns cull-zeros?]
+  "A synapse graph where the targets refer to individual dendrite
+   segments on cells, which themselves are arranged in columns.
+   Accordingly `target-id` is passed and returned not as an integer
+   but as a 3-tuple `[col ci si]`, column id, cell id, segment id.
+   Sources often refer to cells but are passed and returned as
+   **integers**, so any conversion to/from cell ids should happen
+   externally."
+  [n-cols depth max-segs n-sources pcon max-syns cull-zeros?]
   (let [n-targets (* n-cols depth max-segs)
-        n-sources (* n-cols depth)
         raw-sg (empty-synapse-graph n-targets n-sources pcon max-syns cull-zeros?)
         tgt->i (partial seg-uidx depth max-segs)
-        i->tgt (partial seg-path depth max-segs)
-        src->i (partial cell-uidx depth)
-        i->src (partial cell-path depth)]
+        i->tgt (partial seg-path depth max-segs)]
     (map->SynapseGraphBySegments
      {:raw-sg raw-sg
       :max-segs max-segs
       :tgt->i tgt->i
       :i->tgt i->tgt
-      :src->i src->i
-      :i->src i->src
       })))
 
-(defn cell-segments-raw
-  "Same as `cell-segments` but leaves the keys of each synapse map as
-   the internal integer ids, rather than translating them to cell path
-   vectors. Thus it is cheaper to call. e.g. to find number of
-   segments."
-  [this cell-id]
-  (let [this-raw (:raw-sg this)
-        tgt->i (:tgt->i this)
-        [col ci] cell-id]
-      (mapv #(p/in-synapses this-raw (tgt->i [col ci %]))
-            (range (:max-segs this)))))
