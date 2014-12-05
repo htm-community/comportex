@@ -686,10 +686,6 @@
   (params [_]
     spec))
 
-(util/print-method-truncate LayerOfCells [:boosts
-                                          :active-duty-cycles
-                                          :overlap-duty-cycles])
-
 (defn layer-of-cells
   [spec]
   (let [spec (merge parameter-defaults spec)

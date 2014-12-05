@@ -86,8 +86,6 @@
         (update-in [:targets-by-source]
                    util/update-each syn-source-ids #(disj % target-id)))))
 
-(util/print-method-truncate SynapseGraph [:syns-by-target :targets-by-source])
-
 (defn empty-synapse-graph
   [n-targets n-sources pcon max-syns cull-zeros?]
   (map->SynapseGraph
