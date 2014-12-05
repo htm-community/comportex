@@ -11,6 +11,7 @@
             [cljs-uuid.core :as uuid]
             [clojure.set :as set]
             #+clj [clojure.pprint :as pprint])
+  #+clj
   (:import [org.nfrac.comportex.cells LayerOfCells]
            [org.nfrac.comportex.synapses SynapseGraph]))
 
