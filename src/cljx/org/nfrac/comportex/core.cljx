@@ -11,27 +11,6 @@
             [cljs-uuid.core :as uuid]
             [clojure.set :as set]))
 
-(defn- cell-id->inbit
-  [depth [col ci]]
-  (-> depth (* col) (+ ci)))
-
-(defn- inbit->cell-id
-  [depth i]
-  [(quot i depth)
-   (rem i depth)])
-
-(defn- layer-ff
-  [layer]
-  (let [depth (p/layer-depth layer)]
-    (->> (p/active-cells layer)
-         (map (partial cell-id->inbit depth)))))
-
-(defn- layer-sig-ff
-  [layer]
-  (let [depth (p/layer-depth layer)]
-    (->> (p/signal-cells layer)
-         (map (partial cell-id->inbit depth)))))
-
 (declare sensory-region)
 
 (defrecord SensoryRegion
@@ -59,19 +38,14 @@
   (topology [_]
     (p/topology layer-3))
   p/PFeedForward
-  (ff-topology [this]
-    (topology/make-topology (conj (p/dims-of this)
-                                  (p/layer-depth layer-3))))
-  (bits-value
-    [this]
-    (layer-ff layer-3))
-  (signal-bits-value
-    [_]
-    (layer-sig-ff layer-3))
-  (source-of-bit
-    [_ i]
-    (let [depth (p/layer-depth layer-3)]
-      (inbit->cell-id depth i)))
+  (ff-topology [_]
+    (p/ff-topology layer-3))
+  (bits-value [_]
+    (p/bits-value layer-3))
+  (signal-bits-value [_]
+    (p/signal-bits-value layer-3))
+  (source-of-bit [_ i]
+    (p/source-of-bit layer-3 i))
   p/PFeedForwardMotor
   (ff-motor-topology [_]
     topology/empty-topology)
@@ -103,10 +77,6 @@
     :uuid (uuid/make-random)
     :step-counter 0}))
 
-(defn cells->cols
-  [cells]
-  (into #{} (mapv first cells)))
-
 (declare sensorimotor-region)
 
 (defrecord SensoriMotorRegion
@@ -116,8 +86,8 @@
     [this ff-bits signal-ff-bits]
     (let [l4 (p/layer-activate layer-4 ff-bits signal-ff-bits)
           l3 (p/layer-activate layer-3
-                               (set (layer-ff l4))
-                               (set (layer-sig-ff l4)))]
+                               (p/bits-value l4)
+                               (p/signal-bits-value l4))]
       (assoc this
        :step-counter (inc step-counter)
        :layer-4 l4
@@ -144,19 +114,14 @@
   (topology [_]
     (p/topology layer-3))
   p/PFeedForward
-  (ff-topology [this]
-    (topology/make-topology (conj (p/dims-of this)
-                                  (p/layer-depth layer-3))))
-  (bits-value
-    [this]
-    (layer-ff layer-3))
-  (signal-bits-value
-    [_]
-    (layer-sig-ff layer-3))
-  (source-of-bit
-    [_ i]
-    (let [depth (p/layer-depth layer-3)]
-      (inbit->cell-id depth i)))
+  (ff-topology [_]
+    (p/ff-topology layer-3))
+  (bits-value [_]
+    (p/bits-value layer-3))
+  (signal-bits-value [_]
+    (p/signal-bits-value layer-3))
+  (source-of-bit [_ i]
+    (p/source-of-bit layer-3 i))
   p/PFeedForwardMotor
   (ff-motor-topology [_]
     ;; TODO

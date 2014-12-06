@@ -211,6 +211,10 @@
   [depth [col ci]]
   (+ (* col depth) ci))
 
+(defn- cells->bits
+  [depth cells]
+  (map (partial cell->id depth) cells))
+
 ;; applies to cells in the current layer only
 (defn id->cell
   [depth id]
@@ -544,7 +548,8 @@
                                 (:input-topology layer))))
 
 (defrecord LayerActiveState
-    [ff-bits signal-ff-bits
+    [in-ff-bits in-signal-ff-bits
+     out-ff-bits out-signal-ff-bits
      overlaps proximal-exc proximal-sig-exc
      active-cols burst-cols active-cells signal-cells
      learn-cells])
@@ -569,13 +574,15 @@
           a-cols (set (keys acbc))
           ac (set (apply concat (vals acbc)))
           sig-ac (set (apply concat (vals (apply dissoc acbc b-cols))))
-          ]
+          depth (:depth spec)]
       (assoc this
         :timestep (inc (:timestep this 0))
         :prior-state state
         :state (map->LayerActiveState
-                {:ff-bits ff-bits
-                 :signal-ff-bits signal-ff-bits
+                {:in-ff-bits ff-bits
+                 :in-signal-ff-bits signal-ff-bits
+                 :out-ff-bits (set (cells->bits depth ac))
+                 :out-signal-ff-bits (set (cells->bits depth sig-ac))
                  :overlaps om
                  :proximal-exc prox-exc
                  :sig-overlaps sig-om
@@ -588,7 +595,7 @@
 
   (layer-learn
     [this]
-    (let [ff-bits (:ff-bits state)
+    (let [ff-bits (:in-ff-bits state)
           dcp (:duty-cycle-period spec)
           t (:timestep this)
           boost? (zero? (mod t dcp))
@@ -628,18 +635,17 @@
   (layer-depolarise
     [this distal-ff-bits distal-fb-bits]
     (let [depth (:depth spec)
-          cells->bits #(map (partial cell->id depth) %)
           widths (distal-sources-widths spec)
           aci (util/align-indices widths
                                   [(if (:lateral-synapses? spec)
-                                     (cells->bits (:active-cells state))
+                                     (:out-ff-bits state)
                                      [])
                                    distal-ff-bits
                                    (if (:use-feedback? spec) distal-fb-bits [])])
           ;; possibly should pass in separate lc sets as arguments
           lci (util/align-indices widths
                                   [(if (:lateral-synapses? spec)
-                                     (cells->bits (:learn-cells state))
+                                     (cells->bits depth (:learn-cells state))
                                      [])
                                    distal-ff-bits
                                    (if (:use-feedback? spec) distal-fb-bits [])])
@@ -679,6 +685,17 @@
   p/PTopological
   (topology [this]
     (:topology this))
+  p/PFeedForward
+  (ff-topology [this]
+    (topology/make-topology (conj (p/dims-of this)
+                                  (p/layer-depth this))))
+  (bits-value [_]
+    (:out-ff-bits state))
+  (signal-bits-value [_]
+    (:out-ff-signal-bits state))
+  (source-of-bit
+    [_ i]
+    (id->cell (:depth spec) i))
   p/PTemporal
   (timestep [this]
     (:timestep this 0))
