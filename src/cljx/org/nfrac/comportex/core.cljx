@@ -9,11 +9,7 @@
             [org.nfrac.comportex.util :as util]
             [org.nfrac.comportex.algo-graph :as graph]
             [cljs-uuid.core :as uuid]
-            [clojure.set :as set]
-            #+clj [clojure.pprint :as pprint])
-  #+clj
-  (:import [org.nfrac.comportex.cells LayerOfCells]
-           [org.nfrac.comportex.synapses SynapseGraph]))
+            [clojure.set :as set]))
 
 (defn- cell-id->inbit
   [depth [col ci]]
@@ -489,47 +485,3 @@
                      (map first))
         pr-votes (predicted-bit-votes rgn pr-cols)]
     (p/decode (:encoder inp) pr-votes n-predictions)))
-
-;;; ## REPL
-
-(defn patchmethod1
-  "Transform the first argument of calls to `multifn` before calling the method
-  currently associated with dispatch-value. This transform happens after
-  dispatch."
-  [multifn dispatch-val f]
-  (let [dispatch-fn (get-method multifn dispatch-val)]
-    (defmethod multifn dispatch-val
-      [arg1 & more]
-      (apply dispatch-fn (f arg1) more))))
-
-(def ^:dynamic *truncated-print-length* 3)
-
-(defrecord TruncateOnPrint [v])
-
-#+clj
-(let [print-methods [print-method
-                     pprint/simple-dispatch]
-      should-truncate {LayerOfCells
-                       [:boosts :active-duty-cycles :overlap-duty-cycles],
-                       SynapseGraph
-                       [:syns-by-target :targets-by-source]}]
-
-  ;; The TruncateOnPrint is invisible. Its contents are visible, but truncated.
-  (doseq [m print-methods]
-    (defmethod m TruncateOnPrint
-      [this & args]
-      (binding [*print-length* (if (and *print-length*
-                                        *truncated-print-length*)
-                                 (min *print-length*
-                                      *truncated-print-length*)
-                                 (or *print-length*
-                                     *truncated-print-length*))]
-        (apply m (:v this) args))))
-
-  ;; Before printing records, wrap the specified fields in a TruncateOnPrint.
-  (doseq [m print-methods
-          [recordclass noisykeys] should-truncate]
-    (patchmethod1 m recordclass
-                  (fn [this]
-                    (reduce #(update-in % [%2] ->TruncateOnPrint)
-                            this noisykeys)))))
