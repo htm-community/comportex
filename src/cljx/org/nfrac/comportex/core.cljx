@@ -11,6 +11,11 @@
             [cljs-uuid.core :as uuid]
             [clojure.set :as set]))
 
+(defn layers
+  [rgn]
+  (concat (when (:layer-4 rgn) [:layer-4])
+          (when (:layer-3 rgn) [:layer-3])))
+
 (declare sensory-region)
 
 (defrecord SensoryRegion
@@ -141,18 +146,25 @@
         (assoc :uuid uuid))))
 
 (defn sensorimotor-region
+  "spec can contain nested maps under :layer-3 and :layer-4 that are
+   merged in for specific layers."
   [spec]
   (let [unk (set/difference (set (keys spec))
-                            (set (keys cells/parameter-defaults)))]
+                            (set (keys cells/parameter-defaults))
+                            #{:layer-4 :layer-3})]
     (when (seq unk)
       (println "Warning: unknown keys in spec:" unk)))
-  (let [l4-spec (assoc spec
-                  :lateral-synapses? false)
+  (let [l4-spec (-> (assoc spec
+                      :lateral-synapses? false)
+                    (merge (:layer-4 spec))
+                    (dissoc :layer-3 :layer-4))
         l4 (cells/layer-of-cells spec)
-        l3-spec (assoc spec
-                  :input-dimensions (p/dimensions (p/ff-topology l4))
-                  :distal-motor-dimensions [0]
-                  :lateral-synapses? true)
+        l3-spec (-> (assoc spec
+                      :input-dimensions (p/dimensions (p/ff-topology l4))
+                      :distal-motor-dimensions [0]
+                      :lateral-synapses? true)
+                    (merge (:layer-3 spec))
+                    (dissoc :layer-3 :layer-4))
         l3 (cells/layer-of-cells l3-spec)]
     (map->SensoriMotorRegion
     {:layer-3 l3
@@ -164,14 +176,19 @@
     [encoder motor-encoder value]
   p/PTopological
   (topology [_]
-    ;; TODO combine dimensions with motor component?
-    (p/topology encoder))
+    (if encoder
+      (p/topology encoder)
+      (p/topology motor-encoder)))
   p/PFeedForward
   (ff-topology [_]
-    (p/topology encoder))
+    (if encoder
+      (p/topology encoder)
+      topology/empty-topology))
   (bits-value
     [_]
-    (p/encode encoder value))
+    (if encoder
+      (p/encode encoder value)
+      (sequence nil)))
   (signal-bits-value
     [_]
     (sequence nil))
@@ -199,7 +216,7 @@
 
 (defn sensorimotor-input
   "Creates an input source from an encoder (for the proximal
-   feed-forward output) and a motor encoder (for the distal
+   feed-forward output) and/or a motor encoder (for the distal
    feed-forward output). The encoders operate on the same value so
    should select their relevant parts of it. Remember that HTM models
    go through the three phases [activate -> learn -> depolarise] on
@@ -227,6 +244,26 @@
          (util/align-indices widths)
          (into #{}))))
 
+(defn source-of-incoming-bit
+  "Taking the index of an input bit as received by the given region,
+  return its source element as [k id] where k is the key of the source
+  region or input, and id is the index adjusted to refer to the output
+  of that source."
+  [htm region-key i]
+  (let [inputs (:inputs htm)
+        regions (:regions htm)
+        ff-ids (get-in htm [:ff-deps region-key])]
+    (loop [ff-ids ff-ids
+           offset 0]
+      (when-let [ff-id (first ff-ids)]
+        (let [ff (or (inputs ff-id)
+                     (regions ff-id))
+              width (p/size (p/ff-topology ff))]
+          (if (< i (+ offset width))
+            [ff-id (- i offset)]
+            (recur (next ff-ids)
+                   (+ offset width))))))))
+
 ;;; ## Region Networks
 
 (defn topo-union
@@ -244,18 +281,18 @@
 #+cljs (def pmap map)
 
 (defrecord RegionNetwork
-    [ff-deps-map fb-deps-map strata inputs-map regions-map uuid->id]
+    [ff-deps fb-deps strata inputs regions uuid->id]
   p/PHTM
   (htm-activate
     [this in-value]
-    (let [im (zipmap (keys inputs-map)
-                     (map p/input-step (vals inputs-map) (repeat in-value)))
+    (let [im (zipmap (keys inputs)
+                     (map p/input-step (vals inputs) (repeat in-value)))
           rm (-> (reduce
                   (fn [m stratum]
                     (->> stratum
                          (pmap (fn [id]
-                                 (let [region (regions-map id)
-                                       ff-ids (ff-deps-map id)
+                                 (let [region (regions id)
+                                       ff-ids (ff-deps id)
                                        ffs (map m ff-ids)]
                                    (p/region-activate
                                     region
@@ -267,58 +304,66 @@
                   ;; drop 1st stratum i.e. drop the inputs
                   (rest strata))
                  ;; get rid of the inputs which were seeded into the reduce
-                 (select-keys (keys regions-map)))]
-      (assoc this :inputs-map im :regions-map rm)))
+                 (select-keys (keys regions)))]
+      (assoc this :inputs im :regions rm)))
 
   (htm-learn
     [this]
-    (let [rm (->> (vals regions-map)
+    (let [rm (->> (vals regions)
                   (pmap p/region-learn)
-                  (zipmap (keys regions-map)))]
-      (assoc this :regions-map rm)))
+                  (zipmap (keys regions)))]
+      (assoc this :regions rm)))
 
   (htm-depolarise
     [this]
-    (let [rm (->> regions-map
+    (let [rm (->> regions
                   (pmap (fn [[id region]]
-                          (let [ff-ids (ff-deps-map id)
-                                fb-ids (fb-deps-map id)
-                                ffs (map #(or (inputs-map %) (regions-map %))
+                          (let [ff-ids (ff-deps id)
+                                fb-ids (fb-deps id)
+                                ffs (map #(or (inputs %) (regions %))
                                          ff-ids)
-                                fbs (map regions-map fb-ids)]
+                                fbs (map regions fb-ids)]
                             (p/region-depolarise
                              region
                              (combined-bits-value ffs :motor)
                              (combined-bits-value fbs :standard)))))
-                  (zipmap (keys regions-map)))]
-      (assoc this :regions-map rm)))
+                  (zipmap (keys regions)))]
+      (assoc this :regions rm)))
 
-  (region-seq [_]
-    ;; topological sort. drop 1st stratum i.e. drop the inputs
-    (map regions-map (apply concat (rest strata))))
+  (region-keys [_]
+    ;; topologically sorted. drop 1st stratum i.e. drop the inputs
+    (apply concat (rest strata)))
 
-  (input-seq [_]
-    (vals inputs-map))
+  (input-keys [_]
+    (first strata))
 
   (update-by-uuid
     [this region-uuid f]
-    (update-in this [:regions-map (or (uuid->id region-uuid) region-uuid)]
+    (update-in this [:regions (or (uuid->id region-uuid) region-uuid)]
                f))
 
   p/PTemporal
   (timestep [_]
-    (p/timestep (first (vals regions-map))))
+    (p/timestep (first (vals regions))))
   p/PResettable
   (reset [this]
     (assoc this
-      :regions-map (->> (vals regions-map)
-                        (pmap p/reset)
-                        (zipmap (keys regions-map))))))
+      :regions (->> (vals regions)
+                    (pmap p/reset)
+                    (zipmap (keys regions))))))
+
+(defn region-seq
+  [this]
+  (map (:regions this) (p/region-keys this)))
+
+(defn input-seq
+  [this]
+  (map (:inputs this) (p/input-keys this)))
 
 (defn- in-vals-not-keys
-  [deps-map]
-  (let [have-deps (set (keys deps-map))
-        are-deps (set (apply concat (vals deps-map)))]
+  [deps]
+  (let [have-deps (set (keys deps))
+        are-deps (set (apply concat (vals deps)))]
     (set/difference are-deps have-deps)))
 
 (defn region-network
@@ -342,61 +387,65 @@
                    sensory-region
                    {:v1 spec
                     :v2 spec})`"
-  [ff-deps-map inputs-map build-region region-specs-map]
+  [ff-deps inputs build-region region-specs]
   {:pre [;; anything with a dependency must be a region
-         (every? ff-deps-map (keys region-specs-map))
+         (every? ff-deps (keys region-specs))
          ;; anything without a dependency must be an input
-         (every? (in-vals-not-keys ff-deps-map) (keys inputs-map))
+         (every? (in-vals-not-keys ff-deps) (keys inputs))
          ;; all ids in dependency map must be defined
-         (every? region-specs-map (keys ff-deps-map))
-         (every? inputs-map (in-vals-not-keys ff-deps-map))]}
-  (let [all-ids (into (set (keys ff-deps-map))
-                      (in-vals-not-keys ff-deps-map))
-        ff-dag (graph/directed-graph all-ids ff-deps-map)
+         (every? region-specs (keys ff-deps))
+         (every? inputs (in-vals-not-keys ff-deps))]}
+  (let [all-ids (into (set (keys ff-deps))
+                      (in-vals-not-keys ff-deps))
+        ff-dag (graph/directed-graph all-ids ff-deps)
         strata (graph/dependency-list ff-dag)
-        fb-deps-map (->> (graph/reverse-graph ff-dag)
+        fb-deps (->> (graph/reverse-graph ff-dag)
                          :neighbors
                          (util/remap seq))
         rm (-> (reduce (fn [m id]
-                         (let [spec (region-specs-map id)
+                         (let [spec (region-specs id)
                                ;; feed-forward
-                               ff-ids (ff-deps-map id)
+                               ff-ids (ff-deps id)
                                ffs (map m ff-ids)
                                ff-dim (topo-union (map p/ff-topology ffs))
                                ffm-dim (topo-union  (map p/ff-motor-topology ffs))
                                ;; top-down feedback (if any)
-                               fb-ids (fb-deps-map id)
-                               fb-specs (map region-specs-map fb-ids)
+                               fb-ids (fb-deps id)
+                               fb-specs (map region-specs fb-ids)
                                fb-dim (topo-union (map fb-dim-from-spec fb-specs))]
                            (->> (assoc spec :input-dimensions ff-dim
                                        :distal-motor-dimensions ffm-dim
                                        :distal-topdown-dimensions fb-dim)
                                 (build-region)
                                 (assoc m id))))
-                       inputs-map
+                       inputs
                        ;; topological sort. drop 1st stratum i.e. drop the inputs
                        (apply concat (rest strata)))
                ;; get rid of the inputs which were seeded into the reduce
-               (select-keys (keys region-specs-map)))]
+               (select-keys (keys region-specs)))]
     (map->RegionNetwork
-     {:ff-deps-map ff-deps-map
-      :fb-deps-map fb-deps-map
+     {:ff-deps ff-deps
+      :fb-deps fb-deps
       :strata strata
-      :inputs-map inputs-map
-      :regions-map rm
+      :inputs inputs
+      :regions rm
       :uuid->id (zipmap (map :uuid (vals rm)) (keys rm))})))
 
 (defn regions-in-series
   "Constructs an HTM network consisting of one input and n regions in
-   a linear series. See `region-network`."
-  [build-region input n spec]
-  (let [rgn-keys (map #(keyword (str "r" %)) (range n))
-        ;; make {:r0 [:input], :r1 [:r0], :r2 [:r1], ...}
-        deps (zipmap rgn-keys (map vector (list* :input rgn-keys)))]
-    (region-network deps
-                    {:input input}
-                    build-region
-                    (zipmap rgn-keys (repeat spec)))))
+   a linear series. The input key is :input and the region keys
+   are :r0, :r1, etc. See `region-network`."
+  ([build-region input n spec]
+     (regions-in-series build-region input nil n spec))
+  ([build-region input motor-input n spec]
+     (let [rgn-keys (map #(keyword (str "r" %)) (range n))
+           inp-keys (if motor-input [:input :motor] [:input])
+           ;; make {:r0 [:input], :r1 [:r0], :r2 [:r1], ...}
+           deps (zipmap rgn-keys (list* inp-keys (map vector rgn-keys)))]
+       (region-network deps
+                       (zipmap inp-keys [input motor-input])
+                       build-region
+                       (zipmap rgn-keys (repeat spec))))))
 
 ;;; ## Stats
 
@@ -444,8 +493,8 @@
 
 (defn predictions
   [model n-predictions]
-  (let [rgn (first (p/region-seq model))
-        inp (first (p/input-seq model))
+  (let [rgn (first (region-seq model))
+        inp (first (input-seq model))
         pr-cols (->> (p/predictive-cells (:layer-3 rgn))
                      (map first))
         pr-votes (predicted-bit-votes rgn pr-cols)]

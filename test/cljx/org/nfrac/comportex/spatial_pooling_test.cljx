@@ -44,11 +44,11 @@
   (let [htm-step+cols (fn [this input]
                         (let [x (p/htm-step this input)]
                           (assoc-in x [:active-columns-at (p/timestep x)]
-                                    (-> (first (p/region-seq x))
+                                    (-> (first (core/region-seq x))
                                         :layer-3
                                         p/active-columns))))
         m1 (reduce htm-step+cols (model) (repeatedly 500 input-gen))
-        rgn (first (p/region-seq m1))
+        rgn (first (core/region-seq m1))
         lyr (:layer-3 rgn)
         n-cols (p/size-of lyr)]
     (testing "Column activation is distributed and moderated."

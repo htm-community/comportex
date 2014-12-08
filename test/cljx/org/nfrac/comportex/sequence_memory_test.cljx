@@ -71,7 +71,7 @@
   (let [warmups (take 500 (world-seq))
         continued (drop 500 (world-seq))
         m1 (reduce p/htm-step (model) warmups)
-        rgn (first (p/region-seq m1))]
+        rgn (first (core/region-seq m1))]
     (testing "Numbers of lateral dendrite segments"
       (let [n-cols (p/size (p/topology rgn))
             lyr (:layer-3 rgn)
@@ -91,7 +91,7 @@
     (testing "Column / cell activation"
       (let [sums (->> (take 100 continued)
                       (reductions p/htm-step m1)
-                      (map (comp first p/region-seq))
+                      (map (comp first core/region-seq))
                       (map core/column-state-freqs)
                       (apply merge-with +))]
         (is (> (:active-predicted sums) 0)

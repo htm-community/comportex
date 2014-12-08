@@ -5,8 +5,10 @@
   (htm-activate [this in-value])
   (htm-learn [this])
   (htm-depolarise [this])
-  (region-seq [this])
-  (input-seq [this])
+  (region-keys [this]
+    "A sequence of the keys of all regions in topologically-sorted order.")
+  (input-keys [this]
+    "A sequence of the keys of all inputs.")
   (update-by-uuid [this region-uuid f]
     "Applies function `f` to the region in a HTM network identified by
      its UUID. Returns the modified HTM network."))
@@ -40,7 +42,10 @@
   (ff-topology [this])
   (bits-value [this])
   (signal-bits-value [this])
-  (source-of-bit [this i]))
+  (source-of-bit [this i]
+    "Given the index of an output bit from this source, return the
+    corresponding local cell id as [col ci] where col is the column
+    index. If the source is an input encoder, returns [i]."))
 
 (defprotocol PFeedForwardMotor
   (ff-motor-topology [this])

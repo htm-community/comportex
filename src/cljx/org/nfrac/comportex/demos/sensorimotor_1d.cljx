@@ -16,7 +16,9 @@
 (def spec
   {:column-dimensions [1000]
    :depth 8
-   :distal-punish? false})
+   :distal-punish? false
+   :layer-3 {:ff-potential-radius 0.05
+             :ff-init-frac 0.5}})
 
 (defn make-random-field
   [n]
@@ -44,13 +46,16 @@
       :last-saccade dx
       :next-saccade (- next-x x))))
 
-(def block-input
-  (core/sensorimotor-input
-   (enc/pre-transform #(get (:field %) (:position %))
-                      (enc/category-encoder bit-width items))
-   (enc/pre-transform :next-saccade
-                      (enc/linear-encoder motor-bit-width motor-on-bits
-                                          [(first saccades) (last saccades)]))))
+(def block-sensory-input
+  (let [e (enc/pre-transform #(get (:field %) (:position %))
+                             (enc/category-encoder bit-width items))]
+    (core/sensorimotor-input e e)))
+
+(def block-motor-input
+  (let [e (enc/pre-transform :next-saccade
+                             (enc/linear-encoder motor-bit-width motor-on-bits
+                                                 [(first saccades) (last saccades)]))]
+    (core/sensorimotor-input nil e)))
 
 (defn world
   "Returns a channel of sensory input values."
@@ -63,5 +68,5 @@
      (n-region-model n spec))
   ([n spec]
      (core/regions-in-series core/sensorimotor-region
-                             block-input
+                             block-sensory-input block-motor-input
                              n spec)))
