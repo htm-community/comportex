@@ -12,6 +12,7 @@
             [clojure.set :as set]))
 
 (defn layers
+  "first is the input layer, last is the output layer."
   [rgn]
   (concat (when (:layer-4 rgn) [:layer-4])
           (when (:layer-3 rgn) [:layer-3])))
@@ -158,7 +159,7 @@
                       :lateral-synapses? false)
                     (merge (:layer-4 spec))
                     (dissoc :layer-3 :layer-4))
-        l4 (cells/layer-of-cells spec)
+        l4 (cells/layer-of-cells l4-spec)
         l3-spec (-> (assoc spec
                       :input-dimensions (p/dimensions (p/ff-topology l4))
                       :distal-motor-dimensions [0]
@@ -226,6 +227,8 @@
   [encoder motor-encoder]
   (->SensoriMotorInput encoder motor-encoder nil))
 
+;;; ## Region Networks
+
 (defn combined-bits-value
   "Returns the total bit set from a collection of sources satisfying
    `PFeedForward` or `PFeedForwardMotor`. `flavour` should
@@ -249,22 +252,48 @@
   return its source element as [k id] where k is the key of the source
   region or input, and id is the index adjusted to refer to the output
   of that source."
-  [htm region-key i]
-  (let [inputs (:inputs htm)
-        regions (:regions htm)
-        ff-ids (get-in htm [:ff-deps region-key])]
-    (loop [ff-ids ff-ids
-           offset 0]
-      (when-let [ff-id (first ff-ids)]
-        (let [ff (or (inputs ff-id)
-                     (regions ff-id))
-              width (p/size (p/ff-topology ff))]
-          (if (< i (+ offset width))
-            [ff-id (- i offset)]
-            (recur (next ff-ids)
-                   (+ offset width))))))))
+  ([htm rgn-id i]
+     (source-of-incoming-bit htm rgn-id i p/ff-topology))
+  ([htm rgn-id i topology-fn]
+     (let [inputs (:inputs htm)
+           regions (:regions htm)
+           ff-ids (get-in htm [:ff-deps rgn-id])]
+       (loop [ff-ids ff-ids
+              offset 0]
+         (when-let [ff-id (first ff-ids)]
+           (let [ff (or (inputs ff-id)
+                        (regions ff-id))
+                 width (long (p/size (topology-fn ff)))]
+             (if (< i (+ offset width))
+               [ff-id (- i offset)]
+               (recur (next ff-ids)
+                      (+ offset width)))))))))
 
-;;; ## Region Networks
+(defn source-of-distal-bit
+  "Returns [src-id src-lyr-id j] where src-id may be a region key or
+   input key, src-lyr-id is nil for inputs, and j is the index into
+   the output of the source."
+  [htm rgn-id lyr-id i]
+  (let [rgn (get-in htm [:regions rgn-id])
+        lyr (get rgn lyr-id)
+        spec (p/params lyr)
+        [src-type adj-i] (cells/id->source spec i)]
+    (case src-type
+      :this [rgn-id lyr-id i]
+      :ff (if (= lyr-id (first (layers rgn)))
+            (let [[src-id j] (source-of-incoming-bit htm rgn-id adj-i
+                                                     p/ff-motor-topology)
+                  src-rgn (get-in htm [:regions src-id])]
+              [src-id
+               (when src-rgn (last (layers src-rgn))) ;; nil for inputs
+               j])
+            ;; this is not the input layer; source may be within region?
+            [])
+      :fb (let [fb-ids (get-in htm [:fb-deps rgn-id])
+                ;; TODO trace multiple
+                src-rgn-id (first fb-ids)
+                src-rgn (get-in htm [:regions src-rgn-id])]
+            [src-rgn-id (last (layers src-rgn)) adj-i]))))
 
 (defn topo-union
   [topos]
@@ -433,14 +462,15 @@
 
 (defn regions-in-series
   "Constructs an HTM network consisting of one input and n regions in
-   a linear series. The input key is :input and the region keys
-   are :r0, :r1, etc. See `region-network`."
+   a linear series. The input key is :input, optional motor input key
+   is :motor, and the region keys are :rgn-0, :rgn-1, etc. See
+   `region-network`."
   ([build-region input n spec]
      (regions-in-series build-region input nil n spec))
   ([build-region input motor-input n spec]
-     (let [rgn-keys (map #(keyword (str "r" %)) (range n))
+     (let [rgn-keys (map #(keyword (str "rgn-" %)) (range n))
            inp-keys (if motor-input [:input :motor] [:input])
-           ;; make {:r0 [:input], :r1 [:r0], :r2 [:r1], ...}
+           ;; make {:r0 [:input], :rgn-1 [:rgn-0], :rgn-2 [:rgn-1], ...}
            deps (zipmap rgn-keys (list* inp-keys (map vector rgn-keys)))]
        (region-network deps
                        (zipmap inp-keys [input motor-input])
@@ -473,29 +503,32 @@
 
 ;;; ## Tracing columns back to input
 
-(defn predicted-bit-votes
+(defn layer-predicted-bit-votes
   "Returns a map from input bit index to the number of connections to
    it from columns in the predictive state. `p-cols` is the column ids
    of columns containing predictive cells."
-  ([rgn p-cols]
-     (predicted-bit-votes rgn p-cols :layer-3))
-  ([rgn p-cols layer-fn]
-     (let [lyr (layer-fn rgn)
-           sg (:proximal-sg lyr)]
-       (->> p-cols
-            (reduce (fn [m col]
-                      (let [ids (p/sources-connected-to sg col)]
-                        (reduce (fn [m id]
-                                  (assoc! m id (inc (get m id 0))))
-                                m ids)))
-                    (transient {}))
-            (persistent!)))))
+  [lyr p-cols]
+  (let [sg (:proximal-sg lyr)]
+    (->> p-cols
+         (reduce (fn [m col]
+                   (let [ids (p/sources-connected-to sg col)]
+                     (reduce (fn [m id]
+                               (assoc! m id (inc (get m id 0))))
+                             m ids)))
+                 (transient {}))
+         (persistent!))))
+
+(defn predicted-bit-votes
+  [rgn]
+  (let [lyr (get rgn (first (layers rgn)))
+        p-cols (->> (p/predictive-cells lyr)
+                    (map first)
+                    (distinct))]
+    (layer-predicted-bit-votes lyr p-cols)))
 
 (defn predictions
   [model n-predictions]
   (let [rgn (first (region-seq model))
         inp (first (input-seq model))
-        pr-cols (->> (p/predictive-cells (:layer-3 rgn))
-                     (map first))
-        pr-votes (predicted-bit-votes rgn pr-cols)]
+        pr-votes (predicted-bit-votes rgn)]
     (p/decode (:encoder inp) pr-votes n-predictions)))
