@@ -37,8 +37,7 @@
                         :compiler {:output-to "target/testable.js"
                                    :optimizations :advanced}}]}
 
-  :profiles {:dev {:source-paths ["dev"]
-                   :dependencies [[org.clojure/clojurescript "0.0-2234"]
+  :profiles {:dev {:dependencies [[org.clojure/clojurescript "0.0-2234"]
                                   [criterium "0.4.3"]]
                    :plugins [[com.keminglabs/cljx "0.5.0"]
                              [lein-cljsbuild "1.0.3"]
@@ -50,4 +49,5 @@
 
                    :aliases {"install" ["do" "clean,"
                                         "cljx" "once,"
-                                        "install"]}}})
+                                        "install"]}}
+             :repl {:source-paths ["dev"]}})
