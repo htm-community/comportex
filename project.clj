@@ -40,7 +40,7 @@
   :profiles {:dev {:source-paths ["dev"]
                    :dependencies [[org.clojure/clojurescript "0.0-2234"]
                                   [criterium "0.4.3"]]
-                   :plugins [[com.keminglabs/cljx "0.4.0"]
+                   :plugins [[com.keminglabs/cljx "0.5.0"]
                              [lein-cljsbuild "1.0.3"]
                              [com.cemerick/clojurescript.test "0.3.1"]
                              [com.cemerick/austin "0.1.4"]
