@@ -10,8 +10,7 @@
 (def motor-on-bits 25)
 (def world-size 10)
 (def items [:a :b :c :d :e :f :g :h :i :j])
-(def max-saccade 2)
-(def saccades (range (- max-saccade) (inc max-saccade)))
+(def saccades [-1 0 1 2])
 
 (def spec
   {:column-dimensions [1000]
@@ -20,31 +19,39 @@
    :layer-3 {:ff-potential-radius 0.05
              :ff-init-frac 0.5}})
 
+(def fields
+  (->>
+   (for [k [:abcdefghij
+            :baggagejade
+            :baggagefeed
+            :beachjadehigh
+            :deafjigjag
+            :hidebadface
+            :hidefacebad]]
+     [k (mapv (comp keyword str) (name k))])
+   (into {})))
+
 (defn make-random-field
   [n]
   (vec (repeatedly n #(util/rand-nth items))))
 
-(defn make-simple-field
-  [n]
-  (vec (take n items)))
-
 (defn initial-input
   []
-  {:field (make-simple-field world-size)
-   :position 0
+  {:field items
+   :position (quot (count items) 2)
    :next-saccade 1})
 
 (defn input-transform
   [m]
-  (let [dx (:next-saccade m)
-        x (+ (:position m) dx)
-        n (count (:field m))
-        next-x (util/rand-int (max 0 (- x max-saccade))
-                              (min (dec n) (+ x max-saccade)))]
+  (let [n (count (:field m))
+        dx (:next-saccade m)
+        x (-> (+ (:position m) dx)
+              (mod n))
+        sacc (util/rand-nth saccades)]
     (assoc m
       :position x
       :last-saccade dx
-      :next-saccade (- next-x x))))
+      :next-saccade sacc)))
 
 (def block-sensory-input
   (let [e (enc/pre-transform #(get (:field %) (:position %))

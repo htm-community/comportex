@@ -692,7 +692,7 @@
   (bits-value [_]
     (:out-ff-bits state))
   (signal-bits-value [_]
-    (:out-ff-signal-bits state))
+    (:out-signal-ff-bits state))
   (source-of-bit
     [_ i]
     (id->cell (:depth spec) i))
