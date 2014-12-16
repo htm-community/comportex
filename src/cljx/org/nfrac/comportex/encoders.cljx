@@ -166,7 +166,9 @@
   (let [topo (topology/make-topology input-dim)
         bit-width (p/size topo)
         cached-bits (atom {})
-        gen #(take on-bits (util/shuffle (range bit-width)))]
+        gen (fn [x]
+              (let [RNG (rng/rng (hash x))]
+                (repeatedly on-bits #(rng/int RNG bit-width))))]
     (reify
       p/PTopological
       (topology [_]
@@ -177,7 +179,7 @@
         (if (nil? x)
           (sequence nil)
           (or (get @cached-bits x)
-              (get (swap! cached-bits assoc x (gen)) x))))
+              (get (swap! cached-bits assoc x (gen x)) x))))
       (decode
         [this bit-votes n]
         (->> (decode-by-brute-force this (keys @cached-bits) bit-votes)
