@@ -43,11 +43,15 @@
   (-> (str/lower-case text)
       (str/replace #"[^A-Za-z0-9\.\?]+" " ")))
 
+;; encoders expect a string in key :value of the input data item.
+
 (def block-encoder
-  (enc/category-encoder bit-width tokens))
+  (enc/pre-transform :value
+                     (enc/category-encoder bit-width tokens)))
 
 (def random-encoder
-  (enc/unique-encoder [bit-width] bits-per-char))
+  (enc/pre-transform :value
+                     (enc/unique-encoder [bit-width] bits-per-char)))
 
 (def world-c (async/chan 10))
 
