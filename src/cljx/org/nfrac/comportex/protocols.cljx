@@ -4,14 +4,7 @@
   "A network of regions, forming Hierarchical Temporal Memory."
   (htm-activate [this in-value])
   (htm-learn [this])
-  (htm-depolarise [this])
-  (region-keys [this]
-    "A sequence of the keys of all regions in topologically-sorted order.")
-  (input-keys [this]
-    "A sequence of the keys of all inputs.")
-  (update-by-uuid [this region-uuid f]
-    "Applies function `f` to the region in a HTM network identified by
-     its UUID. Returns the modified HTM network."))
+  (htm-depolarise [this]))
 
 (defn htm-step
   [this in-value]

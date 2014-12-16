@@ -359,18 +359,6 @@
                   (zipmap (keys regions)))]
       (assoc this :regions rm)))
 
-  (region-keys [_]
-    ;; topologically sorted. drop 1st stratum i.e. drop the inputs
-    (apply concat (rest strata)))
-
-  (input-keys [_]
-    (first strata))
-
-  (update-by-uuid
-    [this region-uuid f]
-    (update-in this [:regions (or (uuid->id region-uuid) region-uuid)]
-               f))
-
   p/PTemporal
   (timestep [_]
     (p/timestep (first (vals regions))))
@@ -381,13 +369,24 @@
                     (pmap p/reset)
                     (zipmap (keys regions))))))
 
+(defn region-keys
+  "A sequence of the keys of all regions in topologically-sorted order."
+  [this]
+  ;; topologically sorted: drop 1st stratum i.e. drop the inputs
+  (apply concat (rest (:strata this))))
+
+(defn input-keys
+  "A sequence of the keys of all inputs."
+  [this]
+  (first (:strata this)))
+
 (defn region-seq
   [this]
-  (map (:regions this) (p/region-keys this)))
+  (map (:regions this) (region-keys this)))
 
 (defn input-seq
   [this]
-  (map (:inputs this) (p/input-keys this)))
+  (map (:inputs this) (input-keys this)))
 
 (defn- in-vals-not-keys
   [deps]
