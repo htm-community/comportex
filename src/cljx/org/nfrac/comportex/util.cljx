@@ -213,7 +213,7 @@
                (mapcat #(map (partial + %) %2) offs others)))))
 
 (def empty-queue
-  #+cljs (.-EMPTY PersistentQueue)
+  #+cljs cljs.core.PersistentQueue.EMPTY
   #+clj clojure.lang.PersistentQueue/EMPTY)
 
 (defn keep-history-middleware

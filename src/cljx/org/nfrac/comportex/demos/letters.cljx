@@ -2,9 +2,7 @@
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
-            [clojure.string :as str]
-            #+clj [clojure.core.async :as async]
-            #+cljs [cljs.core.async :as async]))
+            [clojure.string :as str]))
 
 (def tokens (vec ".? abcdefghijklmnopqrstuvwxyz01234567890"))
 
@@ -52,8 +50,6 @@
 (def random-encoder
   (enc/pre-transform :value
                      (enc/unique-encoder [bit-width] bits-per-char)))
-
-(def world-c (async/chan 10))
 
 (defn n-region-model
   ([n]

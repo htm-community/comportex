@@ -2,9 +2,7 @@
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
-            [clojure.string :as str]
-            #+clj [clojure.core.async :as async]
-            #+cljs [cljs.core.async :as async]))
+            [clojure.string :as str]))
 
 (def bits-per-word 35)
 
@@ -133,12 +131,6 @@ Chifung has no tail.
         bit-width (* bits-per-word (count uniq-words))]
     (enc/pre-transform :word
                        (enc/category-encoder bit-width uniq-words))))
-
-(defn world
-  "Returns a channel of sensory input values."
-  [text n-repeats]
-  (doto (async/chan)
-    (async/onto-chan (word-item-seq n-repeats text))))
 
 (defn n-region-model
   ([n]

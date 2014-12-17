@@ -68,8 +68,7 @@
 
 (deftest sm-test
   (util/set-seed! 0)
-  (let [warmups (take 500 (world-seq))
-        continued (drop 500 (world-seq))
+  (let [[warmups continued] (split-at 500 (world-seq))
         m1 (reduce p/htm-step (model) warmups)
         rgn (first (core/region-seq m1))]
     (testing "Numbers of lateral dendrite segments"

@@ -1,9 +1,7 @@
 (ns org.nfrac.comportex.demos.mixed-gaps-1d
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.encoders :as enc]
-            [org.nfrac.comportex.util :as util]
-            #+clj [clojure.core.async :as async]
-            #+cljs [cljs.core.async :as async]))
+            [org.nfrac.comportex.util :as util]))
 
 (def bit-width 400)
 (def on-bits 25)
@@ -84,11 +82,10 @@
                      (enc/ensplat
                       (enc/linear-encoder bit-width on-bits numb-domain))))
 
-(defn world
-  "Returns a channel of sensory input values."
+(defn world-seq
+  "Returns an infinite lazy seq of sensory input values."
   []
-  (doto (async/chan)
-    (async/onto-chan (iterate input-transform (initial-input)))))
+  (iterate input-transform (initial-input)))
 
 (defn n-region-model
   ([n]
