@@ -31,7 +31,8 @@
                     (-> (prediction-stats x-bits bit-votes total-votes)
                         (assoc :value x)))))
            (filter (comp pos? :votes-frac))
-           (sort-by (juxt :votes-frac :bit-coverage :bit-precision) >)))))
+           (sort-by (juxt :votes-frac :bit-coverage :bit-precision))
+           reverse))))
 
 (defn pre-transform
   "Returns an encoder wrapping another encoder `e`, where the function
