@@ -217,13 +217,13 @@
   #+clj clojure.lang.PersistentQueue/EMPTY)
 
 (defn keep-history-middleware
-  "Returns a function that adds a key `history-key` to its argument,
-   being a #queue of the last `keep-n` values extracted using
-   `value-fn`."
+  "Returns a function that adds a metadata key `history-key` to its
+   argument, being a #queue of the last `keep-n` values extracted
+   using `value-fn`."
   [keep-n value-fn history-key]
   (let [hist (atom empty-queue)]
-    (fn [m]
-      (assoc m history-key
-             (swap! hist (fn [h]
-                           (let [h2 (conj h (value-fn m))]
-                             (if (>= (count h) keep-n) (pop h2) h2))))))))
+    (fn [x]
+      (vary-meta x assoc history-key
+                 (swap! hist (fn [h]
+                               (let [h2 (conj h (value-fn x))]
+                                 (if (>= (count h) keep-n) (pop h2) h2))))))))
