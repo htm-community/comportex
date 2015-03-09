@@ -110,8 +110,7 @@ Chifung has no tail.
   [text]
   (->> (str/split (str/trim text) #"[^\w]*\.+[^\w]*")
        (mapv #(str/split % #"[^\w']+"))
-       ;; add a start token, to avoid bursting the first word.
-       (mapv #(vec (concat [">"] % ["."])))))
+       (mapv #(vec (concat % ["."])))))
 
 (defn word-item-seq
   "An input sequence consisting of words from the given text, with
@@ -124,7 +123,7 @@ Chifung has no tail.
         [j word] (map-indexed vector sen)]
     {:word word :index [i j]}))
 
-(defn make-encoder
+(defn make-block-encoder
   [text]
   (let [split-sens (split-sentences text)
         uniq-words (distinct (apply concat split-sens))
@@ -132,9 +131,14 @@ Chifung has no tail.
     (enc/pre-transform :word
                        (enc/category-encoder bit-width uniq-words))))
 
+(def random-encoder
+  (let [bit-width 500]
+    (enc/pre-transform :word
+                       (enc/unique-encoder [bit-width] bits-per-word))))
+
 (defn n-region-model
   ([n]
      (n-region-model input-text 3 n spec))
   ([text n spec]
-     (let [inp (core/sensory-input (make-encoder text))]
+     (let [inp (core/sensory-input (make-block-encoder text))]
        (core/regions-in-series core/sensory-region inp n spec))))
