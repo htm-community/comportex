@@ -24,11 +24,11 @@
              down ()
              demote ()
              cull ()]
-        (if (seq syns)
+        (if syns
           ;; process one synapse
           (let [[id p] (first syns)]
             (if (skip? id)
-              (recur (next syns) up down promote demote cull)
+              (recur (next syns) up promote down demote cull)
               (if (reinforce? id)
                 ;; positive reinforce
                 (recur (next syns)
