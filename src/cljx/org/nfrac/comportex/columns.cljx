@@ -26,14 +26,15 @@
    dimension, and of those, `ff-init-frac` are chosen from a
    uniform random distribution.
 
-   Initial permanence values are uniformly distributed between one
-   increment above the connected threshold, down to two increments
-   below. So about one third will be initially connected."
+   Initial permanence values are uniformly distributed around
+   `ff-perm-init`, between one increment above, to two increments
+   below. So if that is equal to `ff-perm-connected`, about one third
+   will be initially connected."
   [topo itopo spec]
-  (let [pcon (:ff-perm-connected spec)
+  (let [pinit (:ff-perm-init spec)
         pinc (:ff-perm-inc spec)
-        p-hi (-> (+ pcon (* 1.0 pinc)) (min 1.0))
-        p-lo (-> (- pcon (* 2.0 pinc)) (max 0.0))
+        p-hi (-> (+ pinit (* 1.0 pinc)) (min 1.0))
+        p-lo (-> (- pinit (* 2.0 pinc)) (max 0.0))
         global? (>= (:ff-potential-radius spec) 1.0)
         ;; radius in input space, fraction of longest dimension
         radius (long (* (:ff-potential-radius spec)

@@ -162,8 +162,8 @@
    :ff-init-frac 0.3
    :ff-perm-inc 0.05
    :ff-perm-dec 0.005
-   :ff-perm-connected 0.2
-   :ff-perm-init 0.16
+   :ff-perm-connected 0.20
+   :ff-perm-init 0.20
    :ff-stimulus-threshold 1
    :ff-grow-and-die? false
    :ff-grow-up-to-count 15
