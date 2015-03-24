@@ -1,5 +1,7 @@
 # TODO
 
+* region-network - allow different build-region fns for each region
+
 * extend depolarisation over multiple time steps?
 
 * allow many more distal dendrite segments (avoid cols*depth*max-segs vector)

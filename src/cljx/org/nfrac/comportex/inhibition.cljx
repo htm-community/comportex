@@ -60,13 +60,13 @@
   [exc n-on]
   (util/top-n-keys-by-value n-on exc))
 
-(defn inhibits?
-  "Whether a cell with excitation `x` inhibits a neighbour cell with
-   excitation `nb-x` at a distance `dist` columns away."
-  [x nb-x dist max-dist base-dist]
-  (let [z (- 1.0 (/ (max 0 (- dist base-dist))
+(defn inhibits-exc
+  "Threshold excitation level at which a cell with excitation `x`
+   inhibits a neighbour cell at a distance `dist` columns away."
+  ^double [^double x ^double dist ^double max-dist ^double base-dist]
+  (let [z (- 1.0 (/ (max 0.0 (- dist base-dist))
                     (- max-dist base-dist)))]
-    (<= nb-x (* x z))))
+    (* x z)))
 
 (defn map->vec
   [n m]
@@ -83,14 +83,17 @@
 
 (defn- mask-out-inhibited-by-col
   [emask col x topo inh-radius inh-base-dist]
-  (let [coord (p/coordinates-of-index topo col)]
-    (loop [nbs (p/neighbours topo coord inh-radius 0)
+  (let [coord (p/coordinates-of-index topo col)
+        x (double x)
+        inh-radius (double inh-radius)
+        inh-base-dist (double inh-base-dist)]
+    (loop [nbs (p/neighbours topo coord (int inh-radius) 0)
            emask emask]
       (if-let [nb-coord (first nbs)]
         (let [nb-col (p/index-of-coordinates topo nb-coord)]
           (if-let [nb-x (emask nb-col)]
-            (let [dist (p/coord-distance topo coord nb-coord)]
-              (if (inhibits? x nb-x dist inh-radius inh-base-dist)
+            (let [dist (double (p/coord-distance topo coord nb-coord))]
+              (if (<= nb-x (inhibits-exc x dist inh-radius inh-base-dist))
                 (recur (next nbs)
                        (assoc! emask nb-col nil))
                 (recur (next nbs) emask)))
