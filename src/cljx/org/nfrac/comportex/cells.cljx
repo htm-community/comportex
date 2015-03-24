@@ -55,7 +55,9 @@
      functionally connected. Permanence values are defined to be
      between 0 and 1.
 
-   * `ff-perm-init` - initial permanence values on new synapses.
+   * `ff-perm-init-hi` - highest initial permanence value on new synapses.
+
+   * `ff-perm-init-lo` - lowest initial permanence value on new synapses.
 
    * `ff-stimulus-threshold` - minimum number of active input
      connections for a column to be _overlapping_ the input (i.e.
@@ -67,20 +69,28 @@
 
    * `ff-max-synapse-count` - maximum number of synapses on the column.
 
-   * `boost-overlap-duty-ratio` - when a column's overlap frequency is
-     below this proportion of the _highest_ of its neighbours, its
-     feed-forward synapses are boosted.
+   * `max-boost` - ceiling on the column boosting factor used to
+     increase activation frequency.
+
+   * `duty-cycle-period` - number of time steps to average over when
+     updating duty cycles and (thereby) column boosting measures.
 
    * `boost-active-duty-ratio` - when a column's activation frequency is
      below this proportion of the _highest_ of its neighbours, its
      boost factor is increased.
 
-   * `duty-cycle-period` - number of time steps to consider when
-     updating column boosting measures. Also the period between such
-     updates.
+   * `boost-overlap-duty-ratio` - when a column's overlap frequency is
+     below this proportion of the _highest_ of its neighbours, its
+     feed-forward synapses are boosted.
 
-   * `max-boost` - ceiling on the column boosting factor used to
-     increase activation frequency.
+   * `boost-active-every` - number of time steps between recalculating
+     column boosting factors.
+
+   * `boost-overlap-every` - number of time steps between boosting
+     column overlaps by increasing synapse permanences.
+
+   * `inh-radius-every` - number of time steps between recalculating
+     the effective inhibition radius.
 
    * `lateral-synapses?` - whether distal synapses can connect
      laterally to other cells in this layer.
@@ -163,15 +173,19 @@
    :ff-perm-inc 0.05
    :ff-perm-dec 0.005
    :ff-perm-connected 0.20
-   :ff-perm-init 0.20
+   :ff-perm-init-hi 0.25
+   :ff-perm-init-lo 0.10
    :ff-stimulus-threshold 1
    :ff-grow-and-die? false
    :ff-grow-up-to-count 15
    :ff-max-synapse-count 1000
-   :boost-overlap-duty-ratio 0.001
-   :boost-active-duty-ratio 0.001
-   :duty-cycle-period 1000
    :max-boost 3.0
+   :duty-cycle-period 1000
+   :boost-active-duty-ratio 0.001
+   :boost-overlap-duty-ratio 0.001
+   :boost-active-every 1
+   :boost-overlap-every 1000
+   :inh-radius-every 1000
    :lateral-synapses? true
    :use-feedback? false
    :distal-motor-dimensions [0]
@@ -596,9 +610,7 @@
   (layer-learn
     [this]
     (let [ff-bits (:in-ff-bits state)
-          dcp (:duty-cycle-period spec)
           t (:timestep this)
-          boost? (zero? (mod t dcp))
           prior-aci (:distal-bits distal-state)
           prior-lci (:distal-lc-bits distal-state)
           acbc (:active-cells-by-col state)
@@ -626,11 +638,12 @@
          :distal-sg dsg
          :proximal-sg psg)
        true (update-in [:overlap-duty-cycles] columns/update-duty-cycles
-                       (keys (:proximal-exc state)) dcp)
+                       (keys (:proximal-exc state)) (:duty-cycle-period spec))
        true (update-in [:active-duty-cycles] columns/update-duty-cycles
-                       (:active-cols state) dcp)
-       boost? (columns/update-boosting)
-       boost? (update-inhibition-radius))))
+                       (:active-cols state) (:duty-cycle-period spec))
+       (zero? (mod t (:boost-active-every spec))) (columns/boost-active)
+       (zero? (mod t (:boost-overlap-every spec))) (columns/boost-overlap)
+       (zero? (mod t (:inh-radius-every spec))) (update-inhibition-radius))))
 
   (layer-depolarise
     [this distal-ff-bits distal-fb-bits]

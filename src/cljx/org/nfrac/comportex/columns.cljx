@@ -26,15 +26,11 @@
    dimension, and of those, `ff-init-frac` are chosen from a
    uniform random distribution.
 
-   Initial permanence values are uniformly distributed around
-   `ff-perm-init`, between one increment above, to two increments
-   below. So if that is equal to `ff-perm-connected`, about one third
-   will be initially connected."
+   Initial permanence values are uniformly distributed between
+   `ff-perm-init-lo` and `ff-perm-init-hi`."
   [topo itopo spec]
-  (let [pinit (:ff-perm-init spec)
-        pinc (:ff-perm-inc spec)
-        p-hi (-> (+ pinit (* 1.0 pinc)) (min 1.0))
-        p-lo (-> (- pinit (* 2.0 pinc)) (max 0.0))
+  (let [p-hi (:ff-perm-init-hi spec)
+        p-lo (:ff-perm-init-lo spec)
         global? (>= (:ff-potential-radius spec) 1.0)
         ;; radius in input space, fraction of longest dimension
         radius (long (* (:ff-potential-radius spec)
@@ -130,7 +126,8 @@
   [sg itopo topo a-cols ff-bits om spec]
   (let [pinc (:ff-perm-inc spec)
         pdec (:ff-perm-dec spec)
-        pinit (:ff-perm-init spec)
+        p-lo (:ff-perm-init-lo spec)
+        p-hi (:ff-perm-init-hi spec)
         grow-and-die? (:ff-grow-and-die? spec)
         grow-up-to (:ff-grow-up-to-count spec)
         max-syns (:ff-max-synapse-count spec)
@@ -146,50 +143,64 @@
                                           ff-bits pinc pdec)
                  (and grow-and-die? (pos? n-grow))
                  (grow-new-synapses col ff-bits itopo radius n-cols
-                                    n-grow pinit))))
+                                    n-grow (util/rand p-lo p-hi)))))
             sg a-cols)))
 
 ;;; ## Boosting
 
-(defn update-column-boosting
-  "Recalculates the column's boost factor and possibly applies an
-   increase to all feedforward synapse permanences. This is based on
-   comparing the number of activations or overlaps in recent history
-   to the _maximum_ such value from its neighbours."
-  [cf col]
+(defn boost-overlap-global
+  [cf]
   (let [spec (:spec cf)
         o-th (:boost-overlap-duty-ratio spec)
-        a-th (:boost-active-duty-ratio spec)
-        maxb (:max-boost spec)
         pinc (:ff-perm-inc spec)
         ods (:overlap-duty-cycles cf)
-        ads (:active-duty-cycles cf)
-        radius (:inh-radius cf)
-        ncols (p/neighbours-indices (p/topology cf) col radius)
-        max-od (apply max 1 (vals (select-keys ods ncols)))
-        max-ad (apply max 1 (vals (select-keys ads ncols)))
-        crit-od (* o-th max-od)
-        crit-ad (* a-th max-ad)
-        od (get ods col)
-        ad (get ads col)
-        nboost (-> (- maxb (* (- maxb 1)
-                              (/ ad crit-ad)))
-                   (max 1.0)
-                   (double))]
-    (if (< od crit-od)
-      (update-in cf [:proximal-sg] p/reinforce-in-synapses col (constantly false)
-                 (constantly true) pinc 0)
-      (assoc-in cf [:boosts col] nboost))))
+        max-od (apply max 0 ods)
+        crit-od (* o-th max-od)]
+    (update-in cf [:proximal-sg]
+               (fn [psg]
+                 (reduce (fn [psg col]
+                           (let [od (get ods col)]
+                             (if (< od crit-od)
+                               (p/reinforce-in-synapses psg col (constantly false)
+                                                        (constantly true) pinc 0)
+                               psg)))
+                         psg
+                         (range (count ods)))))))
 
-(defn update-boosting
-  "For each column, determines whether it has had too few activations
-  -- relative to its neighbours -- in recent history. Boosting may be
-  applied to boost either a column's input overlap (by increasing
-  connections) or its share of activations after inhibition (by
-  increasing its boost factor)."
+(defn boost-active-global
+  [ads spec]
+  (let [a-th (:boost-active-duty-ratio spec)
+        maxb (:max-boost spec)
+        max-ad (apply max 0 ads)
+        crit-ad (double (* a-th max-ad))]
+    (mapv (fn [ad]
+            (-> (- maxb (* (- maxb 1)
+                           (/ ad crit-ad)))
+                (max 1.0)))
+          ads)))
+
+(defn boost-active
+  "Recalculates boost factors for each column based on its frequency
+   of activation (active duty cycle) compared to the maximum from its
+   neighbours."
   [cf]
-  (reduce update-column-boosting
-          cf (range (p/size-of cf))))
+  (let [global? (>= (:ff-potential-radius (:spec cf)) 1)]
+    ;; TODO for local case, partition the column space based on radius...
+    (if-not (pos? (:boost-active-duty-ratio (:spec cf)))
+      cf
+      (assoc cf :boosts
+             (boost-active-global (:active-duty-cycles cf) (:spec cf))))))
+
+(defn boost-overlap
+  "Increases all synapse permanences connected to a column if its
+   frequency of overlap with input (overlap duty cycle) is low
+   compared to the maximum from its neighbours."
+  [cf]
+  (let [global? (>= (:ff-potential-radius (:spec cf)) 1)]
+    ;; TODO for local case, partition the column space based on radius...
+    (if-not (pos? (:boost-overlap-duty-ratio (:spec cf)))
+      cf
+      (boost-overlap-global cf))))
 
 (defn update-duty-cycles
   "Records a set of events with indices `is` in the vector `v`
