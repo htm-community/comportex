@@ -1,4 +1,4 @@
-(ns org.nfrac.comportex.demos.hill-climb
+(ns org.nfrac.comportex.demos.q-learning-1d
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.cells :as cells]
@@ -46,9 +46,9 @@
    :max-boost 3.0
    :global-inhibition? true
    :boost-active-every 1
-   :duty-cycle-period 500
+   :duty-cycle-period 250
    :boost-active-duty-ratio 0.05
-   :depth 4
+   :depth 1
    :q-alpha 0.1
    :q-discount 0.5
    ;; disable learning
