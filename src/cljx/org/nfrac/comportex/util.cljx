@@ -217,13 +217,25 @@
   #+clj clojure.lang.PersistentQueue/EMPTY)
 
 (defn keep-history-middleware
-  "Returns a function that adds a metadata key `history-key` to its
+  "Returns a function that adds a metadata key `meta-key` to its
    argument, being a #queue of the last `keep-n` values extracted
    using `value-fn`."
-  [keep-n value-fn history-key]
+  [keep-n value-fn meta-key]
   (let [hist (atom empty-queue)]
     (fn [x]
-      (vary-meta x assoc history-key
+      (vary-meta x assoc meta-key
                  (swap! hist (fn [h]
                                (let [h2 (conj h (value-fn x))]
                                  (if (>= (count h) keep-n) (pop h2) h2))))))))
+
+(defn frequencies-middleware
+  "Returns a function that adds a metadata key `meta-key` to its
+   argument, being a map of the frequencies of values extracted
+   using `value-fn`."
+  [value-fn meta-key]
+  (let [freqs (atom {})]
+    (fn [x]
+      (->> (fn [m]
+             (update-in m [(value-fn x)] (fnil inc 0)))
+           (swap! freqs)
+           (vary-meta x assoc meta-key)))))

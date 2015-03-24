@@ -63,7 +63,8 @@
 (defn inhibits-exc
   "Threshold excitation level at which a cell with excitation `x`
    inhibits a neighbour cell at a distance `dist` columns away."
-  ^double [^double x ^double dist ^double max-dist ^double base-dist]
+  #+clj ^double [^double x ^double dist ^double max-dist ^double base-dist]
+  #+cljs [x dist max-dist base-dist]
   (let [z (- 1.0 (/ (max 0.0 (- dist base-dist))
                     (- max-dist base-dist)))]
     (* x z)))
