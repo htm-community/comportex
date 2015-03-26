@@ -11,9 +11,9 @@
 
 (def input-dim [40 40])
 (def on-bits 160)
-(def grid-w 10)
-(def grid-h 10)
-(def radius 1.0)
+(def grid-w 7)
+(def grid-h 7)
+(def radius 2)
 (def empty-reward -3)
 (def hazard-reward -200)
 (def finish-reward 200)
@@ -35,7 +35,7 @@
    :y 0
    :dy 0
    :dx 0
-   :reward 0})
+   :z 0})
 
 (def spec
   {:column-dimensions [40 40]
@@ -63,10 +63,24 @@
    :duty-cycle-period 250
    :boost-active-duty-ratio 0.05
    :depth 1
-   :q-alpha 0.1
-   :q-discount 0.5
+   :q-alpha 0.75
+   :q-discount 0.9
    ;; disable learning
    :freeze? true})
+
+(def action->movement
+  {:up [0 -1]
+   :down [0 1]
+   :left [-1 0]
+   :right [1 0]})
+
+(defn possible-actions
+  [[x y]]
+  (cond-> #{:up :down :left :right}
+          (zero? x) (disj :left)
+          (zero? y) (disj :up)
+          (= x (dec grid-w)) (disj :right)
+          (= y (dec grid-h)) (disj :down)))
 
 ;; lookup on columns of :action region
 (def column->signal
@@ -76,23 +90,19 @@
             [motion influence])))
 
 (defn select-action
-  [model]
+  [model curr-pos]
   (let [alyr (get-in model [:regions :action :layer-3])
         acols (p/active-columns alyr)
-        signals (map column->signal acols)]
+        signals (map column->signal acols)
+        poss (possible-actions curr-pos)]
     (->> signals
          (reduce (fn [m [motion influence]]
                    (assoc! m motion (+ (get m motion 0) influence)))
                  (transient {}))
          (persistent!)
+         (filter (comp poss key))
          (apply max-key val)
          (key))))
-
-(def action->movement
-  {:up [0 -1]
-   :down [0 1]
-   :left [-1 0]
-   :right [1 0]})
 
 (defn make-model
   []
@@ -117,29 +127,43 @@
 (defn feed-world-c-with-actions!
   [in-model-steps-c out-world-c model-atom]
   (go
-   (loop [inval initial-input-val]
+   (loop [inval (assoc initial-input-val
+                  :Q-map {})]
      (>! out-world-c inval)
      (when-let [model (<! in-model-steps-c)]
        ;; scale reward to be comparable to [0-1] permanences
-       (let [reward (* 0.01 (:z inval))]
-         (swap! model-atom q-learn reward))
-       (if (>= (abs (:z inval)) 100)
-         ;; terminal state, restart
-         (recur initial-input-val)
-         (let [act (select-action model)
-               [dx dy] (action->movement act)
-               next-x (-> (+ (:x inval) dx)
-                          (min (dec grid-w))
-                          (max 0))
-               next-y (-> (+ (:y inval) dy)
-                          (min (dec grid-h))
-                          (max 0))
-               next-z (get-in surface [next-x next-y])]
-           (recur {:x next-x
-                   :y next-y
-                   :dx dx
-                   :dy dy
-                   :z next-z})))))))
+       (let [reward (* 0.01 (:z inval))
+             ;; do Q learning on previous step
+             newmodel (swap! model-atom q-learn reward)
+             ;; maintain map of state/action -> Q values, for diagnostics
+             info (get-in newmodel [:regions :action :layer-3 :state :Q-info])
+             newQ (-> (+ (:Qt info 0) (:adj info 0))
+                      (max -1.0)
+                      (min 1.0))
+             Q-map (assoc (:Q-map inval)
+                     (select-keys inval [:x :y :dx :dy])
+                     newQ)]
+         (if (>= (abs (:z inval)) 100)
+           ;; terminal state, restart
+           (recur (assoc initial-input-val
+                    :Q-map Q-map))
+           (let [x (:x inval)
+                 y (:y inval)
+                 act (select-action model [x y])
+                 [dx dy] (action->movement act)
+                 next-x (-> (+ x dx)
+                            (min (dec grid-w))
+                            (max 0))
+                 next-y (-> (+ y dy)
+                            (min (dec grid-h))
+                            (max 0))
+                 next-z (get-in surface [next-x next-y])]
+             (recur {:x next-x
+                     :y next-y
+                     :dx dx
+                     :dy dy
+                     :z next-z
+                     :Q-map Q-map}))))))))
 
 (comment
   (require '[clojure.core.async :as async :refer [>!! <!!]])
