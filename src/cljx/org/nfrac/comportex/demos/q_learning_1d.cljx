@@ -11,10 +11,10 @@
 (def input-dim [1000])
 (def on-bits 100)
 (def radius 1.0)
-(def surface [0 1 2 3 4 3 2 1
+(def surface [0 0.5 1 1.5 2 1.5 1 0.5
               0 1 2 3 4 5 4 3 2
               1 1 1 1 1 1
-              1 2 3 4 5 6 7 8 7 6 5 4
+              1 2 3 4 5 6 7 8 6 4 2
               ])
 
 (def initial-input-val
@@ -49,8 +49,8 @@
    :duty-cycle-period 250
    :boost-active-duty-ratio 0.05
    :depth 1
-   :q-alpha 0.1
-   :q-discount 0.5
+   :q-alpha 0.2
+   :q-discount 0.8
    ;; disable learning
    :freeze? true})
 
@@ -152,22 +152,34 @@
 (defn feed-world-c-with-actions!
   [in-model-steps-c out-world-c model-atom]
   (go
-   (loop [inval initial-input-val]
+   (loop [inval (assoc initial-input-val
+                  :Q-map {})]
      (>! out-world-c inval)
      (when-let [model (<! in-model-steps-c)]
        ;; scale reward to be comparable to [0-1] permanences
-       (let [reward (* 0.5 (:dy inval))]
-         (swap! model-atom q-learn reward))
-       (let [dx (select-action model)
-             next-x (-> (+ (:x inval) dx)
-                        (min (dec (count surface)))
-                        (max 0))
-             next-y (surface next-x)
-             dy (- next-y (:y inval))]
-         (recur {:x next-x
-                 :y next-y
-                 :dx dx
-                 :dy dy}))))))
+       (let [reward (* 0.5 (:dy inval))
+             ;; do the Q learning on previous step
+             newmodel (swap! model-atom q-learn reward)
+             ;; maintain map of state+action -> approx Q values, for diagnostics
+             info (get-in newmodel [:regions :action :layer-3 :state :Q-info])
+             newQ (-> (+ (:Qt info 0) (:adj info 0))
+                      (max -1.0)
+                      (min 1.0))
+             Q-map (assoc (:Q-map inval)
+                     (select-keys inval [:x :dx])
+                     newQ)]
+         (let [x (:x inval)
+               dx (select-action model)
+               next-x (-> (+ x dx)
+                          (min (dec (count surface)))
+                          (max 0))
+               next-y (surface next-x)
+               dy (- next-y (:y inval))]
+           (recur {:x next-x
+                   :y next-y
+                   :dx dx
+                   :dy dy
+                   :Q-map Q-map})))))))
 
 (comment
   (require '[clojure.core.async :as async :refer [>!! <!!]])

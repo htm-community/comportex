@@ -110,9 +110,9 @@
                                      {:coord [x y]
                                       :radii [radius radius]})
                                    (enc/coordinate-encoder input-dim on-bits))
-        mencoder (enc/encat 2
-                            (enc/pre-transform :dx (enc/linear-encoder 100 30 [-1 1]))
-                            (enc/pre-transform :dy (enc/linear-encoder 100 30 [-1 1])))
+        mencoder (enc/pre-transform (juxt :dx :dy)
+                                    (enc/encat 2
+                                               (enc/linear-encoder 100 30 [-1 1])))
         sensory-input (core/sensorimotor-input encoder encoder)
         motor-input (core/sensorimotor-input nil mencoder)]
     (core/region-network {:rgn-1 [:input :motor]
@@ -133,9 +133,9 @@
      (when-let [model (<! in-model-steps-c)]
        ;; scale reward to be comparable to [0-1] permanences
        (let [reward (* 0.01 (:z inval))
-             ;; do Q learning on previous step
+             ;; do the Q learning on previous step
              newmodel (swap! model-atom q-learn reward)
-             ;; maintain map of state/action -> Q values, for diagnostics
+             ;; maintain map of state+action -> approx Q values, for diagnostics
              info (get-in newmodel [:regions :action :layer-3 :state :Q-info])
              newQ (-> (+ (:Qt info 0) (:adj info 0))
                       (max -1.0)
