@@ -4,10 +4,10 @@
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.set :as set]
-            #+clj [clojure.test :as t
-                   :refer (is deftest testing run-tests)]
-            #+cljs [cemerick.cljs.test :as t
-                    :refer-macros (is deftest testing run-tests)]))
+            #?(:clj [clojure.test :as t
+                     :refer (is deftest testing run-tests)]
+               :cljs [cemerick.cljs.test :as t
+                      :refer-macros (is deftest testing run-tests)])))
 
 (def numb-bits 127)
 (def numb-on-bits 21)

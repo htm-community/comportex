@@ -1,13 +1,12 @@
 (ns org.nfrac.comportex.repl
   "Optional REPL tweaks"
-  (:require #+clj [clojure.pprint :as pprint]
-            [org.nfrac.comportex.cells
-             #+cljs :refer #+cljs [LayerOfCells]]
-            [org.nfrac.comportex.synapses
-             #+cljs :refer #+cljs [SynapseGraph]])
-  #+clj
-  (:import [org.nfrac.comportex.cells LayerOfCells]
-           [org.nfrac.comportex.synapses SynapseGraph]))
+  #?(:clj (:require [clojure.pprint :as pprint]
+                    [org.nfrac.comportex.cells]
+                    [org.nfrac.comportex.synapses])
+     :cljs (:require [org.nfrac.comportex.cells :refer [LayerOfCells]]
+                     [org.nfrac.comportex.synapses :refer [SynapseGraph]]))
+  #?(:clj (:import [org.nfrac.comportex.cells LayerOfCells]
+                   [org.nfrac.comportex.synapses SynapseGraph])))
 
 ;;; ## Truncate large data structures
 
@@ -23,8 +22,9 @@
 
 (def ^:dynamic *truncated-print-length* 3)
 
-(def print-methods [#+clj print-method
-                    #+clj pprint/simple-dispatch])
+(def print-methods #?(:clj [print-method
+                            pprint/simple-dispatch]
+                      :cljs []))
 
 (def should-truncate {LayerOfCells
                       [:boosts :active-duty-cycles :overlap-duty-cycles],

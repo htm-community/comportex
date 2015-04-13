@@ -4,9 +4,9 @@
             [org.nfrac.comportex.cells :as cells]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util :refer [round abs]]
-            #+clj [clojure.core.async :refer [<! >! go]]
-            #+cljs [cljs.core.async :refer [<! >!]])
-    #+cljs (:require-macros [cljs.core.async.macros :refer [go]]))
+            #?(:clj [clojure.core.async :refer [<! >! go]]
+               :cljs [cljs.core.async :refer [<! >!]]))
+    #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
 (def input-dim [1000])
 (def on-bits 100)
@@ -114,7 +114,7 @@
                      learn-value (+ reward (* q-discount Qt-st+1))
                      adjust (* q-alpha (- learn-value Qt-st))
                      up? (pos? adjust)]
-                 (-> 
+                 (->
                   (p/layer-learn lyr)
                   (assoc :proximal-sg
                     (reduce (fn [psg col]
@@ -187,7 +187,7 @@
   (def world-c (async/chan))
   (def model (atom (make-model)))
   (def steps-c (async/chan))
-  
+
   (feed-world-c-with-actions! steps-c world-c model)
 
   (def inv (<!! world-c))
@@ -198,5 +198,5 @@
   (get-in @model [:regions :action :layer-3 :state :Q-val])
   (get-in @model [:regions :action :layer-3 :state :Q-info])
   (get-in @model [:regions :action :layer-3 :state :active-cols])
-  
+
   )

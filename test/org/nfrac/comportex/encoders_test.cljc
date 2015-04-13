@@ -1,11 +1,10 @@
 (ns org.nfrac.comportex.encoders-test
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
-            #+clj [clojure.test :as t
-                   :refer (is deftest testing run-tests)]
-            #+cljs [cemerick.cljs.test :as t
-                    :refer-macros (is deftest testing run-tests)]))
-
+            #?(:clj [clojure.test :as t
+                     :refer (is deftest testing run-tests)]
+               :cljs [cemerick.cljs.test :as t
+                      :refer-macros (is deftest testing run-tests)])))
 
 (def a-category-encoder (enc/category-encoder  10  [:a :b :c]))
 

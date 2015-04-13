@@ -27,11 +27,11 @@
 
 (defn set-seed!
   [seed]
-  #+cljs
-  :not-implemented
-  #+clj
-  (alter-var-root (var RNG)
-                  (fn [_] (rng/rng seed))))
+  #?(:cljs
+     :not-implemented
+     :clj
+     (alter-var-root (var RNG)
+                     (fn [_] (rng/rng seed)))))
 
 (defn rand
   ([]
@@ -213,8 +213,8 @@
                (mapcat #(map (partial + %) %2) offs others)))))
 
 (def empty-queue
-  #+cljs cljs.core.PersistentQueue.EMPTY
-  #+clj clojure.lang.PersistentQueue/EMPTY)
+  #?(:cljs cljs.core.PersistentQueue.EMPTY
+     :clj clojure.lang.PersistentQueue/EMPTY))
 
 (defn keep-history-middleware
   "Returns a function that adds a metadata key `meta-key` to its

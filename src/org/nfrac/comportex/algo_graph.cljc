@@ -20,7 +20,7 @@
 ;;  Created 23 June 2009
 
 
-(ns 
+(ns
   ^{:author "Jeffrey Straszheim",
      :doc "Basic graph theory algorithms"}
   org.nfrac.comportex.algo-graph
@@ -28,7 +28,7 @@
 
 
 (defrecord DirectedGraph
-    [nodes neighbors])  
+    [nodes neighbors])
 
 (defn directed-graph
   "`nodes` - The nodes of the graph, a collection.
@@ -103,8 +103,8 @@
     (directed-graph
             (:nodes g)
             (fn [n] (force (nbs n))))))
-          
-                
+
+
 ;; Strongly Connected Components
 
 (defn- post-ordered-visit
@@ -116,7 +116,7 @@
                             [(conj visited n) acc]
                             (get-neighbors g n))]
       [v2 (conj acc2 n)])))
-  
+
 (defn post-ordered-nodes
   "Return a sequence of indexes of a post-ordered walk of the graph."
   [g]
@@ -170,7 +170,7 @@
    self-recursive."
   [g]
   (filter (partial recursive-component? g) (scc g)))
-                          
+
 
 ;; Dependency Lists
 
@@ -181,15 +181,13 @@
   [data fun max equal]
   (let [step (fn step [data idx]
                (when (and idx (= 0 idx))
-                 (throw (#+clj Exception.
-                         #+cljs js/Error.
-                         "Fixed point overflow")))
+                 (assert false "Fixed point overflow"))
                (let [new-data (fun data)]
                  (if (equal data new-data)
                    new-data
                    (recur new-data (and idx (dec idx))))))]
     (step data max)))
-                  
+
 (defn- fold-into-sets
   [priorities]
   (let [max (inc (apply max 0 (vals priorities)))
@@ -198,7 +196,7 @@
     (reduce step
             (vec (replicate max #{}))
             priorities)))
-            
+
 (defn dependency-list
   "Similar to a topological sort, this returns a vector of sets. The
    set of nodes at index 0 are independent.  The set at index 1 depend
@@ -215,7 +213,7 @@
                             (inc (count (:nodes g)))
                             =)]
     (fold-into-sets counts)))
-    
+
 (defn stratification-list
   "Similar to dependency-list (see doc), except two graphs are
    provided.  The first is as dependency-list.  The second (which may

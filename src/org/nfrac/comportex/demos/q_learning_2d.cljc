@@ -5,9 +5,9 @@
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util :refer [round abs]]
             [org.nfrac.comportex.demos.q-learning-1d :refer [q-learn]]
-            #+clj [clojure.core.async :refer [<! >! go]]
-            #+cljs [cljs.core.async :refer [<! >!]])
-    #+cljs (:require-macros [cljs.core.async.macros :refer [go]]))
+            #?(:clj [clojure.core.async :refer [<! >! go]]
+               :cljs [cljs.core.async :refer [<! >!]]))
+    #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
 (def input-dim [40 40])
 (def on-bits 160)
@@ -171,7 +171,7 @@
   (def world-c (async/chan))
   (def model (atom (make-model)))
   (def steps-c (async/chan))
-  
+
   (feed-world-c-with-actions! steps-c world-c model)
 
   (def inv (<!! world-c))
@@ -182,5 +182,5 @@
   (get-in @model [:regions :action :layer-3 :state :Q-val])
   (get-in @model [:regions :action :layer-3 :state :Q-info])
   (get-in @model [:regions :action :layer-3 :state :active-cols])
-  
+
   )

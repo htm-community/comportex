@@ -4,10 +4,10 @@
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.string :as str]
-            #+clj  [clj-http.client :as http]
-            #+cljs [cljs-http.client :as http]
-            #+cljs [cljs.core.async :refer [<!]])
-  #+cljs (:require-macros [cljs.core.async.macros :refer [go]]))
+            #?(:clj [clj-http.client :as http]
+               :cljs [cljs-http.client :as http])
+            #?(:cljs [cljs.core.async :refer [<!]]))
+  #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
 (def base-uri "http://api.cortical.io/rest")
 (def query-params {:retina_name "en_associative"})
@@ -22,8 +22,7 @@
              {:query-params query-params
               :content-type "application/json"
               :as :json
-              #+clj :form-params
-              #+cljs :json-params {:term term}
+              #?(:clj :form-params, :cljs :json-params) {:term term}
               :with-credentials? false
               :throw-exceptions false
               :headers {"api-key" api-key}}))
@@ -36,8 +35,7 @@
                               :max_results max-n)
               :content-type "application/json"
               :as :json
-              #+clj :form-params
-              #+cljs :json-params {:positions (sort bits)}
+              #?(:clj :form-params, :cljs :json-params) {:positions (sort bits)}
               :with-credentials? false
               :throw-exceptions false
               :headers {"api-key" api-key}}))
@@ -91,13 +89,13 @@
                    (do (println "cortical.io lookup of term failed:" term)
                        (println result)
                        (random-sdr))))]
-    #+clj  ;; clj - synchronous
-    (let [result (request-fingerprint api-key term)]
-      (swap! cache ?assoc term (handle result)))
-    #+cljs  ;; cljs - asynchronous
-    (go
-     (let [result (<! (request-fingerprint api-key term))]
-       (swap! cache ?assoc term (handle result))))))
+    #?(:clj   ;; clj - synchronous
+       (let [result (request-fingerprint api-key term)]
+         (swap! cache ?assoc term (handle result)))
+       :cljs  ;; cljs - asynchronous
+       (go
+        (let [result (<! (request-fingerprint api-key term))]
+          (swap! cache ?assoc term (handle result)))))))
 
 (defn get-fingerprint
   "Looks up a fingerprint for the term, being a set of active indices,
@@ -166,9 +164,10 @@
                                             (assoc :value (get item :term))))))
                                (take n))
                           (println result)))]
-                  #+clj ;; clj - synchronous
-                  (handle (request-similar-terms api-key bits n))
-                  #+cljs ;; cljs - asynchronous
-                  {:channel
-                   (go
-                    (handle (<! (request-similar-terms api-key bits n))))})))))))))
+                  #?(:clj  ;; clj - synchronous
+                     (handle (request-similar-terms api-key bits n))
+                     :cljs ;; cljs - asynchronous
+                     {:channel
+                     (go
+                      (handle (<! (request-similar-terms api-key bits n))))}))
+                ))))))))
