@@ -106,7 +106,8 @@
   (let [term (str/lower-case term)]
     (or (get @cache term)
         (get (swap! cache ?assoc term
-                    (do (println "no fingerprint in cache for term:" term)
+                    (do (println "no fingerprint in cache for term:" term
+                                 "- generating a random one")
                         (random-sdr)))
              term))))
 
@@ -154,8 +155,8 @@
                         (if (http/unexceptional-status? (:status result))
                           (->> (:body result)
                                (map (fn [item]
-                                      (let [x-bits (set (get item [:fingerprint
-                                                                   :positions]))]
+                                      (let [x-bits (set (get-in item [:fingerprint
+                                                                      :positions]))]
                                         (println "received prediction results.")
                                         (println "x-bits =" x-bits)
                                         (println "bits =" bits)
