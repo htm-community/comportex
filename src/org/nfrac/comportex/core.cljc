@@ -23,10 +23,10 @@
     [layer-3 uuid step-counter]
   p/PRegion
   (region-activate
-    [this ff-bits signal-ff-bits]
+    [this ff-bits stable-ff-bits]
     (assoc this
       :step-counter (inc step-counter)
-      :layer-3 (p/layer-activate layer-3 ff-bits signal-ff-bits)))
+      :layer-3 (p/layer-activate layer-3 ff-bits stable-ff-bits)))
 
   (region-learn
     [this]
@@ -48,8 +48,8 @@
     (p/ff-topology layer-3))
   (bits-value [_]
     (p/bits-value layer-3))
-  (signal-bits-value [_]
-    (p/signal-bits-value layer-3))
+  (stable-bits-value [_]
+    (p/stable-bits-value layer-3))
   (source-of-bit [_ i]
     (p/source-of-bit layer-3 i))
   p/PFeedForwardMotor
@@ -89,11 +89,11 @@
     [layer-4 layer-3 uuid step-counter]
   p/PRegion
   (region-activate
-    [this ff-bits signal-ff-bits]
-    (let [l4 (p/layer-activate layer-4 ff-bits signal-ff-bits)
+    [this ff-bits stable-ff-bits]
+    (let [l4 (p/layer-activate layer-4 ff-bits stable-ff-bits)
           l3 (p/layer-activate layer-3
                                (p/bits-value l4)
-                               (p/signal-bits-value l4))]
+                               (p/stable-bits-value l4))]
       (assoc this
        :step-counter (inc step-counter)
        :layer-4 l4
@@ -124,8 +124,8 @@
     (p/ff-topology layer-3))
   (bits-value [_]
     (p/bits-value layer-3))
-  (signal-bits-value [_]
-    (p/signal-bits-value layer-3))
+  (stable-bits-value [_]
+    (p/stable-bits-value layer-3))
   (source-of-bit [_ i]
     (p/source-of-bit layer-3 i))
   p/PFeedForwardMotor
@@ -190,7 +190,7 @@
     (if encoder
       (p/encode encoder value)
       (sequence nil)))
-  (signal-bits-value
+  (stable-bits-value
     [_]
     (sequence nil))
   (source-of-bit
@@ -232,15 +232,15 @@
 (defn combined-bits-value
   "Returns the total bit set from a collection of sources satisfying
    `PFeedForward` or `PFeedForwardMotor`. `flavour` should
-   be :standard, :signal or :motor."
+   be :standard, :stable or :motor."
   [ffs flavour]
   (let [topo-fn (case flavour
                   (:standard
-                   :signal) p/ff-topology
+                   :stable) p/ff-topology
                    :motor p/ff-motor-topology)
         bits-fn (case flavour
                   :standard p/bits-value
-                  :signal p/signal-bits-value
+                  :stable p/stable-bits-value
                   :motor p/motor-bits-value)
         widths (map (comp p/size topo-fn) ffs)]
     (->> (map bits-fn ffs)
@@ -326,7 +326,7 @@
                                    (p/region-activate
                                     region
                                     (combined-bits-value ffs :standard)
-                                    (combined-bits-value ffs :signal)))))
+                                    (combined-bits-value ffs :stable)))))
                          (zipmap stratum)
                          (into m)))
                   im
@@ -469,7 +469,7 @@
   ([build-region input motor-input n spec]
      (let [rgn-keys (map #(keyword (str "rgn-" %)) (range n))
            inp-keys (if motor-input [:input :motor] [:input])
-           ;; make {:r0 [:input], :rgn-1 [:rgn-0], :rgn-2 [:rgn-1], ...}
+           ;; make {:rgn-0 [:input], :rgn-1 [:rgn-0], :rgn-2 [:rgn-1], ...}
            deps (zipmap rgn-keys (list* inp-keys (map vector rgn-keys)))]
        (region-network deps
                        (zipmap inp-keys [input motor-input])
@@ -526,8 +526,8 @@
     (layer-predicted-bit-votes lyr p-cols)))
 
 (defn predictions
-  [model n-predictions]
-  (let [rgn (first (region-seq model))
-        inp (first (input-seq model))
+  [htm n-predictions]
+  (let [rgn (first (region-seq htm))
+        inp (first (input-seq htm))
         pr-votes (predicted-bit-votes rgn)]
     (p/decode (:encoder inp) pr-votes n-predictions)))

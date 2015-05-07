@@ -13,9 +13,9 @@
 (def spec
   {:column-dimensions [1000]
    :depth 8
-   :distal-punish? false
-   :layer-3 {:ff-potential-radius 0.05
-             :ff-init-frac 0.5}})
+   :ff-perm-inc 0.10
+   :ff-perm-dec 0.01
+   :distal-punish? false})
 
 (def fields
   (->>

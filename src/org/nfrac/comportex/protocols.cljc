@@ -16,16 +16,16 @@
 (defprotocol PRegion
   "Cortical regions need to extend this together with PTopological,
    PFeedForward, PTemporal, PParameterised."
-  (region-activate [this ff-bits signal-ff-bits])
+  (region-activate [this ff-bits stable-ff-bits])
   (region-learn [this])
   (region-depolarise [this distal-ff-bits distal-fb-bits]))
 
 (defn region-step
   ([this ff-bits]
      (region-step this ff-bits #{} #{} #{}))
-  ([this ff-bits signal-ff-bits distal-ff-bits distal-fb-bits]
+  ([this ff-bits stable-ff-bits distal-ff-bits distal-fb-bits]
      (-> this
-         (region-activate ff-bits signal-ff-bits)
+         (region-activate ff-bits stable-ff-bits)
          (region-learn)
          (region-depolarise distal-ff-bits distal-fb-bits))))
 
@@ -34,7 +34,7 @@
    sensory input or a region (where cells are bits)."
   (ff-topology [this])
   (bits-value [this])
-  (signal-bits-value [this])
+  (stable-bits-value [this])
   (source-of-bit [this i]
     "Given the index of an output bit from this source, return the
     corresponding local cell id as [col ci] where col is the column
@@ -45,7 +45,7 @@
   (motor-bits-value [this]))
 
 (defprotocol PLayerOfCells
-  (layer-activate [this ff-bits signal-ff-bits])
+  (layer-activate [this ff-bits stable-ff-bits])
   (layer-learn [this])
   (layer-depolarise [this distal-ff-bits distal-fb-bits])
   (layer-depth [this])
@@ -54,7 +54,6 @@
   (active-columns [this])
   (active-cells [this])
   (learnable-cells [this])
-  (signal-cells [this])
   (temporal-pooling-cells [this])
   (predictive-cells [this])
   (prior-predictive-cells [this])

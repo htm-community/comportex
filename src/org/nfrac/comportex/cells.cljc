@@ -206,8 +206,9 @@
    :inhibition-base-distance 1
    :distal-vs-proximal-weight 0
    :spontaneous-activation? false
-;   :temporal-pooling-decay 0.9
-;   :temporal-pooling-amp 1.1
+   :temporal-pooling-decay 0.67
+   :temporal-pooling-amp 5.0
+   :temporal-pooling-max-exc 50
    })
 
 ;;; ## Synapse tracing
@@ -561,12 +562,31 @@
          (inh/inhibition-radius (:proximal-sg layer) (:topology layer)
                                 (:input-topology layer))))
 
+(defn update-slow-excitation
+  [slow-exc stable-exc spec]
+  (let [decay (:temporal-pooling-decay spec)
+        amp (:temporal-pooling-amp spec)
+        max-exc (:temporal-pooling-max-exc spec)
+        decayed (reduce-kv (fn [m col exc]
+                             (if (> exc 1)
+                               (assoc! m col (* exc decay))
+                               m))
+                           (transient {})
+                           slow-exc)]
+    (persistent!
+     (reduce-kv (fn [m col exc]
+                  (assoc! m col (-> (get m col 0.0)
+                                    (+ (* exc amp))
+                                    (min max-exc))))
+                decayed
+                stable-exc))))
+
 (defrecord LayerActiveState
-    [in-ff-bits in-signal-ff-bits
-     out-ff-bits out-signal-ff-bits
-     overlaps proximal-exc proximal-sig-exc
-     active-cols burst-cols active-cells signal-cells
-     learn-cells])
+    [in-ff-bits in-stable-ff-bits
+     out-ff-bits out-stable-ff-bits
+     overlaps proximal-exc proximal-slow-exc
+     active-cols burst-cols active-cells
+     tp-cells learn-cells])
 
 (defrecord LayerDistalState
     [distal-bits distal-lc-bits distal-exc pred-cells])
@@ -577,33 +597,42 @@
      boosts active-duty-cycles overlap-duty-cycles]
   p/PLayerOfCells
   (layer-activate
-    [this ff-bits signal-ff-bits]
-    (let [om (syn/excitations proximal-sg ff-bits)
-          prox-exc (columns/apply-overlap-boosting om boosts spec)
-          sig-om (syn/excitations proximal-sg signal-ff-bits)
+    [this ff-bits stable-ff-bits]
+    (let [immed-prox-exc (syn/excitations proximal-sg ff-bits)
+          ;; temporal pooling:
+          ;; stable inputs (from predicted cells) add to persistent "slow" activation
+          stable-prox-exc (syn/excitations proximal-sg stable-ff-bits)
+          burst-prox-exc (merge-with - immed-prox-exc stable-prox-exc)
+          slow-exc (update-slow-excitation (:proximal-slow-exc state) stable-prox-exc spec)
+          prox-exc (-> (merge-with + slow-exc burst-prox-exc)
+                       (columns/apply-overlap-boosting boosts spec))
           distal-exc (:distal-exc distal-state)
+          ;; encourage TP cells to remain active:
+          ;; add a small amount to the distal-exc of TP cells so they are selected
+          depol (merge-with + distal-exc (zipmap (:tp-cells state) (repeat 1.0)))
           {acbc :active-cells-by-col
-           b-cols :burst-cols} (select-active-cells prox-exc distal-exc topology
+           b-cols :burst-cols} (select-active-cells prox-exc depol topology
                                                     inh-radius spec)
           a-cols (set (keys acbc))
           ac (set (apply concat (vals acbc)))
-          sig-ac (set (apply concat (vals (apply dissoc acbc b-cols))))
+          stable-ac (set (apply concat (vals (apply dissoc acbc b-cols))))
+          ;; clear slow-exc for non-selected columns
+          cleared-slow-exc (select-keys slow-exc a-cols)
           depth (:depth spec)]
       (assoc this
         :timestep (inc (:timestep this 0))
         :prior-state state
         :state (map->LayerActiveState
                 {:in-ff-bits ff-bits
-                 :in-signal-ff-bits signal-ff-bits
+                 :in-stable-ff-bits stable-ff-bits
                  :out-ff-bits (set (cells->bits depth ac))
-                 :out-signal-ff-bits (set (cells->bits depth sig-ac))
-                 :overlaps om
+                 :out-stable-ff-bits (set (cells->bits depth stable-ac))
+                 :overlaps immed-prox-exc
                  :proximal-exc prox-exc
-                 :sig-overlaps sig-om
+                 :proximal-slow-exc cleared-slow-exc
                  :active-cells ac
                  :active-cols a-cols
                  :burst-cols b-cols
-                 :signal-cells sig-ac
                  ;; for convenience / efficiency in other steps
                  :active-cells-by-col acbc}))))
 
@@ -618,6 +647,8 @@
           {lc :learn-cells
            lsegs :learn-segs} (select-learning-segs acbc burst-cols distal-sg
                                                     prior-aci spec)
+          slow-exc (:proximal-slow-exc state)
+          tp-cells (filter (comp slow-exc first) lc)
           dsg (cond->
                (learn-distal distal-sg lsegs burst-cols prior-aci prior-lci spec)
                ;; allow this phase of learning as an option
@@ -632,11 +663,12 @@
                                       (:overlaps state) spec)]
       (cond->
        (assoc this
-         :state (assoc state
-                  :learn-cells lc
-                  :learn-segments lsegs)
-         :distal-sg dsg
-         :proximal-sg psg)
+              :state (assoc state
+                            :tp-cells tp-cells
+                            :learn-cells lc
+                            :learn-segments lsegs)
+              :distal-sg dsg
+              :proximal-sg psg)
        true (update-in [:overlap-duty-cycles] columns/update-duty-cycles
                        (keys (:proximal-exc state)) (:duty-cycle-period spec))
        true (update-in [:active-duty-cycles] columns/update-duty-cycles
@@ -683,10 +715,8 @@
     (:active-cells state))
   (learnable-cells [_]
     (:learn-cells state))
-  (signal-cells [_]
-    (:signal-cells state))
   (temporal-pooling-cells [_]
-    #{})
+    (:tp-cells state))
   (predictive-cells [_]
     (:pred-cells distal-state))
   (prior-predictive-cells [_]
@@ -704,8 +734,8 @@
                                   (p/layer-depth this))))
   (bits-value [_]
     (:out-ff-bits state))
-  (signal-bits-value [_]
-    (:out-signal-ff-bits state))
+  (stable-bits-value [_]
+    (:out-stable-ff-bits state))
   (source-of-bit
     [_ i]
     (id->cell (:depth spec) i))
