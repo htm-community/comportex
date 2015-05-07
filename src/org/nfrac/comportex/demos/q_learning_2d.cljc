@@ -9,8 +9,8 @@
                :cljs [cljs.core.async :refer [<! >!]]))
     #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
-(def input-dim [40 40])
-(def on-bits 160)
+(def input-dim [30 30])
+(def on-bits 90)
 (def grid-w 7)
 (def grid-h 7)
 (def radius 2)
@@ -38,7 +38,7 @@
    :z 0})
 
 (def spec
-  {:column-dimensions [40 40]
+  {:column-dimensions [30 30]
    :depth 4
    :distal-punish? true
    :duty-cycle-period 500

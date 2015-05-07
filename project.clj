@@ -3,10 +3,10 @@
   :url "http://github.com/nupic-community/comportex/"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.7.0-beta1"]
+  :dependencies [[org.clojure/clojure "1.7.0-beta2"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [com.cemerick/pprng "0.0.3"]
-                 [clj-http "1.1.0"]
+                 [clj-http "1.1.1"]
                  [cljs-http "0.1.30"]
                  [cljs-uuid "0.0.4"]]
 
@@ -16,7 +16,7 @@
                         :compiler {:output-to "target/testable.js"
                                    :optimizations :advanced}}]}
 
-  :profiles {:dev {:dependencies [[org.clojure/clojurescript "0.0-3196"]
+  :profiles {:dev {:dependencies [[org.clojure/clojurescript "0.0-3211"]
                                   [criterium "0.4.3"]]
                    :plugins [[lein-cljsbuild "1.0.5"]
                              [com.cemerick/clojurescript.test "0.3.3"]

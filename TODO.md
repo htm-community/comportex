@@ -1,8 +1,19 @@
 # TODO
 
+* revise default parameter values
+
+* temporal pooling
+* per-cell proximal synapses?
+* extend depolarisation over multiple time steps?
+
+* serialisable encoders - handle general pre-transform?
+* encoders should not be part of a model?
+
 * region-network - allow different build-region fns for each region
 
-* extend depolarisation over multiple time steps?
+
+* repl truncate printing of :state :overlaps / :active-cells / :active-cells-by-col / :proximal-exc / :out-ff-bits
+* :distal-state :distal-bits / :pred-cells
 
 * allow many more distal dendrite segments (avoid cols*depth*max-segs vector)
 
@@ -39,8 +50,6 @@
 * higher-levels regions only grow ff-synapses to learn-cells from below?
   (otherwise typically grow to all cells of a bursting column)
 
-* turn off temporal pooling when no input
-
 * probably only one predicted cell per column will fire and inhibit others?
 * only one learn cell per column
 
@@ -56,7 +65,7 @@
 * property-based testing (clojure.test.check)
 * repeatability - store random seeds in objs?
 
-* boosting - apply every time step; periodically recalculate duty cycle thresholds
+* fully test properties of coordinate encoder
 
 * clojars release
 
@@ -64,6 +73,6 @@
 
 ## perf
 
+* YourKit
 * data.int-map
-* reducers
 * transducers

@@ -108,7 +108,7 @@
                                       (active-synapse-perms psg col ff-bits))
                                     acols)
                      Qt-st+1 (if (seq aperms)
-                               (- (mean aperms) ff-perm-init-lo) ;; include boost?
+                               (- (mean aperms) ff-perm-init-lo) ;; TODO: include boost?
                                0)
                      Qt-st (:Q-val (:prior-state lyr) 0)
                      learn-value (+ reward (* q-discount Qt-st+1))
