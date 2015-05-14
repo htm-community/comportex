@@ -2,10 +2,6 @@
 
 * revise default parameter values
 
-* temporal pooling
-* per-cell proximal synapses?
-* extend depolarisation over multiple time steps?
-
 * serialisable encoders - handle general pre-transform?
 * encoders should not be part of a model?
 

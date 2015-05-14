@@ -11,7 +11,7 @@
   "Returns the span over the input bit array to which this column has
    connected synapses. Takes the maximum span in any one dimension."
   [sg itopo col]
-  (let [ids (p/sources-connected-to sg col)
+  (let [ids (p/sources-connected-to sg [col 0]) ;; first cell only - good enough?
         coords (map (partial p/coordinates-of-index itopo) ids)]
     (if (seq coords)
       (if (number? (first coords))

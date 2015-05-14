@@ -49,15 +49,13 @@
   (layer-learn [this])
   (layer-depolarise [this distal-ff-bits distal-fb-bits])
   (layer-depth [this])
-  (column-excitation [this])
   (bursting-columns [this])
   (active-columns [this])
   (active-cells [this])
   (learnable-cells [this])
   (temporal-pooling-cells [this])
   (predictive-cells [this])
-  (prior-predictive-cells [this])
-  (depolarisation [this]))
+  (prior-predictive-cells [this]))
 
 (defprotocol PSynapseGraph
   "The synaptic connections from a set of sources to a set of targets.

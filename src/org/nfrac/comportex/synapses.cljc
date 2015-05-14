@@ -140,7 +140,7 @@
      (quot col-rem max-segs)
      (rem col-rem max-segs)]))
 
-(defrecord SynapseGraphBySegments
+(defrecord CellSegmentsSynapseGraph
     [raw-sg max-segs tgt->i i->tgt]
   p/PSynapseGraph
   (in-synapses
@@ -172,27 +172,50 @@
   p/PSegments
   (cell-segments
     [this cell-id]
-    (let [[col ci] cell-id]
-      (mapv #(p/in-synapses this [col ci %])
+    (let [cell-id (vec cell-id)]
+      (mapv #(p/in-synapses this (conj cell-id %))
             (range max-segs)))))
 
-(defn synapse-graph-by-segments
+(defn cell-segments-synapse-graph
   "A synapse graph where the targets refer to individual dendrite
-   segments on cells, which themselves are arranged in columns.
-   Accordingly `target-id` is passed and returned not as an integer
-   but as a 3-tuple `[col ci si]`, column id, cell id, segment id.
-   Sources often refer to cells but are passed and returned as
-   **integers**, so any conversion to/from cell ids should happen
-   externally."
+  segments on cells, which themselves are arranged in columns.
+  Accordingly `target-id` is passed and returned not as an integer
+  but as a 3-tuple `[col ci si]`, column id, cell id, segment id.
+  Sources often refer to cells but are passed and returned as
+  **integers**, so any conversion to/from cell ids should happen
+  externally."
   [n-cols depth max-segs n-sources pcon max-syns cull-zeros?]
   (let [n-targets (* n-cols depth max-segs)
         raw-sg (empty-synapse-graph n-targets n-sources pcon max-syns cull-zeros?)
         tgt->i (partial seg-uidx depth max-segs)
         i->tgt (partial seg-path depth max-segs)]
-    (map->SynapseGraphBySegments
+    (map->CellSegmentsSynapseGraph
      {:raw-sg raw-sg
       :max-segs max-segs
       :tgt->i tgt->i
       :i->tgt i->tgt
       })))
 
+(defn cell-synapse-graph
+  "A synapse graph where the targets refer to individual cells,
+  which are arranged in columns.  Accordingly `target-id` is passed
+  and returned not as an integer but as a 2-tuple `[col ci]`, column
+  id, cell id.  Sources often refer to cells but are passed and
+  returned as **integers**, so any conversion to/from cell ids should
+  happen externally.
+  Initial synapses are given per column, these
+  will be repeated identically for each cell in the column."
+  [col-syns-by-target depth n-sources pcon max-syns cull-zeros?]
+  (let [n-cols (count col-syns-by-target)
+        n-targets (* n-cols depth)
+        syns-by-target (vec (mapcat #(repeat depth %) col-syns-by-target))
+        raw-sg (synapse-graph syns-by-target n-sources pcon max-syns cull-zeros?)
+        tgt->i (fn [[col ci]] (+ (* col depth) ci))
+        i->tgt (fn [uidx] [(quot uidx depth)
+                           (rem uidx depth)])]
+    (map->CellSegmentsSynapseGraph
+     {:raw-sg raw-sg
+      :max-segs depth
+      :tgt->i tgt->i
+      :i->tgt i->tgt
+      })))
