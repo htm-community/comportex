@@ -504,13 +504,12 @@
 
 (defn layer-predicted-bit-votes
   "Returns a map from input bit index to the number of connections to
-   it from columns in the predictive state. `p-cols` is the column ids
-   of columns containing predictive cells."
-  [lyr p-cols]
-  (let [sg (:proximal-sg lyr)]
-    (->> p-cols
-         (reduce (fn [m col]
-                   (let [ids (p/sources-connected-to sg col)]
+  it from cells in the predictive state."
+  [lyr]
+  (let [psg (:proximal-sg lyr)]
+    (->> (p/predictive-cells lyr)
+         (reduce (fn [m cell-id]
+                   (let [ids (p/sources-connected-to psg cell-id)]
                      (reduce (fn [m id]
                                (assoc! m id (inc (get m id 0))))
                              m ids)))
@@ -519,11 +518,8 @@
 
 (defn predicted-bit-votes
   [rgn]
-  (let [lyr (get rgn (first (layers rgn)))
-        p-cols (->> (p/predictive-cells lyr)
-                    (map first)
-                    (distinct))]
-    (layer-predicted-bit-votes lyr p-cols)))
+  (let [lyr (get rgn (first (layers rgn)))]
+    (layer-predicted-bit-votes lyr)))
 
 (defn predictions
   [htm n-predictions]

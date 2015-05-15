@@ -5,28 +5,17 @@
 * serialisable encoders - handle general pre-transform?
 * encoders should not be part of a model?
 
+* serialisable synapse graphs - avoid closures tgt->i, i->tgt
+* * go back to maps not vectors: {[col ci] p}, {[col ci si] p}
+* * * also allows many more distal dendrite segments (avoid cols*depth*max-segs vector)
+* * keep track of existing segment ids per cell
+
 * region-network - allow different build-region fns for each region
 
 
 * repl truncate printing of :state :overlaps / :active-cells / :active-cells-by-col / :proximal-exc / :out-ff-bits
 * :distal-state :distal-bits / :pred-cells
 
-* allow many more distal dendrite segments (avoid cols*depth*max-segs vector)
-
-* ?speed up distal synapses?
-  rather than tranforming between [col ci si] and uidx:
-  (deftype Cell [rgn-uuid ^long col ^long ci ^long depth]
-   PCell
-   (cell-column [this])
-   (index-in-column [this])
-   (index-in-layer [this])
-   (cell-region-uuid [this]))
-  (deftype Segment [^Cell cell ^long si ^long max-segs]
-   PSegment
-   (index-in-cell [this])
-   (segment-index-in-layer [this])
-   PCell
-   ...)
 
 * separate parameter for punishment permanence decrement
 
@@ -46,10 +35,6 @@
 * higher-levels regions only grow ff-synapses to learn-cells from below?
   (otherwise typically grow to all cells of a bursting column)
 
-* probably only one predicted cell per column will fire and inhibit others?
-* only one learn cell per column
-
-* in choosing best-matching-segment-and-cell, break ties by permanence?
 
 * only update synapses when cells turn on/off? (not when continuing?)
 
@@ -60,6 +45,8 @@
 * unit tests
 * property-based testing (clojure.test.check)
 * repeatability - store random seeds in objs?
+
+* type / structure validation with pre conditions - Herbert?
 
 * fully test properties of coordinate encoder
 
