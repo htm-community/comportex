@@ -205,10 +205,9 @@
   happen externally.
   Initial synapses are given per column, these
   will be repeated identically for each cell in the column."
-  [col-syns-by-target depth n-sources pcon max-syns cull-zeros?]
-  (let [n-cols (count col-syns-by-target)
-        n-targets (* n-cols depth)
-        syns-by-target (vec (mapcat #(repeat depth %) col-syns-by-target))
+  [syns-by-target depth n-sources pcon max-syns cull-zeros?]
+  (let [n-targets (count syns-by-target)
+        n-cols (quot n-targets depth)
         raw-sg (synapse-graph syns-by-target n-sources pcon max-syns cull-zeros?)
         tgt->i (fn [[col ci]] (+ (* col depth) ci))
         i->tgt (fn [uidx] [(quot uidx depth)

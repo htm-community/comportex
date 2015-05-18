@@ -19,8 +19,8 @@
    :ff-stimulus-threshold 3
    :global-inhibition? false
    :activation-level 0.04
-   :duty-cycle-period 100000
-   :max-boost 2.0
+   :boost-active-every 10000
+   :boost-overlap-every 10000
    ;; sequence memory:
    :depth 4
    :max-segments 5

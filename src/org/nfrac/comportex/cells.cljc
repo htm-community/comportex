@@ -145,6 +145,10 @@
      a cell *will always* inhibit neighbouring cells with lower
      excitation. Ignored if `global-inhibition?` is true.
 
+   * `per-cell-proximal?` - if true, the default, each cell has its
+     own set of proximal synapses. If false, each column shares one
+     set of proximal synapses.
+
    * `distal-vs-proximal-weight-cols` - scaling to apply to the number of
      active distal synapses (on the winning segment) before adding to
      the number of active proximal synapses, when selecting active
@@ -164,7 +168,7 @@
       others in the column to be considered dominant. And therefore to
       inhibit all other cells in the column.
 
-  * `temporal-pooling-max-exc` - maximum continuing temporal pooling
+   * `temporal-pooling-max-exc` - maximum continuing temporal pooling
      excitation level.
 
    * `temporal-pooling-amp` - multiplier on the initial excitation
@@ -211,6 +215,7 @@
    :activation-level 0.02
    :global-inhibition? false
    :inhibition-base-distance 1
+   :per-cell-proximal? true
    :distal-vs-proximal-weight-cols 0
    :distal-vs-proximal-weight-cells 0.5
    :spontaneous-activation? false
@@ -454,7 +459,7 @@
   a connected active segment: one less than `:seg-learn-threshold`,
   scaled by the distal-vs-proximal weight. Returns a map of cell ids
   to these excitation adjustment values."
-  [a-cols cell-exc distal-sg aci spec]
+  [a-cols distal-sg aci spec]
   (let [depth (:depth spec)
         th (:seg-learn-threshold spec)
         w (:distal-vs-proximal-weight-cells spec)
@@ -482,7 +487,10 @@
   `ac`."
   [sg ac ff-bits spec]
   (let [pinc (:ff-perm-inc spec)
-        pdec (:ff-perm-dec spec)]
+        pdec (:ff-perm-dec spec)
+        ac (if (:per-cell-proximal? spec)
+             ac
+             (distinct (map (fn [[col ci]] [col 0]) ac)))]
     (reduce (fn [sg cell-id]
               (p/reinforce-in-synapses sg cell-id (constantly false)
                                        ff-bits pinc pdec))
@@ -725,16 +733,20 @@
           ;; avoid a cell that is missing its learned context signal (segment).
           ;; (biology -- more segments = larger surface area to lose potential?).
           ;; also - matching segments below connected threshold get a bonus.
-          adj-exc (effects-of-inactive-segments a-cols cell-exc distal-sg
+          adj-exc (effects-of-inactive-segments a-cols distal-sg
                                                 (:distal-bits distal-state) spec)
           within-col-cell-exc (let [w (:distal-vs-proximal-weight-cells spec)]
-                                (if (== (:distal-vs-proximal-weight-cols spec) w)
+                                (cond
+                                  (not (:per-cell-proximal? spec))
+                                  (merge-with + tp-exc adj-exc)
+                                  (== (:distal-vs-proximal-weight-cols spec) w)
                                   (merge-with + cell-exc adj-exc)
+                                  :else
                                   (merge-with + base-exc
-                                             (->> (:distal-exc distal-state)
-                                                  (filter (comp a-cols first))
-                                                  (remap #(* w %)))
-                                             adj-exc)))
+                                              (->> (:distal-exc distal-state)
+                                                   (filter (comp a-cols first))
+                                                   (remap #(* w %)))
+                                              adj-exc)))
           ;; find active and winner cells in the columns
           {ac :active-cells
            lc :winner-cells
@@ -875,7 +887,19 @@
                       (* n-cols depth) 0)
                     (reduce * (:distal-motor-dimensions spec))
                     (reduce * (:distal-topdown-dimensions spec)))
-        prox-syns (columns/uniform-ff-synapses col-topo input-topo spec)
+        col-prox-syns (columns/uniform-ff-synapses col-topo input-topo spec)
+        prox-syns (if (:per-cell-proximal? spec)
+                    ;; each cell has same set of inputs but different permanences
+                    (vec (mapcat (fn [syns]
+                                   (list* syns
+                                          (repeatedly (dec depth)
+                                                      #(zipmap (keys syns)
+                                                               (shuffle (vals syns))))))
+                                 col-prox-syns))
+                    ;; the first cell in the column has synapses, others empty
+                    (vec (mapcat (fn [syns]
+                                   (list* syns (repeat (dec depth) {})))
+                                 col-prox-syns)))
         proximal-sg (syn/cell-synapse-graph prox-syns depth (p/size input-topo)
                                        (:ff-perm-connected spec)
                                        (:ff-max-synapse-count spec)

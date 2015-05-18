@@ -2,6 +2,8 @@
 
 * revise default parameter values
 
+* perf!! excitations, reinforce-in-synapses
+
 * serialisable encoders - handle general pre-transform?
 * encoders should not be part of a model?
 
@@ -9,6 +11,9 @@
 * * go back to maps not vectors: {[col ci] p}, {[col ci si] p}
 * * * also allows many more distal dendrite segments (avoid cols*depth*max-segs vector)
 * * keep track of existing segment ids per cell
+
+* continuously grow new proximal synapses
+* get rid of overlap-duty-cycles
 
 * region-network - allow different build-region fns for each region
 
