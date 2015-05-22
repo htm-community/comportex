@@ -46,9 +46,18 @@ that they can be visualised in the browser with
 * [NuPIC](http://www.numenta.org/)
 
 
+## YourKit
+
+YourKit is kindly supporting this open source project with its full-featured Java Profiler.
+YourKit, LLC is the creator of innovative and intelligent tools for profiling
+Java and .NET applications. Take a look at YourKit's leading software products:
+<a href="http://www.yourkit.com/java/profiler/index.jsp">YourKit Java Profiler</a> and
+<a href="http://www.yourkit.com/.net/profiler/index.jsp">YourKit .NET Profiler</a>.
+
+
 ## License
 
-Copyright © 2014 Felix Andrews and contributors
+Copyright © 2014-2015 Felix Andrews and contributors
 
 Distributed under your choice of
 * the Eclipse Public License, the same as Clojure.
