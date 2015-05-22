@@ -11,13 +11,13 @@
 
    * `ff-bits` -- the set of indices of active bits/cells on proximal dendrites.
    * `aci` -- the set of indices of active bits/cells on distal dendrites.
-   * `lci` -- the indices of learnable (winner) bits/cells on distal dendrites.
+   * `lci` -- the set of indices of learnable (winner) bits/cells on distal dendrites.
    * `ac` -- the set of ids of active cells.
    * `pc` -- the set of ids of predictive cells.
    * `tpc` -- the set of ids of temporal pooling cells.
    * `lc` -- the set of ids of learnable cells (winner cells).
    * `a-cols` -- the set of ids of active columns.
-   * `syns` -- incoming synapses as a map from source id to permanence.
+   * `seg` or `syns` -- incoming synapses as a map from source id to permanence.
 "
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.columns :as columns]
@@ -60,8 +60,7 @@
 
    * `ff-stimulus-threshold` - minimum number of active input
      connections for a column to be _overlapping_ the input (i.e.
-     active prior to inhibition). This parameter is tuned at run time
-     to target `activation-level` when `global-inhibition?` is false.
+     active prior to inhibition).
 
    * `ff-max-synapse-count` - maximum number of synapses on the column.
 
@@ -145,19 +144,10 @@
      a cell *will always* inhibit neighbouring cells with lower
      excitation. Ignored if `global-inhibition?` is true.
 
-   * `per-cell-proximal?` - if true, the default, each cell has its
-     own set of proximal synapses. If false, each column shares one
-     set of proximal synapses.
-
-   * `distal-vs-proximal-weight-cols` - scaling to apply to the number of
+   * `distal-vs-proximal-weight` - scaling to apply to the number of
      active distal synapses (on the winning segment) before adding to
      the number of active proximal synapses, when selecting active
      columns. Set to zero to disable ``prediction-assisted'' activation.
-
-   * `distal-vs-proximal-weight-cells` - same as above but applies
-     when selecting active cells once columns have been chosen. This
-     should usually be the same value as
-     `distal-vs-proximal-weight-cols`, except when that is zero.
 
    * `spontaneous-activation?` - if true, cells may become active with
      sufficient distal synapse excitation, even in the absence of any
@@ -189,7 +179,10 @@
    :ff-perm-init-hi 0.25
    :ff-perm-init-lo 0.10
    :ff-stimulus-threshold 1
-   :ff-max-synapse-count 1000
+   :ff-seg-max-synapse-count 1000
+   :ff-seg-new-synapse-count 15
+   :ff-seg-learn-threshold 12
+   :ff-max-segments 1
    :max-boost 3.0
    :duty-cycle-period 1000
    :boost-active-duty-ratio 0.001
@@ -215,9 +208,7 @@
    :activation-level 0.02
    :global-inhibition? false
    :inhibition-base-distance 1
-   :per-cell-proximal? true
-   :distal-vs-proximal-weight-cols 0
-   :distal-vs-proximal-weight-cells 0.5
+   :distal-vs-proximal-weight 0
    :spontaneous-activation? false
    :dominance-margin 10
    :temporal-pooling-max-exc 50
@@ -285,70 +276,79 @@
 
 (defn best-matching-segment
   "Finds the segment in the cell having the most active synapses, as
-  long as is above the activation threshold `th`, only considering
-  synapses with permanence values at or above `pcon`.  Returns the
-  segment index. If no such segments exist, returns nil."
-  [cell-segs aci th pcon]
-  (loop [segs cell-segs
+  long as is above the activation threshold `min-act`, only considering
+  synapses with permanence values at or above `pcon`.  Returns
+  `[seg-index activation synapses]`. If no such segments exist,
+  returns `[nil 0 {}]`."
+  [cell-segs aci min-act pcon]
+  (loop [segs (seq cell-segs)
          si 0
          best-si 0
-         best-act 0]
+         best-act 0
+         best-syns nil]
     (if-let [syns (first segs)]
-      (let [act (long (segment-activation syns aci pcon))]
+      (let [act (long (segment-activation syns aci pcon))
+            best? (> act best-act)]
         (recur (next segs)
                (inc si)
-               (if (> act best-act) si best-si)
-               (if (> act best-act) act best-act)))
+               (if best? si best-si)
+               (if best? act best-act)
+               (if best? syns best-syns)))
       ;; finished
-      (if (>= best-act th)
-        best-si
-        nil))))
+      (if (>= best-act min-act)
+        [best-si best-act best-syns]
+        [nil 0 {}]))))
 
-(defn distal-excitations
-  "Computes distal excitatation as a map from cell id to the greatest
-  number of active synapses on any one distal dendrite segment. Note
+(defn cell-best-excitations
+  "Computes excitatation as a map from cell id to the greatest
+  number of active synapses on any one dendrite segment. Note
   this is not filtered by a threshold for segment activation -- that
   has been deferred to a later stage so that a sub-threshold number of
   active synapses can contribute to picking a winner cell."
   [seg-exc]
-  (->> seg-exc
-       (reduce-kv (fn [m k n]
-                    (if (zero? n)
-                      m
-                      (let [id (pop k)] ;; seg-id to cell-id: [col ci _]
-                        (assoc! m id (max n (get m id 0))))))
-                  (transient {}))
-       (persistent!)))
+  (persistent!
+   (reduce-kv (fn [m k exc]
+                (let [id (pop k)] ;; seg-id to cell-id: [col ci _]
+                  (assoc! m id (max exc (get m id 0.0)))))
+              (transient {})
+              seg-exc)))
+
+(defn column-best-excitations
+  "Returns a map of column ids to representative excitation values,
+  being the greatest excitation of its constituent cells or segments."
+  [cell-exc]
+  (persistent!
+   (reduce-kv (fn [m k exc]
+                (let [id (first k)] ;; cell-id / seg-id to col
+                  (assoc! m id (max exc (get m id 0.0)))))
+              (transient {})
+              cell-exc)))
 
 (defn total-excitations
   "Combine the proximal and distal excitations in a map of cell id to
-  excitation, as a weighted sum. Normally only cells with some proximal
-  input are considered, but if `spontaneous-activation?` is true, this
-  is not enforced (i.e. prediction alone could cause activation)."
-  [prox-exc distal-exc distal-weight spontaneous-activation?]
-  (if (zero? distal-weight)
-    prox-exc
-    (let [prox-exc (if (spontaneous-activation?)
-                     (merge (zipmap (keys distal-exc) (repeat 0.0))
-                            prox-exc)
-                     prox-exc)]
-      (persistent!
-       (reduce-kv (fn [m id p-exc]
-                    (let [d-exc (distal-exc id 0.0)]
-                      (assoc! m id (+ p-exc (* distal-weight d-exc)))))
-                  (transient {})
-                  prox-exc)))))
-
-(defn column-excitations
-  "Returns a map of column ids to representative excitation values,
-  being the greatest excitation of its constituent cells."
-  [cell-exc]
-  (persistent!
-   (reduce-kv (fn [m [col ci] exc]
-                (assoc! m col
-                        (max exc (get m col 0.0))))
-              (transient {})
-              cell-exc)))
+  excitation, as a weighted sum. Temporal Pooling `tp-exc` is added to
+  the proximal excitation but is given keyed by cell rather than by
+  column. Normally only cells with some proximal input are included,
+  but if `spontaneous-activation?` is true, this is relaxed
+  (i.e. prediction alone could cause activation)."
+  [col-exc tp-exc distal-exc distal-weight spontaneous-activation? depth]
+  (let [basic-exc (for [[col exc] col-exc
+                        ci (range depth)
+                        :let [cell-id [col ci]
+                              tp (get tp-exc cell-id 0.0)]]
+                    [cell-id (+ exc tp)])]
+    (if (zero? distal-weight)
+      (into {} basic-exc)
+      (let [basic-exc (if (spontaneous-activation?)
+                        (merge (zipmap (keys distal-exc) (repeat 0.0))
+                               basic-exc)
+                        basic-exc)]
+        (persistent!
+         (reduce (fn [m [id p-exc]]
+                   (let [d-exc (distal-exc id 0.0)]
+                     (assoc! m id (+ p-exc (* distal-weight d-exc)))))
+                 (transient {})
+                 basic-exc))))))
 
 (defn select-active-columns
   "Returns a set of column ids to become active after lateral inhibition."
@@ -456,14 +456,13 @@
   adjustment is positive. If a cell has segments but none match the
   input, its adjustment is negative and proportional to the number of
   segments. The adjustment unit amount is chosen to be lower than for
-  a connected active segment: one less than `:seg-learn-threshold`,
-  scaled by the distal-vs-proximal weight. Returns a map of cell ids
-  to these excitation adjustment values."
+  a connected active segment: one less than
+  `:seg-learn-threshold`. Returns a map of cell ids to these
+  excitation adjustment values."
   [a-cols distal-sg aci spec]
   (let [depth (:depth spec)
-        th (:seg-learn-threshold spec)
-        w (:distal-vs-proximal-weight-cells spec)
-        adj-unit (* w (dec th))]
+        min-act (:seg-learn-threshold spec)
+        adj-unit (dec min-act)]
     (->> (for [col a-cols
                ci (range depth)
                :let [cell-id [col ci]
@@ -471,111 +470,62 @@
                                     (filter seq))
                      n-segs (count cell-segs)]
                :when (pos? n-segs)]
-           (if (best-matching-segment cell-segs aci th 0.0)
+           (if (first (best-matching-segment cell-segs aci min-act 0.0))
              ;; some segment matches the input even if synapses disconnected
              [cell-id adj-unit]
              ;; there are segments but none match the input; apply penalty
              [cell-id (* -1 adj-unit n-segs)]))
          (into {}))))
 
-;;; ## Proximal Learning
-
-(defn learn-proximal
-  "Adapt feed-forward synapses to focus on observed input patterns.
-  Given the set of input bits `ff-bits`, adjusts the permanence
-  values of all potential feed-forward synapses in the active cells
-  `ac`."
-  [sg ac ff-bits spec]
-  (let [pinc (:ff-perm-inc spec)
-        pdec (:ff-perm-dec spec)
-        ac (if (:per-cell-proximal? spec)
-             ac
-             (distinct (map (fn [[col ci]] [col 0]) ac)))]
-    (reduce (fn [sg cell-id]
-              (p/reinforce-in-synapses sg cell-id (constantly false)
-                                       ff-bits pinc pdec))
-            sg ac)))
-
-;;; ## Distal Learning
+;;; ## Learning
 
 (defn new-segment-id
-  "Returns a segment index on the cell at which to grow a new segment.
-   It may refer to the end of the existing vector to append to it, or
-   it may refer to an existing segment that is to be culled before the
-   new one grows. If the maximum number of segments has been reached,
-   an existing one is chosen to be replaced based on having the fewest
-   connected synapses, or fewest synapses to break ties."
-  [distal-sg col ci spec]
-  (let [max-segs (:max-segments spec)
-        max-syns (:seg-max-synapse-count spec)
-        min-syns (:seg-learn-threshold spec)
-        pcon (:distal-perm-connected spec)
-        segs (p/cell-segments distal-sg [col ci])]
-    (if (>= (count segs) max-segs)
-      ;; select the one with fewest connected, or fewest synapses, or first
-      (apply min-key (fn [si]
-                       (let [syns (nth segs si)
-                             n-conn (count-filter #(>= % pcon) (vals syns))]
-                         (+ (* n-conn max-syns)
-                            (count syns)
-                            (/ si (count segs)))))
-             (range (count segs)))
-      ;; have not reached limit; append
-      (count segs))))
+  "Returns a segment index on the cell at which to grow a new segment,
+  together with any existing synapses at that index. It may refer to
+  the end of the existing vector to append to it, or it may refer to
+  an existing segment that is to be culled before the new one
+  grows. If the maximum number of segments has been reached, an
+  existing one is chosen to be replaced based on having the fewest
+  connected synapses, or fewest synapses to break ties."
+  [segs pcon max-segs max-syns]
+  (if (>= (count segs) max-segs)
+    ;; select the one with fewest connected, or fewest synapses, or first
+    (let [si (apply min-key (fn [si]
+                              (let [syns (nth segs si)
+                                    n-conn (count-filter #(>= % pcon) (vals syns))]
+                                (+ (* n-conn max-syns)
+                                   (count syns)
+                                   (/ si (count segs)))))
+                    (range (count segs)))]
+      [si (nth segs si)])
+    ;; have not reached limit; append
+    [(count segs) nil]))
 
 (defn segment-new-synapse-source-ids
   "Returns a collection of up to n ids chosen from the learnable cell
-   bits `lci-vec`. May be less than `n` if the random samples have
-   duplicates or some already exist on the segment, or if there are
-   fewer than `n` learnable cells. Connections to the host column are
-   not allowed. However, connections can be made to a cell even if
-   there is already a connection to another cell in the same column."
-  [seg lci-vec n exclude]
+  bits `lci-vec`. May be less than `n` if the random samples have
+  duplicates or some already exist on the segment, or if there are
+  fewer than `n` learnable cells."
+  [seg lci-vec n]
   (when (seq lci-vec)
     (->> lci-vec
          (util/sample n)
          (distinct)
-         (remove (fn [id]
-                   (or (seg id)
-                       (exclude id)))))))
+         (remove seg))))
 
-(defn grow-new-segment
-  "Adds a new segment on the cell with synapses to a selection of the
-   learn cells from previous time step, unless there are too few to
-   meet the minimum threshold."
-  [distal-sg col ci lci-vec spec]
-  (let [n (:seg-new-synapse-count spec)
-        min-syns (:seg-learn-threshold spec)
-        si (new-segment-id distal-sg col ci spec)
-        depth (:depth spec)
-        exclude-col (if (:lateral-synapses? spec)
-                      (fn [id] (= col (first (id->cell depth id))))
-                      (constantly false))
-        syn-cell-ids (segment-new-synapse-source-ids {} lci-vec n exclude-col)]
-    (if (< (count syn-cell-ids) min-syns)
-      distal-sg
-      ;; clear out any existing synapses first
-      (let [seg-path [col ci si]
-            osyns (p/in-synapses distal-sg seg-path)]
-        (cond-> distal-sg
-                (seq osyns) (p/disj-synapses seg-path (keys osyns))
-                true (p/conj-synapses seg-path syn-cell-ids
-                                      (:distal-perm-init spec)))))))
-
-(defn segment-extend
-  [distal-sg seg-path aci lci-vec spec]
-  (let [col (first seg-path)
-        seg (p/in-synapses distal-sg seg-path)
-        na (segment-activation seg aci 0.0) ;; include disconnected
-        n (- (:seg-new-synapse-count spec) na)]
-    (if (pos? n)
-      (let [depth (:depth spec)
-            exclude-col (if (:lateral-synapses? spec)
-                          (fn [id] (= col (first (id->cell depth id))))
-                          (constantly false))
-            ids (segment-new-synapse-source-ids seg lci-vec n exclude-col)]
-        (p/conj-synapses distal-sg seg-path ids (:distal-perm-init spec)))
-      distal-sg)))
+(defn segment-excess-synapse-source-ids
+  "Given that an additional `grow-n` synapses will be added, checks if
+  the segment will exceed the maximum allowed number of synapses, and
+  if so, returns a list of synapse source ids to remove. These are the
+  ones with lowest permanence."
+  [syns grow-n max-syns]
+  (let [total (+ (count syns) grow-n)
+        excess (- total max-syns)]
+    (if (pos? excess)
+      (->> (sort-by val syns)
+           (take excess)
+           (map first))
+      nil)))
 
 (defn segment-reinforce
   [sg seg-path aci pinc pdec]
@@ -585,33 +535,12 @@
   [sg seg-path aci pdec]
   (p/reinforce-in-synapses sg seg-path aci (constantly false) 0.0 pdec))
 
-(defn learn-on-segment
-  [distal-sg col ci si bursting? lci-vec aci spec]
-  (let [pinc (:distal-perm-inc spec)
-        pdec (:distal-perm-dec spec)]
-    (if si
-      ;; there is a matching segment, reinforce and/or extend it
-      (cond-> distal-sg
-              true (segment-reinforce [col ci si] aci pinc pdec)
-              bursting? (segment-extend [col ci si] aci lci-vec spec))
-      ;; no matching segment, create a new one
-      (grow-new-segment distal-sg col ci lci-vec spec))))
-
-(defn learn-distal
-  [distal-sg lsegs b-cols prior-aci prior-lci spec]
-  (let [prior-lci-vec (vec prior-lci)]
-    (reduce-kv (fn [sg [col ci] si]
-                 (learn-on-segment sg col ci si (b-cols col) prior-lci-vec
-                                   prior-aci spec))
-               distal-sg
-               lsegs)))
-
 (defn punish-cell
-  [distal-sg col ci prior-aci th pcon pdec]
-  (let [cell-segs (p/cell-segments distal-sg [col ci])
+  [distal-sg cell-id prior-aci th pcon pdec]
+  (let [cell-segs (p/cell-segments distal-sg cell-id)
         asegs (cell-active-segments cell-segs prior-aci th pcon)]
     (reduce (fn [sg si]
-              (segment-punish sg [col ci si] prior-aci pdec))
+              (segment-punish sg (conj cell-id si) prior-aci pdec))
             distal-sg asegs)))
 
 (defn punish-distal
@@ -624,32 +553,62 @@
         bad-cells (set/difference prior-pc
                                   pc
                                   ac)]
-    (reduce (fn [sg [col ci]]
-              (punish-cell sg col ci prior-aci th pcon pdec))
+    (reduce (fn [sg cell-id]
+              (punish-cell sg cell-id prior-aci th pcon pdec))
             distal-sg
             bad-cells)))
 
-(defn select-learning-segs
-  "Returns a map from cell ids (the learning cells) to a segment index
-  to learn on, being an adequately matching one, or nil, indicating
-  that a new segment should be grown."
-  [lc burst-cols distal-sg prior-aci spec]
-  (let [pcon (:distal-perm-connected spec)
-        ;; threshold to consider disconnected synapses
-        pdisc 0.0]
-    (persistent!
-     (reduce (fn [m cell-id]
-               (let [col (first cell-id)
-                     cell-segs (p/cell-segments distal-sg cell-id)
-                     ;; if bursting column - i.e. unpredicted - then consider
-                     ;; unconnected synapses for best matching segment.
-                     use-p (if (burst-cols col) pdisc pcon)
-                     seg-idx (best-matching-segment cell-segs prior-aci
-                                                    (:seg-learn-threshold spec)
-                                                    use-p)]
-                 (assoc! m cell-id seg-idx)))
-             (transient {})
-             lc))))
+(defn segment-learning-map
+  "Takes the learning cells `lc` and maps each to a segment path to
+  learn on, together with lists of any synapse sources to add or
+  remove: `[seg-path grow-source-ids die-source-ids]`. The segment
+  index is chosen as the best matching one, but if none match
+  sufficiently then a new segment will be grown, perhaps replacing an
+  existing one. `aci` is the set of active source indices, used to
+  find a matching segment, while `lci` is the set of learnable source
+  indices, used to grow new synapses. If `poor-match?` returns true
+  for a cell id then unconnected synapses are used to find a matching
+  segment. Otherwise only connected synapses are used."
+  [lc poor-match? sg aci lci {:keys [pcon
+                                     min-act
+                                     new-syns
+                                     max-syns
+                                     max-segs]}]
+  (if (== 1 max-segs)
+    ;; fast path: always learn on the first and only segment
+    (into {}
+         (map (fn [cell-id]
+                (let [seg-path (conj cell-id 0)]
+                  [cell-id [seg-path nil nil]])))
+         lc)
+    ;; multiple segments are allowed
+    (let [lci-vec (vec lci)] ;; for faster sampling
+     (persistent!
+      (reduce
+       (fn [m cell-id]
+         (let [cell-segs (p/cell-segments sg cell-id)
+               ;; if bursting column - i.e. unpredicted - then consider
+               ;; unconnected synapses for best matching segment.
+               use-p (if (poor-match? cell-id) 0.0 pcon)
+               [match-si exc seg] (best-matching-segment cell-segs aci
+                                                         min-act use-p)
+               [seg-idx die-syns] (if match-si
+                                    [match-si nil]
+                                    (new-segment-id cell-segs pcon max-segs
+                                                    max-syns))
+               grow-n (if (or poor-match? (not match-si))
+                        (- new-syns exc)
+                        0)
+               grow-source-ids (segment-new-synapse-source-ids seg lci-vec grow-n)
+               die-source-ids (if match-si
+                                (segment-excess-synapse-source-ids seg grow-n
+                                                                   max-syns)
+                                ;; growing new segment, remove any existing
+                                (keys die-syns))
+               seg-path (conj cell-id seg-idx)]
+           (assoc! m cell-id [seg-path grow-source-ids die-source-ids])))
+       (transient {})
+       lc)))))
 
 ;;; ## Orchestration
 
@@ -662,12 +621,12 @@
 (defn apply-excitation
   [continuing-exc immed-exc max-exc amp]
   (persistent!
-   (reduce-kv (fn [m id exc]
-                (assoc! m id (-> (get m id 0.0)
-                                 (+ (* exc amp))
-                                 (min max-exc))))
-              (transient continuing-exc)
-              immed-exc)))
+   (reduce (fn [m [id exc]]
+             (assoc! m id (-> (get m id 0.0)
+                              (+ (* exc amp))
+                              (min max-exc))))
+           (transient continuing-exc)
+           immed-exc)))
 
 (defn apply-loss-fn
   [continuing-exc loss-func]
@@ -710,43 +669,35 @@
   p/PLayerOfCells
   (layer-activate
     [this ff-bits stable-ff-bits]
-    (let [;; this is proximal excitation per cell [col ci]
-          overlaps (syn/excitations proximal-sg ff-bits)
-          immed-exc (columns/apply-overlap-boosting overlaps boosts spec)
+    (let [;; proximal excitation in number of active synapses, keyed by [col seg-idx]
+          col-seg-overlaps (syn/excitations proximal-sg ff-bits)
+          col-overlaps (column-best-excitations col-seg-overlaps)
+          prox-exc (columns/apply-overlap-boosting col-overlaps boosts
+                                                   (:ff-stimulus-threshold spec))
           ;; temporal pooling:
           ;; stable inputs (from predicted cells) add to ongoing "tp" activation
-          stable-overlaps (syn/excitations proximal-sg stable-ff-bits)
-          immed-stable-exc (columns/apply-overlap-boosting stable-overlaps boosts spec)
-          ;immed-burst-exc (merge-with - immed-exc immed-stable-exc)
+          stable-col-seg-overlaps (syn/excitations proximal-sg stable-ff-bits)
+          stable-col-overlaps (column-best-excitations stable-col-seg-overlaps)
+          stable-prox-exc (columns/apply-overlap-boosting stable-col-overlaps boosts
+                                                          (:ff-stimulus-threshold spec))
           tp-exc (apply-loss-fn (:temporal-pooling-exc state)
                                  (linear-loss-fn (:temporal-pooling-fall spec)))
           ;; integrate excitation values to activate cells
-          base-exc (merge-with + immed-exc tp-exc)
-          cell-exc (total-excitations base-exc
+          cell-exc (total-excitations prox-exc tp-exc
                                       (:distal-exc distal-state)
-                                      (:distal-vs-proximal-weight-cols spec)
-                                      (:spontaneous-activation? spec))
-          a-cols (select-active-columns (column-excitations cell-exc)
+                                      (:distal-vs-proximal-weight spec)
+                                      (:spontaneous-activation? spec)
+                                      (:depth spec))
+          a-cols (select-active-columns (column-best-excitations cell-exc)
                                         topology inh-radius spec)
           ;; inactive distal segments induce _negative_ depolarisation of cells.
           ;; need this to encourage context-specific choice of cells in a column:
           ;; avoid a cell that is missing its learned context signal (segment).
           ;; (biology -- more segments = larger surface area to lose potential?).
-          ;; also - matching segments below connected threshold get a bonus.
+          ;; matching segments below connected threshold get a bonus.
           adj-exc (effects-of-inactive-segments a-cols distal-sg
                                                 (:distal-bits distal-state) spec)
-          within-col-cell-exc (let [w (:distal-vs-proximal-weight-cells spec)]
-                                (cond
-                                  (not (:per-cell-proximal? spec))
-                                  (merge-with + tp-exc adj-exc)
-                                  (== (:distal-vs-proximal-weight-cols spec) w)
-                                  (merge-with + cell-exc adj-exc)
-                                  :else
-                                  (merge-with + base-exc
-                                              (->> (:distal-exc distal-state)
-                                                   (filter (comp a-cols first))
-                                                   (remap #(* w %)))
-                                              adj-exc)))
+          within-col-cell-exc (merge-with + cell-exc adj-exc)
           ;; find active and winner cells in the columns
           {ac :active-cells
            lc :winner-cells
@@ -754,11 +705,16 @@
            stable-ac :stable-active-cells}
           (select-active-cells a-cols within-col-cell-exc (:pred-cells distal-state) spec)
           ;; update continuing TP activation
-          next-tp-exc (-> (apply-excitation tp-exc immed-stable-exc
+          lc-stable-exc (for [[col ci] lc
+                              :let [exc (stable-prox-exc col)]
+                              :when exc]
+                          [col exc])
+          next-tp-exc (-> (apply-excitation tp-exc
+                                            lc-stable-exc
                                             (:temporal-pooling-max-exc spec)
                                             (:temporal-pooling-amp spec))
                           ;; clear TP excitation for inhibited cells
-                          (select-keys ac))
+                          (select-keys lc))
           depth (:depth spec)]
       (assoc this
              :timestep (inc (:timestep this 0))
@@ -768,41 +724,65 @@
                       :in-stable-ff-bits stable-ff-bits
                       :out-ff-bits (set (cells->bits depth ac))
                       :out-stable-ff-bits (set (cells->bits depth stable-ac))
-                      :overlaps overlaps
+                      :overlaps col-overlaps
                       :temporal-pooling-exc next-tp-exc
                       :active-cells ac
                       :active-cols a-cols
                       :burst-cols b-cols
                       :learn-cells lc
-                      :tp-cells (keys next-tp-exc)}))))
+                      :tp-cells (keys next-tp-exc)
+                      :diagnostics {:adj-exc adj-exc}
+                      }))))
 
   (layer-learn
     [this]
-    (let [ff-bits (:in-ff-bits state)
-          t (:timestep this)
+    (let [t (:timestep this)
           prior-aci (:distal-bits distal-state)
           prior-lci (:distal-lc-bits distal-state)
           burst-cols (:burst-cols state)
           lc (:learn-cells state)
-          lsegs (select-learning-segs lc burst-cols distal-sg prior-aci spec)
+          distal-learning (segment-learning-map lc #(burst-cols (first %))
+                                                distal-sg prior-aci prior-lci
+                                                {:pcon (:distal-perm-connected spec)
+                                                 :min-act (:seg-learn-threshold spec)
+                                                 :new-syns (:seg-new-synapse-count spec)
+                                                 :max-syns (:seg-max-synapse-count spec)
+                                                 :max-segs (:max-segments spec)})
           dsg (cond->
-               (learn-distal distal-sg lsegs burst-cols prior-aci prior-lci spec)
-               ;; allow this phase of learning as an option
-               (:distal-punish? spec)
-               (punish-distal (:pred-cells prior-distal-state)
-                              (:pred-cells distal-state)
-                              (:active-cells state)
-                              (:distal-bits prior-distal-state)
-                              spec))
-          psg (learn-proximal proximal-sg (:active-cells state) ff-bits spec)
-          overlap-cols (distinct (map first (keys (:overlaps state))))]
+                  (p/bulk-learn distal-sg (vals distal-learning) prior-lci
+                                (:distal-perm-inc spec) (:distal-perm-dec spec)
+                                (:distal-perm-init spec))
+                ;; allow this phase of learning as an option
+                (:distal-punish? spec)
+                (punish-distal (:pred-cells prior-distal-state)
+                               (:pred-cells distal-state)
+                               (:active-cells state)
+                               (:distal-bits prior-distal-state)
+                               spec))
+          a-cols (:active-cols state)
+          tp-cols (map first (:tp-cells state))
+          prox-learning (segment-learning-map (map vector a-cols) (constantly true)
+                                              proximal-sg
+                                              (:in-ff-bits state)
+                                              (:in-ff-bits state)
+                                              {:pcon (:ff-perm-connected spec)
+                                               :min-act (:ff-seg-learn-threshold spec)
+                                               :new-syns (:ff-seg-new-synapse-count spec)
+                                               :max-syns (:ff-seg-max-synapse-count spec)
+                                               :max-segs (:ff-max-segments spec)})
+          psg (p/bulk-learn proximal-sg (vals prox-learning)
+                            (:in-ff-bits state) ; TODO: (:in-stable-ff-bits state)
+                            (:ff-perm-inc spec) (:ff-perm-dec spec)
+                            (:ff-perm-init-hi spec))]
       (cond->
        (assoc this
-              :state (assoc state :learn-segments lsegs)
+              :state (assoc state
+                            :distal-learning distal-learning
+                            :proximal-learning prox-learning)
               :distal-sg dsg
               :proximal-sg psg)
        true (update-in [:overlap-duty-cycles] columns/update-duty-cycles
-                       overlap-cols (:duty-cycle-period spec))
+                       (keys (:overlaps state)) (:duty-cycle-period spec))
        true (update-in [:active-duty-cycles] columns/update-duty-cycles
                        (:active-cols state) (:duty-cycle-period spec))
        (zero? (mod t (:boost-active-every spec))) (columns/boost-active)
@@ -828,14 +808,14 @@
                                    (if (:use-feedback? spec) distal-fb-bits [])])
           seg-exc (syn/excitations distal-sg aci)
           ;; TODO - should reflect one seg or many? - more vs fewer synapses?
-          distal-exc (distal-excitations seg-exc)
+          distal-exc (cell-best-excitations seg-exc)
           th (:seg-stimulus-threshold spec)
           pc (set (keep (fn [[id v]] (when (>= v th) id)) distal-exc))]
       (assoc this
         :prior-distal-state distal-state
         :distal-state (map->LayerDistalState
                        {:distal-bits (set aci)
-                        :distal-lc-bits lci
+                        :distal-lc-bits (set lci)
                         :distal-exc distal-exc
                         :pred-cells pc}))))
 
@@ -888,28 +868,21 @@
                     (reduce * (:distal-motor-dimensions spec))
                     (reduce * (:distal-topdown-dimensions spec)))
         col-prox-syns (columns/uniform-ff-synapses col-topo input-topo spec)
-        prox-syns (if (:per-cell-proximal? spec)
-                    ;; each cell has same set of inputs but different permanences
-                    (vec (mapcat (fn [syns]
-                                   (list* syns
-                                          (repeatedly (dec depth)
-                                                      #(zipmap (keys syns)
-                                                               (shuffle (vals syns))))))
-                                 col-prox-syns))
-                    ;; the first cell in the column has synapses, others empty
-                    (vec (mapcat (fn [syns]
-                                   (list* syns (repeat (dec depth) {})))
-                                 col-prox-syns)))
-        proximal-sg (syn/cell-synapse-graph prox-syns depth (p/size input-topo)
-                                       (:ff-perm-connected spec)
-                                       (:ff-max-synapse-count spec)
-                                       false)
-        distal-sg (syn/cell-segments-synapse-graph n-cols depth
-                                                 (:max-segments spec)
-                                                 n-distal
-                                                 (:distal-perm-connected spec)
-                                                 (:seg-max-synapse-count spec)
-                                                 true)
+        ;; the first segment in the column has synapses, others initially empty
+        ff-max-segs (:ff-max-segments spec)
+        prox-syns (vec (mapcat (fn [syns]
+                                 (list* syns (repeat (dec ff-max-segs) {})))
+                               col-prox-syns))
+        proximal-sg (syn/col-segs-synapse-graph prox-syns n-cols
+                                                ff-max-segs
+                                                (p/size input-topo)
+                                                (:ff-perm-connected spec)
+                                                false)
+        distal-sg (syn/cell-segs-synapse-graph n-cols depth
+                                               (:max-segments spec)
+                                               n-distal
+                                               (:distal-perm-connected spec)
+                                               true)
         state (map->LayerActiveState
                {:learn-cells #{}
                 :active-cells #{}

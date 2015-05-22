@@ -76,7 +76,12 @@
     "Conjoins new synapses into the graph, from a collection
     `syn-source-ids` to `target-id`, with initial permanence `p`.")
   (disj-synapses [this target-id syn-source-ids]
-    "Disjoins the synapses from `syn-source-ids` to `target-id`."))
+    "Disjoins the synapses from `syn-source-ids` to `target-id`.")
+  (bulk-learn [this learn-info active-sources pinc pdec pinit]
+    "Applies learning updates to a batch of targets. `learn-info` is a
+    sequence of `[target-id grow-sources die-sources]`. On each
+    target, the synapse permanences are increased for sources in
+    `active-sources` and decreased otherwise."))
 
 (defprotocol PSegments
   (cell-segments [this cell-id]

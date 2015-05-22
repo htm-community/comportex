@@ -508,8 +508,10 @@
   [lyr]
   (let [psg (:proximal-sg lyr)]
     (->> (p/predictive-cells lyr)
-         (reduce (fn [m cell-id]
-                   (let [ids (p/sources-connected-to psg cell-id)]
+         (map first)
+         (reduce (fn [m col]
+                   ;; TODO: other proximal segments
+                   (let [ids (p/sources-connected-to psg [col 0])]
                      (reduce (fn [m id]
                                (assoc! m id (inc (get m id 0))))
                              m ids)))

@@ -2,6 +2,24 @@
   (:require [cemerick.pprng :as rng])
   (:refer-clojure :exclude [rand rand-int rand-nth shuffle]))
 
+;; copied from
+;; https://github.com/Datomic/simulant/blob/d681b2375c3e0ea13a0df3caffeb7b3d8a20c6a3/src/simulant/util.clj#L24-L37
+
+(defn getx
+  "Like two-argument get, but throws an exception if the key is
+   not found."
+  [m k]
+  (let [e (get m k ::sentinel)]
+    (if-not (= e ::sentinel)
+      e
+      (throw (ex-info "Missing required key" {:map m :key k})))))
+
+(defn getx-in
+  "Like two-argument get-in, but throws an exception if the key is
+   not found."
+  [m ks]
+  (reduce getx m ks))
+
 (defn abs
   [x]
   (if (neg? x) (- x) x))
@@ -145,24 +163,33 @@
           ;; make the outer map persistent
           (persistent!))))
 
-(defn update-each
-  "Transforms a map or vector `m` applying function `f` to the values
-   under keys `ks`."
+(defn update-each!
+  "Transforms a transient map or vector `m` applying function `f` to
+  the values under keys `ks`."
   [m ks f]
   (if (empty? ks)
     m
-    (->> ks
-         (reduce (fn [m k]
-                   (assoc! m k (f (get m k))))
-                 (transient m))
-         (persistent!))))
+    (reduce (fn [m k]
+              (assoc! m k (f (get m k))))
+            m
+            ks)))
+
+(defn update-each
+  "Transforms a map or vector `m` applying function `f` to the values
+  under keys `ks`."
+  [m ks f]
+  (if (empty? ks)
+    m
+    (persistent!
+     (update-each! (transient m) ks f))))
+
 
 (defn remap
   "Transforms a map `m` applying function `f` to each value."
   [f m]
-  (->> m
-       (mapv (fn [[k v]] [k (f v)]))
-       (into (or (empty m) {}))))
+  (into (or (empty m) {})
+        (map (fn [[k v]] [k (f v)]))
+        m))
 
 (defn top-n-keys-by-value
   "Like `(reverse (take n (keys (sort-by val > m))))` but faster."

@@ -58,20 +58,18 @@
 ;;; ## Overlaps
 
 (defn apply-overlap-boosting
-  "Given a map `exc` of the cell overlap counts, filters it down
+  "Given a map `exc` of the column overlap counts, filters it down
   to those meeting parameter `ff-stimulus-threshold`, and
   multiplies the excitation value by the column boosting factor."
-  [exc boosts spec]
-  (let [th (:ff-stimulus-threshold spec)]
-    (->> exc
-         (reduce-kv (fn [m cell-id x]
-                      (if (< x th)
-                        m
-                        (let [col (first cell-id)
-                              b (get boosts col)]
-                          (assoc! m cell-id (* x b)))))
-                    (transient {}))
-         (persistent!))))
+  [exc boosts stimulus-threshold]
+  (->> exc
+       (reduce-kv (fn [m col x]
+                    (if (< x stimulus-threshold)
+                      m
+                      (let [b (get boosts col)]
+                        (assoc! m col (* x b)))))
+                  (transient {}))
+       (persistent!)))
 
 ;;; ## Learning
 

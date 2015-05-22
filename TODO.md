@@ -1,6 +1,12 @@
 # TODO
 
+* bulk-learn records
+
+* separate calculation vs update (building transaction vs commit) in punish-distal
+
 * revise default parameter values
+
+* most functions should take parameter value arguments, not whole spec
 
 * perf!! excitations, reinforce-in-synapses
 
