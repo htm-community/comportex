@@ -3,6 +3,7 @@
             [org.nfrac.comportex.inhibition :as inh]
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util]
+            [org.nfrac.comportex.demos.isolated-1d :as demoi1d]
             [org.nfrac.comportex.demos.directional-steps-1d :as demo1d]
             [org.nfrac.comportex.demos.isolated-2d :as demo2d]
             [criterium.core :as crit]
@@ -27,43 +28,46 @@
        (do (util/set-seed! 0)
            (demo2d/n-region-model 1))))))
 
+(defn perf-test-50*
+  [htm inseq]
+  (let [[warmups test-ins] (split-at 50 (take 100 inseq))
+        m1 (reduce p/htm-step htm warmups)]
+    (crit/quick-bench
+     (do (util/set-seed! 0)
+         (reduce p/htm-step m1 test-ins)))))
+
 (deftest perf-global-test
   (util/set-seed! 0)
   (let [info "[1000] global, 30% potential, 50 steps"]
     (testing info
       (println (str (newline) info))
-      (let [[warmups test-ins] (split-at 50 (take 100 (demo1d/world-seq)))
-            m1 (let [m (demo1d/n-region-model
-                        1 (assoc demo1d/spec :global-inhibition? true
-                                 :ff-potential-radius 1.0))]
-                 (reduce p/htm-step m warmups))]
-        (crit/quick-bench
-         (do (util/set-seed! 0)
-             (reduce p/htm-step m1 test-ins)))))))
+      (perf-test-50* (demo1d/n-region-model 1 (assoc demo1d/spec :global-inhibition? true
+                                                     :ff-potential-radius 1.0))
+                     (demo1d/world-seq)))))
 
 (deftest perf-local-1d-test
   (util/set-seed! 0)
   (let [info "[1000] local, radius 0.1 * 30% potential, 50 steps"]
     (testing info
       (println (str (newline) info))
-      (let [[warmups test-ins] (split-at 50 (take 100 (demo1d/world-seq)))
-            m1 (let [m (demo1d/n-region-model 1)]
-                 (reduce p/htm-step m warmups))]
-        (crit/quick-bench
-         (do (util/set-seed! 0)
-             (reduce p/htm-step m1 test-ins)))))))
+      (perf-test-50* (demo1d/n-region-model 1 demo1d/spec)
+                     (demo1d/world-seq)))))
 
 (deftest perf-local-2d-test
   (util/set-seed! 0)
   (let [info "[20 50] local, radius 0.2 * 30% potential, 50 steps"]
     (testing info
       (println (str (newline) info))
-      (let [[warmups test-ins] (split-at 50 (take 100 (demo2d/world-seq)))
-            m1 (let [m (demo2d/n-region-model 1)]
-                 (reduce p/htm-step m warmups))]
-        (crit/quick-bench
-         (do (util/set-seed! 0)
-             (reduce p/htm-step m1 test-ins)))))))
+      (perf-test-50* (demo2d/n-region-model 1 demo2d/spec)
+                     (demo2d/world-seq)))))
+
+(deftest perf-global-1d-2r-test
+  (util/set-seed! 0)
+  (let [info "[1000] * [400] global, 30% potential, 50 steps"]
+    (testing info
+      (println (str (newline) info))
+      (perf-test-50* (demoi1d/n-region-model 2 demoi1d/spec)
+                     (demoi1d/world-seq)))))
 
 (deftest perf-inh-test
   (util/set-seed! 0)

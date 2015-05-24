@@ -34,6 +34,10 @@
    :distal-perm-init 0.16
    })
 
+(def higher-level-spec-diff
+  {:column-dimensions [500]
+   :ff-max-segments 5})
+
 (def initial-input-val [:up 0])
 
 (defn input-transform
@@ -61,4 +65,5 @@
      (n-region-model n spec))
   ([n spec]
      (core/regions-in-series core/sensory-region (core/sensory-input encoder)
-                             n spec)))
+                             n
+                             (list* spec (repeat (merge spec higher-level-spec-diff))))))

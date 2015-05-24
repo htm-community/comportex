@@ -15,6 +15,10 @@
    :depth 8
    :distal-punish? false})
 
+(def higher-level-spec-diff
+  {:column-dimensions [20 20]
+   :ff-max-segments 5})
+
 (def initial-input-val
   {:x -10 :y -20 :vx 1 :vy 1 :ax 1 :ay 1})
 
@@ -67,4 +71,5 @@
      (n-region-model n spec))
   ([n spec]
      (core/regions-in-series core/sensory-region (core/sensory-input encoder)
-                             n spec)))
+                             n
+                             (list* spec (repeat (merge spec higher-level-spec-diff))))))

@@ -12,10 +12,14 @@
 
 (def spec
   {:column-dimensions [1000]
-   :depth 8
+   :depth 5
    :ff-perm-inc 0.10
    :ff-perm-dec 0.01
    :distal-punish? false})
+
+(def higher-level-spec-diff
+  {:column-dimensions [400]
+   :ff-max-segments 5})
 
 (def fields
   (->>
@@ -73,4 +77,5 @@
   ([n spec]
      (core/regions-in-series core/sensorimotor-region
                              block-sensory-input block-motor-input
-                             n spec)))
+                             n
+                             (list* spec (repeat (merge spec higher-level-spec-diff))))))

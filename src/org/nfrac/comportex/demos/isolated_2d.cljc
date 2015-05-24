@@ -30,7 +30,7 @@
    :duty-cycle-period 100000
    :max-boost 2.0
    ;; sequence memory:
-   :depth 8
+   :depth 5
    :max-segments 5
    :seg-max-synapse-count 18
    :seg-new-synapse-count 10
@@ -42,6 +42,12 @@
    :distal-perm-init 0.16
    :inhibition-base-distance 1
    })
+
+(def higher-level-spec-diff
+  {:column-dimensions [20 20]
+   :global-inhibition? true
+   :ff-potential-radius 1.0
+   :ff-max-segments 5})
 
 (def patterns
   {:down-1 (mapv vector (repeat 1) (range 10))
@@ -106,4 +112,5 @@
   ([n spec]
      (core/regions-in-series core/sensory-region
                              (core/sensory-input block-encoder)
-                             n spec)))
+                             n
+                             (list* spec (repeat (merge spec higher-level-spec-diff))))))

@@ -13,8 +13,12 @@
 
 (def spec
   {:column-dimensions [1000]
-   :depth 8
+   :depth 5
    :distal-punish? false})
+
+(def higher-level-spec-diff
+  {:column-dimensions [400]
+   :ff-max-segments 5})
 
 (defn presentation
   [n stimulus-seq]
@@ -45,4 +49,5 @@
   ([n spec]
      (core/regions-in-series core/sensory-region
                              (core/sensory-input block-encoder)
-                             n spec)))
+                             n
+                             (list* spec (repeat (merge spec higher-level-spec-diff))))))

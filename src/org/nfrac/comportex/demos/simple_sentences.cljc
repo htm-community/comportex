@@ -19,7 +19,7 @@
    :duty-cycle-period 100000
    :max-boost 2.0
    ;; sequence memory:
-   :depth 8
+   :depth 5
    :max-segments 5
    :seg-max-synapse-count 18
    :seg-new-synapse-count 12
@@ -32,6 +32,10 @@
    :distal-punish? false
    :distal-vs-proximal-weight 0.5
    })
+
+(def higher-level-spec-diff
+  {:column-dimensions [400]
+   :ff-max-segments 5})
 
 (def input-text
   ;; warmup to refine feed-forward synapse fields
@@ -141,4 +145,5 @@ Chifung has no tail.
      (n-region-model input-text n spec))
   ([text n spec]
      (let [inp (core/sensory-input (make-block-encoder text))]
-       (core/regions-in-series core/sensory-region inp n spec))))
+       (core/regions-in-series core/sensory-region inp n
+                               (list* spec (repeat (merge spec higher-level-spec-diff)))))))

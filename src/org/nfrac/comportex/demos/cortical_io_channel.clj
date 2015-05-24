@@ -20,7 +20,7 @@
    :duty-cycle-period 100000
    :max-boost 2.0
    ;; sequence memory:
-   :depth 8
+   :depth 5
    :max-segments 5
    :seg-max-synapse-count 18
    :seg-new-synapse-count 12
@@ -34,6 +34,10 @@
    :distal-vs-proximal-weight 0
    :inhibition-base-distance 1
    })
+
+(def higher-level-spec-diff
+  {:column-dimensions [20 20]
+   :ff-max-segments 5})
 
 (defn split-sentences
   [text]
@@ -55,7 +59,8 @@
   [api-key input-c cache n]
   (core/regions-in-series core/sensory-region
                           (sensory-input-from-channel api-key input-c cache)
-                          n spec))
+                          n
+                          (list* spec (repeat (merge spec higher-level-spec-diff)))))
 
 (comment
 

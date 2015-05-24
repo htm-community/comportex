@@ -37,7 +37,7 @@
 (defn model
   []
   (core/regions-in-series core/sensory-region (core/sensory-input encoder)
-                          1 spec))
+                          1 [spec]))
 
 (deftest sp-test
   (util/set-seed! 0)

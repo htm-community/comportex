@@ -464,17 +464,19 @@
    a linear series. The input key is :input, optional motor input key
    is :motor, and the region keys are :rgn-0, :rgn-1, etc. See
    `region-network`."
-  ([build-region input n spec]
-     (regions-in-series build-region input nil n spec))
-  ([build-region input motor-input n spec]
-     (let [rgn-keys (map #(keyword (str "rgn-" %)) (range n))
-           inp-keys (if motor-input [:input :motor] [:input])
-           ;; make {:rgn-0 [:input], :rgn-1 [:rgn-0], :rgn-2 [:rgn-1], ...}
-           deps (zipmap rgn-keys (list* inp-keys (map vector rgn-keys)))]
-       (region-network deps
-                       (zipmap inp-keys [input motor-input])
-                       build-region
-                       (zipmap rgn-keys (repeat spec))))))
+  ([build-region input n specs]
+   (regions-in-series build-region input nil n specs))
+  ([build-region input motor-input n specs]
+   {:pre [(sequential? specs)
+          (= n (count (take n specs)))]}
+   (let [rgn-keys (map #(keyword (str "rgn-" %)) (range n))
+         inp-keys (if motor-input [:input :motor] [:input])
+         ;; make {:rgn-0 [:input], :rgn-1 [:rgn-0], :rgn-2 [:rgn-1], ...}
+         deps (zipmap rgn-keys (list* inp-keys (map vector rgn-keys)))]
+     (region-network deps
+                     (zipmap inp-keys [input motor-input])
+                     build-region
+                     (zipmap rgn-keys specs)))))
 
 ;;; ## Stats
 

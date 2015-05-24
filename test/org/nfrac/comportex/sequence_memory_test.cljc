@@ -59,7 +59,7 @@
 (defn model
   []
   (core/regions-in-series core/sensory-region (core/sensory-input encoder)
-                          1 spec))
+                          1 [spec]))
 
 (defn world-seq
   "Returns a sequence of sensory input values."
