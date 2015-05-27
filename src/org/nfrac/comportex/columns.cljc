@@ -63,7 +63,7 @@
   multiplies the excitation value by the column boosting factor."
   [exc boosts]
   (->> exc
-       (reduce-kv (fn [m col x]
+       (reduce-kv (fn [m [col _] x]
                     (let [b (get boosts col)]
                       (assoc! m col (* x b))))
                   (transient {}))
