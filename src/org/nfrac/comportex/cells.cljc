@@ -530,7 +530,7 @@
           :let [cell-segs (p/cell-segments distal-sg cell-id)]
           si (cell-active-segments cell-segs prior-aci stimulus-th pcon)
           :let [seg-path (conj cell-id si)]]
-      (syn/seg-update seg-path false nil nil))))
+      (syn/seg-update seg-path :punish nil nil))))
 
 (defn segment-learning-map
   "Takes the learning cells `lc` and maps each to a SegUpdate record,
@@ -553,7 +553,7 @@
     (into {}
          (map (fn [cell-id]
                 (let [seg-path (conj cell-id 0)]
-                  [cell-id (syn/seg-update seg-path true nil nil)])))
+                  [cell-id (syn/seg-update seg-path :learn nil nil)])))
          lc)
     ;; multiple segments are allowed
     (let [lci-vec (vec lci)] ;; for faster sampling
@@ -580,7 +580,7 @@
                                 ;; growing new segment, remove any existing
                                 (keys die-syns))
                seg-path (conj cell-id seg-idx)]
-           (assoc! m cell-id (syn/seg-update seg-path true grow-source-ids die-source-ids))))
+           (assoc! m cell-id (syn/seg-update seg-path :learn grow-source-ids die-source-ids))))
        (transient {})
        lc)))))
 

@@ -5,16 +5,22 @@
 (defrecord SegUpdate [target-id operation grow-sources die-sources])
 
 (defn seg-update
+  "Creates a record defining changes to make to a synaptic
+  segment. Operation can be one of `:learn` (increment active sources,
+  decrement inactive), `:punish` (decrement active sources) or
+  `:reinforce` (increment active sources). Without the operation
+  argument, only the growth and death of synapses will be applied."
   ([target-id grow-sources die-sources]
    (SegUpdate. target-id nil grow-sources die-sources))
-  ([target-id reinforce? grow-sources die-sources]
-   (SegUpdate. target-id (if reinforce? :reinforce :punish) grow-sources die-sources)))
+  ([target-id operation grow-sources die-sources]
+   {:pre [(contains? #{:learn :punish :reinforce} operation)]}
+   (SegUpdate. target-id operation grow-sources die-sources)))
 
 (defn segment-alterations
   "Returns lists of synapse source ids as `[up promote down demote
    cull]` according to whether they should be increased or decreased
    and whether they are crossing the connected permanence threshold."
-  [syns skip? reinforce? pcon pinc pdec cull-zeros?]
+  [syns adjustable? reinforce? pcon pinc pdec cull-zeros?]
   (let [pcon (double pcon)
         pcon+pdec (double (+ pcon pdec))
         pcon-pinc (double (- pcon pinc))]
@@ -28,7 +34,7 @@
         ;; process one synapse
         (let [[id p] (first syns)
               p (double p)]
-          (if (skip? id)
+          (if-not (adjustable? id)
             (recur (next syns) up promote down demote cull)
             (if (reinforce? id)
               ;; positive reinforce
@@ -55,6 +61,7 @@
         ))))
 
 (defn- never [_] false)
+(defn- always [_] true)
 
 (defrecord SynapseGraph
     [syns-by-target targets-by-source pcon cull-zeros?]
@@ -98,12 +105,12 @@
                      syns*)
               [up promote down demote cull]
               (case operation
-                :reinforce (segment-alterations syns
-                                                never active-sources
-                                                pcon pinc pdec cull-zeros?)
-                :punish (segment-alterations syns
-                                             (complement active-sources) never
+                :learn (segment-alterations syns always active-sources
+                                            pcon pinc pdec cull-zeros?)
+                :punish (segment-alterations syns active-sources never
                                              pcon pinc pdec cull-zeros?)
+                :reinforce (segment-alterations syns active-sources always
+                                                pcon pinc pdec cull-zeros?)
                 ;; otherwise - just grow and die
                 [() () () () ()])
               new-syns (-> (if (seq cull)

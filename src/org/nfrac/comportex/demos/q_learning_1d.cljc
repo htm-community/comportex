@@ -2,6 +2,7 @@
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.cells :as cells]
+            [org.nfrac.comportex.synapses :as syn]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util :refer [round abs]]
             #?(:clj [clojure.core.async :refer [<! >! go]]
@@ -105,7 +106,7 @@
                      prior-acols (:active-cols (:prior-state lyr))
                      psg (:proximal-sg lyr)
                      aperms (mapcat (fn [col]
-                                      (active-synapse-perms psg col ff-bits))
+                                      (active-synapse-perms psg [col 0 0] ff-bits))
                                     acols)
                      Qt-st+1 (if (seq aperms)
                                (- (mean aperms) ff-perm-init-lo) ;; TODO: include boost?
@@ -113,16 +114,15 @@
                      Qt-st (:Q-val (:prior-state lyr) 0)
                      learn-value (+ reward (* q-discount Qt-st+1))
                      adjust (* q-alpha (- learn-value Qt-st))
-                     up? (pos? adjust)]
+                     op (if (pos? adjust) :reinforce :punish)
+                     seg-updates (map (fn [col]
+                                        (syn/seg-update [col 0 0] op nil nil))
+                                      prior-acols)]
                  (->
                   (p/layer-learn lyr)
                   (assoc :proximal-sg
-                    (reduce (fn [psg col]
-                              (p/reinforce-in-synapses
-                               psg col (complement prior-ff-bits)
-                               (constantly up?) (abs adjust) (abs adjust)))
-                            psg
-                            prior-acols))
+                         (p/bulk-learn psg seg-updates prior-ff-bits
+                                       (abs adjust) (abs adjust) 0.0))
                   (assoc-in [:state :Q-val] Qt-st+1)
                   (assoc-in [:state :Q-info] {:Qt Qt-st
                                               :reward reward
