@@ -20,7 +20,6 @@
    :global-inhibition? false
    :activation-level 0.04
    :boost-active-every 10000
-   :boost-overlap-every 10000
    ;; sequence memory:
    :depth 4
    :max-segments 5

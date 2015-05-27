@@ -67,21 +67,14 @@
     "The set of source ids actually connected to target id.")
   (targets-connected-from [this source-id]
     "The set of target ids actually connected from source id.")
-  (reinforce-in-synapses [this target-id skip? reinforce? pinc pdec]
-    "Updates the permanence of all synapses to `target-id`. Both
-    `skip?` and `reinforce?` are functions of the source id; if the
-    former returns true the synapse is unchanged; otherwise the latter
-    gives the direction of change.")
-  (conj-synapses [this target-id syn-source-ids p]
-    "Conjoins new synapses into the graph, from a collection
-    `syn-source-ids` to `target-id`, with initial permanence `p`.")
-  (disj-synapses [this target-id syn-source-ids]
-    "Disjoins the synapses from `syn-source-ids` to `target-id`.")
-  (bulk-learn [this learn-info active-sources pinc pdec pinit]
-    "Applies learning updates to a batch of targets. `learn-info` is a
-    sequence of `[target-id grow-sources die-sources]`. On each
-    target, the synapse permanences are increased for sources in
-    `active-sources` and decreased otherwise."))
+  (excitations [this active-sources stimulus-threshold]
+    "Computes a map of target ids to their degree of excitation -- the
+    number of sources in `active-sources` they are connected to -- excluding
+    any below `stimulus-threshold`.")
+  (bulk-learn [this seg-updates active-sources pinc pdec pinit]
+    "Applies learning updates to a batch of targets. `seg-updates` is
+    a sequence of SegUpdate records, one for each target dendrite
+    segment."))
 
 (defprotocol PSegments
   (cell-segments [this cell-id]

@@ -3,8 +3,9 @@
   :url "http://github.com/nupic-community/comportex/"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.7.0-beta2"]
+  :dependencies [[org.clojure/clojure "1.7.0-RC1"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
+                 [org.clojure/data.int-map "0.1.0"]
                  [com.cemerick/pprng "0.0.3"]
                  [clj-http "1.1.1"]
                  [cljs-http "0.1.30"]

@@ -61,13 +61,11 @@
   "Given a map `exc` of the column overlap counts, filters it down
   to those meeting parameter `ff-stimulus-threshold`, and
   multiplies the excitation value by the column boosting factor."
-  [exc boosts stimulus-threshold]
+  [exc boosts]
   (->> exc
        (reduce-kv (fn [m col x]
-                    (if (< x stimulus-threshold)
-                      m
-                      (let [b (get boosts col)]
-                        (assoc! m col (* x b)))))
+                    (let [b (get boosts col)]
+                      (assoc! m col (* x b))))
                   (transient {}))
        (persistent!)))
 
@@ -104,34 +102,11 @@
                                     col itopo
                                     focus-coord
                                     radius n-grow)]
-    (p/conj-synapses ff-sg col new-ids pinit)))
+    [col new-ids]))
 
 
 
 ;;; ## Boosting
-
-(defn boost-overlap-global
-  [lyr]
-  (let [spec (:spec lyr)
-        depth (:depth spec)
-        o-th (:boost-overlap-duty-ratio spec)
-        pinc (:ff-perm-inc spec)
-        ods (:overlap-duty-cycles lyr)
-        max-od (apply max 0 ods)
-        crit-od (* o-th max-od)]
-    (update-in lyr [:proximal-sg]
-               (fn [psg]
-                 (reduce (fn [psg col]
-                           (let [od (get ods col)]
-                             (if (< od crit-od)
-                               (reduce (fn [psg ci]
-                                         (p/reinforce-in-synapses psg [col ci] (constantly false)
-                                                                  (constantly true) pinc 0))
-                                       psg
-                                       (range depth))
-                               psg)))
-                         psg
-                         (range (count ods)))))))
 
 (defn boost-active-global
   [ads spec]
@@ -156,17 +131,6 @@
       lyr
       (assoc lyr :boosts
              (boost-active-global (:active-duty-cycles lyr) (:spec lyr))))))
-
-(defn boost-overlap
-  "Increases all synapse permanences connected to a column if its
-   frequency of overlap with input (overlap duty cycle) is low
-   compared to the maximum from its neighbours."
-  [lyr]
-  (let [global? (>= (:ff-potential-radius (:spec lyr)) 1)]
-    ;; TODO for local case, partition the column space based on radius...
-    (if-not (pos? (:boost-overlap-duty-ratio (:spec lyr)))
-      lyr
-      (boost-overlap-global lyr))))
 
 (defn update-duty-cycles
   "Records a set of events with indices `is` in the vector `v`

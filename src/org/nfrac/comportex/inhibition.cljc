@@ -11,7 +11,7 @@
   "Returns the span over the input bit array to which this column has
    connected synapses. Takes the maximum span in any one dimension."
   [sg itopo col]
-  (let [ids (p/sources-connected-to sg [col 0]) ;; first cell only - good enough?
+  (let [ids (p/sources-connected-to sg [col 0 0]) ;; first segment only - good enough?
         coords (map (partial p/coordinates-of-index itopo) ids)]
     (if (seq coords)
       (if (number? (first coords))
@@ -63,8 +63,7 @@
 (defn inhibits-exc
   "Threshold excitation level at which a cell with excitation `x`
    inhibits a neighbour cell at a distance `dist` columns away."
-  #?(:clj ^double [^double x ^double dist ^double max-dist ^double base-dist]
-     :cljs [x dist max-dist base-dist])
+  ^double [^double x ^double dist ^double max-dist ^double base-dist]
   (let [z (- 1.0 (/ (max 0.0 (- dist base-dist))
                     (- max-dist base-dist)))]
     (* x z)))

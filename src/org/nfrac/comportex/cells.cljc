@@ -74,15 +74,8 @@
      below this proportion of the _highest_ of its neighbours, its
      boost factor is increased.
 
-   * `boost-overlap-duty-ratio` - when a column's overlap frequency is
-     below this proportion of the _highest_ of its neighbours, its
-     feed-forward synapses are boosted.
-
    * `boost-active-every` - number of time steps between recalculating
      column boosting factors.
-
-   * `boost-overlap-every` - number of time steps between boosting
-     column overlaps by increasing synapse permanences.
 
    * `inh-radius-every` - number of time steps between recalculating
      the effective inhibition radius.
@@ -178,7 +171,7 @@
    :ff-perm-connected 0.20
    :ff-perm-init-hi 0.25
    :ff-perm-init-lo 0.10
-   :ff-stimulus-threshold 1
+   :ff-stimulus-threshold 2
    :ff-seg-max-synapse-count 1000
    :ff-seg-new-synapse-count 15
    :ff-seg-learn-threshold 12
@@ -186,9 +179,7 @@
    :max-boost 3.0
    :duty-cycle-period 1000
    :boost-active-duty-ratio 0.001
-   :boost-overlap-duty-ratio 0.001
    :boost-active-every 1
-   :boost-overlap-every 1000
    :inh-radius-every 1000
    :lateral-synapses? true
    :use-feedback? false
@@ -527,48 +518,31 @@
            (map first))
       nil)))
 
-(defn segment-reinforce
-  [sg seg-path aci pinc pdec]
-  (p/reinforce-in-synapses sg seg-path (constantly false) aci pinc pdec))
-
-(defn segment-punish
-  [sg seg-path aci pdec]
-  (p/reinforce-in-synapses sg seg-path aci (constantly false) 0.0 pdec))
-
-(defn punish-cell
-  [distal-sg cell-id prior-aci th pcon pdec]
-  (let [cell-segs (p/cell-segments distal-sg cell-id)
-        asegs (cell-active-segments cell-segs prior-aci th pcon)]
-    (reduce (fn [sg si]
-              (segment-punish sg (conj cell-id si) prior-aci pdec))
-            distal-sg asegs)))
-
-(defn punish-distal
-  "Punish segments which predicted activation on cells which did
-   not become active. Ignore any which are still predictive."
-  [distal-sg prior-pc pc ac prior-aci spec]
-  (let [th (:seg-stimulus-threshold spec)
-        pcon (:distal-perm-connected spec)
-        pdec (:distal-perm-dec spec)
-        bad-cells (set/difference prior-pc
+(defn punish-failures
+  "To punish segments which predicted activation on cells which did
+  not become active. Ignores any which are still predictive.  Returns
+  a sequence of SegUpdate records."
+  [distal-sg prior-pc pc ac prior-aci pcon stimulus-th]
+  (let [bad-cells (set/difference prior-pc
                                   pc
                                   ac)]
-    (reduce (fn [sg cell-id]
-              (punish-cell sg cell-id prior-aci th pcon pdec))
-            distal-sg
-            bad-cells)))
+    (for [cell-id bad-cells
+          :let [cell-segs (p/cell-segments distal-sg cell-id)]
+          si (cell-active-segments cell-segs prior-aci stimulus-th pcon)
+          :let [seg-path (conj cell-id si)]]
+      (syn/seg-update seg-path false nil nil))))
 
 (defn segment-learning-map
-  "Takes the learning cells `lc` and maps each to a segment path to
-  learn on, together with lists of any synapse sources to add or
-  remove: `[seg-path grow-source-ids die-source-ids]`. The segment
-  index is chosen as the best matching one, but if none match
-  sufficiently then a new segment will be grown, perhaps replacing an
-  existing one. `aci` is the set of active source indices, used to
-  find a matching segment, while `lci` is the set of learnable source
-  indices, used to grow new synapses. If `poor-match?` returns true
-  for a cell id then unconnected synapses are used to find a matching
-  segment. Otherwise only connected synapses are used."
+  "Takes the learning cells `lc` and maps each to a SegUpdate record,
+  which includes the segment path to learn on, together with lists of
+  any synapse sources to add or remove. The segment index is chosen as
+  the best matching one, but if none match sufficiently then a new
+  segment will be grown, perhaps replacing an existing one. `aci` is
+  the set of active source indices, used to find a matching segment,
+  while `lci` is the set of learnable source indices, used to grow new
+  synapses. If `poor-match?` returns true for a cell id then
+  unconnected synapses are used to find a matching segment. Otherwise
+  only connected synapses are used."
   [lc poor-match? sg aci lci {:keys [pcon
                                      min-act
                                      new-syns
@@ -579,7 +553,7 @@
     (into {}
          (map (fn [cell-id]
                 (let [seg-path (conj cell-id 0)]
-                  [cell-id [seg-path nil nil]])))
+                  [cell-id (syn/seg-update seg-path true nil nil)])))
          lc)
     ;; multiple segments are allowed
     (let [lci-vec (vec lci)] ;; for faster sampling
@@ -606,7 +580,7 @@
                                 ;; growing new segment, remove any existing
                                 (keys die-syns))
                seg-path (conj cell-id seg-idx)]
-           (assoc! m cell-id [seg-path grow-source-ids die-source-ids])))
+           (assoc! m cell-id (syn/seg-update seg-path true grow-source-ids die-source-ids))))
        (transient {})
        lc)))))
 
@@ -665,21 +639,21 @@
 (defrecord LayerOfCells
     [spec topology input-topology inh-radius proximal-sg distal-sg
      state prior-state distal-state prior-distal-state
-     boosts active-duty-cycles overlap-duty-cycles]
+     boosts active-duty-cycles]
   p/PLayerOfCells
   (layer-activate
     [this ff-bits stable-ff-bits]
-    (let [;; proximal excitation in number of active synapses, keyed by [col seg-idx]
-          col-seg-overlaps (syn/excitations proximal-sg ff-bits)
+    (let [;; proximal excitation in number of active synapses, keyed by [col _ seg-idx]
+          col-seg-overlaps (p/excitations proximal-sg ff-bits
+                                          (:ff-stimulus-threshold spec))
           col-overlaps (column-best-excitations col-seg-overlaps)
-          prox-exc (columns/apply-overlap-boosting col-overlaps boosts
-                                                   (:ff-stimulus-threshold spec))
+          prox-exc (columns/apply-overlap-boosting col-overlaps boosts)
           ;; temporal pooling:
           ;; stable inputs (from predicted cells) add to ongoing "tp" activation
-          stable-col-seg-overlaps (syn/excitations proximal-sg stable-ff-bits)
+          stable-col-seg-overlaps (p/excitations proximal-sg stable-ff-bits
+                                                 (:ff-stimulus-threshold spec))
           stable-col-overlaps (column-best-excitations stable-col-seg-overlaps)
-          stable-prox-exc (columns/apply-overlap-boosting stable-col-overlaps boosts
-                                                          (:ff-stimulus-threshold spec))
+          stable-prox-exc (columns/apply-overlap-boosting stable-col-overlaps boosts)
           tp-exc (apply-loss-fn (:temporal-pooling-exc state)
                                  (linear-loss-fn (:temporal-pooling-fall spec)))
           ;; integrate excitation values to activate cells
@@ -748,20 +722,27 @@
                                                  :new-syns (:seg-new-synapse-count spec)
                                                  :max-syns (:seg-max-synapse-count spec)
                                                  :max-segs (:max-segments spec)})
+          distal-punishments (if (:distal-punish? spec)
+                               (punish-failures distal-sg
+                                                (:pred-cells prior-distal-state)
+                                                (:pred-cells distal-state)
+                                                (:active-cells state)
+                                                (:distal-bits prior-distal-state)
+                                                (:distal-perm-connected spec)
+                                                (:seg-stimulus-threshold spec))
+                               nil)
           dsg (cond->
                   (p/bulk-learn distal-sg (vals distal-learning) prior-lci
                                 (:distal-perm-inc spec) (:distal-perm-dec spec)
                                 (:distal-perm-init spec))
-                ;; allow this phase of learning as an option
                 (:distal-punish? spec)
-                (punish-distal (:pred-cells prior-distal-state)
-                               (:pred-cells distal-state)
-                               (:active-cells state)
-                               (:distal-bits prior-distal-state)
-                               spec))
+                (p/bulk-learn distal-punishments prior-aci
+                              (:distal-perm-inc spec) (:distal-perm-dec spec)
+                              (:distal-perm-init spec)))
           a-cols (:active-cols state)
           tp-cols (map first (:tp-cells state))
-          prox-learning (segment-learning-map (map vector a-cols) (constantly true)
+          prox-learning (segment-learning-map (map vector a-cols (repeat 0))
+                                              (constantly true)
                                               proximal-sg
                                               (:in-ff-bits state)
                                               (:in-ff-bits state)
@@ -781,12 +762,9 @@
                             :proximal-learning prox-learning)
               :distal-sg dsg
               :proximal-sg psg)
-       true (update-in [:overlap-duty-cycles] columns/update-duty-cycles
-                       (keys (:overlaps state)) (:duty-cycle-period spec))
        true (update-in [:active-duty-cycles] columns/update-duty-cycles
                        (:active-cols state) (:duty-cycle-period spec))
        (zero? (mod t (:boost-active-every spec))) (columns/boost-active)
-       (zero? (mod t (:boost-overlap-every spec))) (columns/boost-overlap)
        (zero? (mod t (:inh-radius-every spec))) (update-inhibition-radius))))
 
   (layer-depolarise
@@ -806,11 +784,10 @@
                                      [])
                                    distal-ff-bits
                                    (if (:use-feedback? spec) distal-fb-bits [])])
-          seg-exc (syn/excitations distal-sg aci)
+          seg-exc (p/excitations distal-sg aci (:seg-stimulus-threshold spec))
           ;; TODO - should reflect one seg or many? - more vs fewer synapses?
           distal-exc (cell-best-excitations seg-exc)
-          th (:seg-stimulus-threshold spec)
-          pc (set (keep (fn [[id v]] (when (>= v th) id)) distal-exc))]
+          pc (set (keys distal-exc))]
       (assoc this
         :prior-distal-state distal-state
         :distal-state (map->LayerDistalState
@@ -868,13 +845,8 @@
                     (reduce * (:distal-motor-dimensions spec))
                     (reduce * (:distal-topdown-dimensions spec)))
         col-prox-syns (columns/uniform-ff-synapses col-topo input-topo spec)
-        ;; the first segment in the column has synapses, others initially empty
-        ff-max-segs (:ff-max-segments spec)
-        prox-syns (vec (mapcat (fn [syns]
-                                 (list* syns (repeat (dec ff-max-segs) {})))
-                               col-prox-syns))
-        proximal-sg (syn/col-segs-synapse-graph prox-syns n-cols
-                                                ff-max-segs
+        proximal-sg (syn/col-segs-synapse-graph col-prox-syns n-cols
+                                                (:ff-max-segments spec)
                                                 (p/size input-topo)
                                                 (:ff-perm-connected spec)
                                                 false)
@@ -906,6 +878,5 @@
        :prior-distal-state distal-state
        :boosts (vec (repeat n-cols 1.0))
        :active-duty-cycles (vec (repeat n-cols 0.0))
-       :overlap-duty-cycles (vec (repeat n-cols 0.0))
        })
      (update-inhibition-radius))))

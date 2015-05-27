@@ -1,25 +1,21 @@
 # TODO
 
-* bulk-learn records
+* segment-learning-map perf:
+* check for only one existing segment
+* look up known active segment if not poor match
 
-* separate calculation vs update (building transaction vs commit) in punish-distal
+* update marginalia
 
 * revise default parameter values
 
 * most functions should take parameter value arguments, not whole spec
 
-* perf!! excitations, reinforce-in-synapses
-
 * serialisable encoders - handle general pre-transform?
 * encoders should not be part of a model?
 
-* serialisable synapse graphs - avoid closures tgt->i, i->tgt
-* * go back to maps not vectors: {[col ci] p}, {[col ci si] p}
-* * * also allows many more distal dendrite segments (avoid cols*depth*max-segs vector)
-* * keep track of existing segment ids per cell
+* keep track of existing segment ids per cell?
 
 * continuously grow new proximal synapses
-* get rid of overlap-duty-cycles
 
 * region-network - allow different build-region fns for each region
 
@@ -29,6 +25,7 @@
 
 
 * separate parameter for punishment permanence decrement
+* punish all active cells vs reinforce only learning cells??
 
 * motor/top-down distal inputs to distal synapses
   * lateral synapses as an option
