@@ -4,7 +4,8 @@
   "A network of regions, forming Hierarchical Temporal Memory."
   (htm-activate [this in-value])
   (htm-learn [this])
-  (htm-depolarise [this]))
+  (htm-depolarise [this])
+  (htm-export [this]))
 
 (defn htm-step
   [this in-value]
@@ -94,7 +95,8 @@
 
 (defprotocol PInputSource
   "Inputs need to extend this together with PFeedForward."
-  (input-step [this in-value]))
+  (input-step [this in-value])
+  (input-export [this]))
 
 (defprotocol PResettable
   (reset [this]))
