@@ -173,6 +173,26 @@
      :uuid (uuid/make-random)
      :step-counter 0})))
 
+(defrecord ExportedSensoriMotorInput
+    [value topo ff-topo bitsv stable-bitsv ff-motor-topo motor-bitsv]
+  p/PTopological
+  (topology [_]
+    topo)
+  p/PFeedForward
+  (ff-topology [_]
+    ff-topo)
+  (bits-value [_]
+    bitsv)
+  (stable-bits-value [_]
+    stable-bitsv)
+  (source-of-bit [_ i]
+    [i])
+  p/PFeedForwardMotor
+  (ff-motor-topology [_]
+    ff-motor-topo)
+  (motor-bits-value [_]
+    motor-bitsv))
+
 (defrecord SensoriMotorInput
     [encoder motor-encoder value]
   p/PTopological
@@ -208,7 +228,15 @@
       (sequence nil)))
   p/PInputSource
   (input-step [this in-value]
-    (assoc this :value in-value)))
+    (assoc this :value in-value))
+  (input-export [this]
+    (->ExportedSensoriMotorInput value
+                                 (p/topology this)
+                                 (p/ff-topology this)
+                                 (p/bits-value this)
+                                 (p/stable-bits-value this)
+                                 (p/ff-motor-topology this)
+                                 (p/motor-bits-value this))))
 
 (defn sensory-input
   "Creates an input source from an encoder."
@@ -358,6 +386,12 @@
                              (combined-bits-value fbs :standard)))))
                   (zipmap (keys regions)))]
       (assoc this :regions rm)))
+
+  (htm-export
+    [this]
+    (assoc this
+      :inputs (zipmap (keys inputs)
+                      (map p/input-export (vals inputs)))))
 
   p/PTemporal
   (timestep [_]
