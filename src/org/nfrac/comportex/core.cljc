@@ -173,8 +173,11 @@
      :uuid (uuid/make-random)
      :step-counter 0})))
 
+;; Include defaced `encoder` and `motor-encoder` as bools so consumers can still
+;; check via map lookup whether they previously existed.
 (defrecord ExportedSensoriMotorInput
-    [value topo ff-topo bitsv stable-bitsv ff-motor-topo motor-bitsv]
+    [encoder motor-encoder value topo ff-topo bitsv stable-bitsv ff-motor-topo
+     motor-bitsv]
   p/PTopological
   (topology [_]
     topo)
@@ -230,7 +233,9 @@
   (input-step [this in-value]
     (assoc this :value in-value))
   (input-export [this]
-    (->ExportedSensoriMotorInput value
+    (->ExportedSensoriMotorInput (when encoder true)
+                                 (when motor-encoder true)
+                                 value
                                  (p/topology this)
                                  (p/ff-topology this)
                                  (p/bits-value this)
