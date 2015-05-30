@@ -142,8 +142,11 @@ Chifung has no tail.
 
 (defn n-region-model
   ([n]
-     (n-region-model input-text n spec))
-  ([text n spec]
-     (let [inp (core/sensory-input (make-block-encoder text))]
-       (core/regions-in-series core/sensory-region inp n
-                               (list* spec (repeat (merge spec higher-level-spec-diff)))))))
+   (n-region-model n spec))
+  ([n spec]
+   (let [encoder random-encoder]
+     (n-region-model n spec encoder)))
+  ([n spec encoder]
+   (let [inp (core/sensory-input encoder)]
+     (core/regions-in-series core/sensory-region inp n
+                             (list* spec (repeat (merge spec higher-level-spec-diff)))))))

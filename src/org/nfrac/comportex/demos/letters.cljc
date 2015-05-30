@@ -57,8 +57,10 @@
 
 (defn n-region-model
   ([n]
-     (n-region-model n spec))
+   (n-region-model n spec))
   ([n spec]
-     (let [inp (core/sensory-input block-encoder)]
-       (core/regions-in-series core/sensory-region inp n
-                               (list* spec (repeat (merge spec higher-level-spec-diff)))))))
+   (n-region-model n spec block-encoder))
+  ([n spec encoder]
+   (let [inp (core/sensory-input encoder)]
+     (core/regions-in-series core/sensory-region inp n
+                             (list* spec (repeat (merge spec higher-level-spec-diff)))))))
