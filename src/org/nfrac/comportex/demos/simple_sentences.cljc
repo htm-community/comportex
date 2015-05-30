@@ -13,7 +13,6 @@
    :ff-perm-inc 0.05
    :ff-perm-dec 0.005
    :ff-perm-connected 0.20
-   :ff-stimulus-threshold 1
    :global-inhibition? true
    :activation-level 0.02
    :duty-cycle-period 100000
@@ -30,7 +29,7 @@
    :distal-perm-dec 0.01
    :distal-perm-init 0.16
    :distal-punish? false
-   :distal-vs-proximal-weight 0.5
+   :distal-vs-proximal-weight 1.0
    })
 
 (def higher-level-spec-diff
