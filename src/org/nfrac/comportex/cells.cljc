@@ -332,9 +332,9 @@
   being the greatest excitation of its constituent cells or segments."
   [cell-exc]
   (persistent!
-   (reduce-kv (fn [m k exc]
-                (let [id (first k)] ;; cell-id / seg-id to col
-                  (assoc! m id (max exc (get m id 0.0)))))
+   (reduce-kv (fn [m id exc]
+                (let [[col _] id] ;; cell-id / seg-id to col
+                  (assoc! m col (max exc (get m col 0.0)))))
               (transient {})
               cell-exc)))
 
@@ -353,7 +353,7 @@
                     [cell-id (+ exc tp)])]
     (if (zero? distal-weight)
       (into {} basic-exc)
-      (let [basic-exc (if (spontaneous-activation?)
+      (let [basic-exc (if spontaneous-activation?
                         (merge (zipmap (keys distal-exc) (repeat 0.0))
                                basic-exc)
                         basic-exc)]

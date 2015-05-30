@@ -1,9 +1,5 @@
 # TODO
 
-* segment-learning-map perf:
-* check for only one existing segment
-* look up known active segment if not poor match
-
 * update marginalia
 
 * revise default parameter values
