@@ -469,14 +469,14 @@
   a cell does have a segment that matches the input this way, its
   adjustment is positive. If a cell has segments but none match the
   input, its adjustment is negative and proportional to the number of
-  segments. The adjustment unit amount is chosen to be lower than for
-  a connected active segment: one less than
-  `:seg-learn-threshold`. Returns a map of cell ids to these
-  excitation adjustment values."
+  segments. The positive adjustment amount is chosen to be lower than
+  for a connected active segment: half the `:seg-learn-threshold`, and
+  in the negative case it is 1.0 times the number of segments. Returns
+  a map of cell ids to these excitation adjustment values."
   [a-cols distal-sg aci spec]
   (let [depth (:depth spec)
         min-act (:seg-learn-threshold spec)
-        adj-unit (dec min-act)]
+        adj-base-amount (quot min-act 2)]
     (->> (for [col a-cols
                ci (range depth)
                :let [cell-id [col ci]
@@ -486,9 +486,9 @@
                :when (pos? n-segs)]
            (if (first (best-matching-segment cell-segs aci min-act 0.0))
              ;; some segment matches the input even if synapses disconnected
-             [cell-id adj-unit]
+             [cell-id adj-base-amount]
              ;; there are segments but none match the input; apply penalty
-             [cell-id (* -1 adj-unit n-segs)]))
+             [cell-id (* -1 n-segs)]))
          (into {}))))
 
 ;;; ## Learning
@@ -590,19 +590,25 @@
            (let [cell-segs (p/cell-segments sg cell-id)
                  [match-si exc seg] (best-matching-segment cell-segs aci
                                                            min-act 0.0)
+                 new-segment? (not match-si)
                  [seg-idx die-syns] (if match-si
                                       [match-si nil]
                                       (new-segment-id cell-segs pcon max-segs
                                                       max-syns))
                  grow-n (- new-syns exc)
                  grow-source-ids (segment-new-synapse-source-ids seg lci-vec grow-n)
-                 die-source-ids (if match-si
+                 die-source-ids (if new-segment?
                                   (segment-excess-synapse-source-ids seg grow-n
                                                                      max-syns)
                                   ;; growing new segment, remove any existing
                                   (keys die-syns))
                  seg-path (conj cell-id seg-idx)]
-            (assoc! m cell-id (syn/seg-update seg-path :learn grow-source-ids die-source-ids)))))
+             ;; if not enough learnable sources to grow a new segment, skip it
+             (if (and new-segment?
+                      (< (count grow-source-ids) min-act))
+               m ;; skip
+               (assoc! m cell-id (syn/seg-update seg-path :learn grow-source-ids
+                                                 die-source-ids))))))
        (transient {})
        lc)))))
 
@@ -766,11 +772,14 @@
                               (:distal-perm-init spec)))
           a-cols (:active-cols state)
           tp-cols (map first (:tp-cells state))
+          higher-level? (> (:ff-max-segments spec) 1)
           prox-learning (segment-learning-map (map vector a-cols (repeat 0))
                                               (:matching-ff-seg-paths state)
                                               proximal-sg
                                               (:in-ff-bits state)
-                                              (:in-ff-bits state)
+                                              (if higher-level?
+                                                (:in-stable-ff-bits state)
+                                                (:in-ff-bits state))
                                               {:pcon (:ff-perm-connected spec)
                                                :min-act (:ff-seg-learn-threshold spec)
                                                :new-syns (:ff-seg-new-synapse-count spec)

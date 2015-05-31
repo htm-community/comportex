@@ -10,6 +10,7 @@
 * keep track of existing segment ids per cell?
 
 * continuously grow new proximal synapses
+* cull zeros on proximal
 
 * region-network - allow different build-region fns for each region
 
