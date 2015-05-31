@@ -2,8 +2,6 @@
 
 * update marginalia
 
-* revise default parameter values
-
 * most functions should take parameter value arguments, not whole spec
 
 * serialisable encoders - handle general pre-transform?

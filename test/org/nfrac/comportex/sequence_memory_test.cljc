@@ -34,27 +34,7 @@
                      (enc/category-encoder bit-width items)))
 
 (def spec
-  {:column-dimensions [400]
-   :input-dimensions [200]
-   :ff-potential-radius 0.5
-   :ff-perm-inc 0.04
-   :ff-perm-dec 0.01
-   :ff-perm-connected 0.1
-   :ff-stimulus-threshold 2
-   :duty-cycle-period 1000
-   :max-boost 2.0
-   ;; sequence memory:
-   :depth 5
-   :seg-new-synapse-count 10
-   :seg-stimulus-threshold 7
-   :seg-learn-threshold 5
-   :distal-perm-connected 0.20
-   :distal-perm-inc 0.04
-   :distal-perm-dec 0.01
-   :distal-perm-init 0.16
-   :global-inhibition? false
-   :activation-level 0.04
-   })
+  {})
 
 (defn model
   []

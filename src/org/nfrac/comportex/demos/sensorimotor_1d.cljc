@@ -10,16 +10,20 @@
 (def items [:a :b :c :d :e :f :g :h :i :j])
 (def saccades [-1 0 1 2])
 
+(def higher-level-spec-diff
+  {:column-dimensions [800]
+   :ff-max-segments 5
+   :ff-seg-new-synapse-count 12
+   :ff-seg-learn-threshold 6
+   })
+
 (def spec
-  {:column-dimensions [1000]
+  {:column-dimensions [800]
    :depth 5
    :ff-perm-inc 0.10
    :ff-perm-dec 0.01
-   :distal-punish? false})
-
-(def higher-level-spec-diff
-  {:column-dimensions [400]
-   :ff-max-segments 5})
+   :distal-punish? false
+   :layer-3 higher-level-spec-diff})
 
 (def fields
   (->>

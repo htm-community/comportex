@@ -36,7 +36,7 @@
 (def action-spec
   {:column-dimensions [240]
    :activation-level 0.05
-   :ff-potential-radius 1
+   :ff-potential-radius 1.0
    :ff-init-frac 0.25
    :ff-perm-inc 0.05
    :ff-perm-dec 0.05

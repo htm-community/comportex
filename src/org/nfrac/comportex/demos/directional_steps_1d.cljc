@@ -13,24 +13,11 @@
 (def spec
   {:column-dimensions [500]
    :ff-potential-radius 0.2
-   :ff-perm-inc 0.05
-   :ff-perm-dec 0.01
-   :ff-perm-connected 0.20
    :ff-stimulus-threshold 3
    :global-inhibition? false
    :activation-level 0.04
    :boost-active-every 10000
-   ;; sequence memory:
    :depth 4
-   :max-segments 5
-   :seg-max-synapse-count 18
-   :seg-new-synapse-count 12
-   :seg-stimulus-threshold 9
-   :seg-learn-threshold 7
-   :distal-perm-connected 0.20
-   :distal-perm-inc 0.05
-   :distal-perm-dec 0.01
-   :distal-perm-init 0.16
    })
 
 (def higher-level-spec-diff

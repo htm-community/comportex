@@ -21,7 +21,6 @@
   (repeatedly n-in-items #(util/rand-int 0 numb-max)))
 
 (def spec {:column-dimensions [1000]
-           :input-dimensions [bit-width]
            :ff-potential-radius 0.5
            :global-inhibition? true
            :duty-cycle-period 600

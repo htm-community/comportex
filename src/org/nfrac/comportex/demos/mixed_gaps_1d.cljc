@@ -14,26 +14,9 @@
   {:column-dimensions [1000]
    :ff-init-frac 0.2
    :ff-potential-radius 1.0
-   :ff-perm-inc 0.05
+   :ff-perm-inc 0.10
    :ff-perm-dec 0.01
-   :ff-perm-connected 0.20
-   :ff-stimulus-threshold 1
-   :global-inhibition? false
-   :activation-level 0.02
    :duty-cycle-period 100000
-   :max-boost 2.0
-   ;; sequence memory:
-   :depth 5
-   :max-segments 5
-   :seg-max-synapse-count 18
-   :seg-new-synapse-count 12
-   :seg-stimulus-threshold 9
-   :seg-learn-threshold 7
-   :distal-perm-connected 0.20
-   :distal-perm-inc 0.05
-   :distal-perm-dec 0.01
-   :distal-perm-init 0.16
-   :inhibition-base-distance 0
    })
 
 (def higher-level-spec-diff

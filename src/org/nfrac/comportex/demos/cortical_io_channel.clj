@@ -17,22 +17,7 @@
    :ff-stimulus-threshold 3
    :global-inhibition? false
    :activation-level 0.015
-   :duty-cycle-period 100000
-   :max-boost 2.0
-   ;; sequence memory:
-   :depth 5
-   :max-segments 5
-   :seg-max-synapse-count 18
-   :seg-new-synapse-count 12
-   :seg-stimulus-threshold 9
-   :seg-learn-threshold 6
-   :distal-perm-connected 0.20
-   :distal-perm-inc 0.05
-   :distal-perm-dec 0.01
-   :distal-perm-init 0.16
-   :distal-punish? true
-   :distal-vs-proximal-weight 0
-   :inhibition-base-distance 1
+   :distal-vs-proximal-weight 1.0
    })
 
 (def higher-level-spec-diff

@@ -163,18 +163,18 @@
      further input.
 "
   {:input-dimensions [:define-me!]
-   :column-dimensions [2048]
-   :ff-potential-radius 0.3
-   :ff-init-frac 0.3
+   :column-dimensions [1000]
+   :ff-potential-radius 1.0
+   :ff-init-frac 0.25
    :ff-perm-inc 0.05
-   :ff-perm-dec 0.005
+   :ff-perm-dec 0.01
    :ff-perm-connected 0.20
    :ff-perm-init-hi 0.25
    :ff-perm-init-lo 0.10
    :ff-stimulus-threshold 2
-   :ff-seg-max-synapse-count 1000
-   :ff-seg-new-synapse-count 15
-   :ff-seg-learn-threshold 12
+   :ff-seg-max-synapse-count 300
+   :ff-seg-new-synapse-count 12
+   :ff-seg-learn-threshold 7
    :ff-max-segments 1
    :max-boost 3.0
    :duty-cycle-period 1000
@@ -185,26 +185,26 @@
    :use-feedback? false
    :distal-motor-dimensions [0]
    :distal-topdown-dimensions [0]
-   :depth 16
+   :depth 5
    :max-segments 5
    :seg-max-synapse-count 22
-   :seg-new-synapse-count 15
-   :seg-stimulus-threshold 12
-   :seg-learn-threshold 8
+   :seg-new-synapse-count 12
+   :seg-stimulus-threshold 9
+   :seg-learn-threshold 7
    :distal-perm-inc 0.05
    :distal-perm-dec 0.01
    :distal-perm-connected 0.20
    :distal-perm-init 0.16
    :distal-punish? true
    :activation-level 0.02
-   :global-inhibition? false
+   :global-inhibition? true
    :inhibition-base-distance 1
-   :distal-vs-proximal-weight 0
+   :distal-vs-proximal-weight 0.0
    :spontaneous-activation? false
-   :dominance-margin 10
-   :temporal-pooling-max-exc 50
+   :dominance-margin 10.0
+   :temporal-pooling-max-exc 50.0
    :temporal-pooling-amp 5.0
-   :temporal-pooling-fall 10
+   :temporal-pooling-fall 10.0
    })
 
 ;;; ## Synapse tracing
