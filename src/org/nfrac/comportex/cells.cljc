@@ -702,10 +702,11 @@
            stable-ac :stable-active-cells}
           (select-active-cells a-cols within-col-cell-exc (:pred-cells distal-state) spec)
           ;; update continuing TP activation
-          lc-stable-exc (for [[col ci] lc
-                              :let [exc (stable-prox-exc col)]
+          lc-stable-exc (for [cell-id lc
+                              :let [[col ci] cell-id
+                                    exc (stable-prox-exc col)]
                               :when exc]
-                          [col exc])
+                          [cell-id exc])
           next-tp-exc (-> (apply-excitation tp-exc
                                             lc-stable-exc
                                             (:temporal-pooling-max-exc spec)
