@@ -34,6 +34,15 @@
            (sort-by (juxt :votes-frac :bit-coverage :bit-precision))
            reverse))))
 
+(defn unaligned-bit-votes
+  [widths aligned]
+  (let [[is vs] (->> aligned
+                     (into (sorted-map))
+                     ((juxt keys vals)))
+        partitioned-is (util/unalign-indices widths is)
+        partitioned-vs (util/splits-at (map count partitioned-is) vs)]
+    (map zipmap partitioned-is partitioned-vs)))
+
 (defn pre-transform
   "Returns an encoder wrapping another encoder `e`, where the function
    `f` is applied to input values prior to encoding by `e`."
@@ -87,7 +96,12 @@
            [_ xs]
            (->> xs
                 (map (partial p/encode e))
-                (util/align-indices (repeat (p/size-of e))))))))
+                (util/align-indices (repeat (p/size-of e)))))
+         (decode
+           [_ bit-votes n-values]
+           (map #(p/decode e % n-values)
+                (unaligned-bit-votes (repeat n (p/size-of e))
+                                     bit-votes))))))
   ([n e & more]
      (let [es (list* e more)
            ws (map p/size-of es)
@@ -102,7 +116,11 @@
            [_ xs]
            (->> xs
                 (map p/encode es)
-                (util/align-indices ws)))))))
+                (util/align-indices ws)))
+         (decode
+           [_ bit-votes n-values]
+           (map #(p/decode % %2 n-values)
+                es (unaligned-bit-votes ws bit-votes)))))))
 
 (defn linear-encoder
   "Returns a simple encoder for a single number. It encodes a

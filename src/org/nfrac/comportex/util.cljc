@@ -226,6 +226,26 @@
           :else
           (recur (next ms) am curr-min)))))))
 
+(defn splits-at
+  "Returns a collection of
+  `[(take w0 coll) (take w1 (drop w0 coll)) ...`
+  and ending with a sequence containing the remainder."
+  [ws coll]
+  (reduce (fn [subcolls w]
+            (concat (drop-last subcolls)
+                    (split-at w (last subcolls))))
+          [coll] ws))
+
+(defn splits-with
+  "Returns a collection of
+  `[(take-while pred0 coll) (take-while pred1 (drop-while pred0 coll)) ...`
+  and ending with a sequence containing the remainder."
+  [preds coll]
+  (reduce (fn [subcolls pred]
+            (concat (drop-last subcolls)
+                    (split-with pred (last subcolls))))
+          [coll] preds))
+
 (defn align-indices
   "Using the provided widths and a coll of colls of indices, lazily adjust
   each index so that each coll of indices starts where the previous coll ended.
@@ -238,6 +258,21 @@
            offs (reductions + widths)]
        (concat leftmost
                (mapcat #(map (partial + %) %2) offs others)))))
+
+(defn unalign-indices
+  "Partition a sorted seq of indices into `(count widths)` seqs of unshifted
+  indices. Determine boundaries via `widths`. `aligned-is` must be sorted."
+  [widths aligned-is]
+  (let [offs (->> widths (reductions + 0) (drop 1))
+        [leftmost & others] (->> aligned-is
+                                 (splits-with (map (partial partial >) offs)))
+        shifted (apply vector leftmost
+                       (map (fn [section offset]
+                              (map #(- % offset) section))
+                            others offs))]
+    (assert (empty? (last shifted))
+            "No indices should be beyond the final offset.")
+    (drop-last shifted)))
 
 (def empty-queue
   #?(:cljs cljs.core.PersistentQueue.EMPTY
