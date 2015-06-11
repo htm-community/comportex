@@ -673,7 +673,7 @@
 
 (defrecord LayerOfCells
     [spec topology input-topology inh-radius proximal-sg distal-sg
-     state prior-state distal-state prior-distal-state
+     state distal-state prior-distal-state
      boosts active-duty-cycles]
   p/PLayerOfCells
   (layer-activate
@@ -729,7 +729,6 @@
           depth (:depth spec)]
       (assoc this
              :timestep (inc (:timestep this 0))
-             :prior-state state
              :state (map->LayerActiveState
                      {:in-ff-bits ff-bits
                       :in-stable-ff-bits stable-ff-bits
@@ -919,7 +918,6 @@
        :proximal-sg proximal-sg
        :distal-sg distal-sg
        :state state
-       :prior-state state
        :distal-state distal-state
        :prior-distal-state distal-state
        :boosts (vec (repeat n-cols 1.0))
