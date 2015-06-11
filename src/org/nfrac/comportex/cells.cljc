@@ -292,29 +292,34 @@
 
 (defn best-segment-excitations-and-paths
   "Finds the most excited dendrite segment for each cell. Returns a
-  tuple of 2 maps keyed by cell id, the first contains the segment
-  excitation values and the second contains the segment paths only for
-  cells with excitation meeting min-threshold. In other words the
-  paths identify the dominant segments on well-matching cells."
+  tuple of 3 maps keyed by cell id, the first contains the segment
+  excitation values, the second contains the segment paths, and the
+  third the segment paths only for cells with excitation meeting
+  min-threshold. In other words the latter paths identify the dominant
+  segments on well-matching cells."
   [seg-exc min-threshold]
   (loop [seg-exc (seq seg-exc)
          excs (transient {})
-         paths (transient {})]
+         paths (transient {})
+         good-paths (transient {})]
     (if-let [[k exc] (first seg-exc)]
       (let [id (pop k) ;; seg-id to cell-id: [col ci _]
             prev-exc (get excs id 0.0)]
         (if (> exc prev-exc)
           (recur (next seg-exc)
                  (assoc! excs id exc)
+                 (assoc! paths id k)
                  (if (>= exc min-threshold)
-                   (assoc! paths id k)
-                   paths))
+                   (assoc! good-paths id k)
+                   good-paths))
           (recur (next seg-exc)
                  excs
-                 paths)))
+                 paths
+                 good-paths)))
       ;; finished
       [(persistent! excs)
-       (persistent! paths)])))
+       (persistent! paths)
+       (persistent! good-paths)])))
 
 (defn best-segment-excitations
   "Computes excitatation as a map from cell id to the greatest
@@ -658,11 +663,13 @@
 (defrecord LayerActiveState
     [in-ff-bits in-stable-ff-bits
      out-ff-bits out-stable-ff-bits
-     col-overlaps matching-ff-seg-paths temporal-pooling-exc
+     col-overlaps matching-ff-seg-paths well-matching-ff-seg-paths
+     temporal-pooling-exc
      active-cols burst-cols active-cells learn-cells tp-cells])
 
 (defrecord LayerDistalState
-    [distal-bits distal-lc-bits distal-exc matching-seg-paths pred-cells])
+    [distal-bits distal-lc-bits distal-exc pred-cells
+     matching-seg-paths well-matching-seg-paths])
 
 (defrecord LayerOfCells
     [spec topology input-topology inh-radius proximal-sg distal-sg
@@ -674,15 +681,15 @@
     (let [;; proximal excitation in number of active synapses, keyed by [col 0 seg-idx]
           col-seg-overlaps (p/excitations proximal-sg ff-bits
                                           (:ff-stimulus-threshold spec))
-          [col-exc ff-seg-paths] (best-segment-excitations-and-paths
-                                  col-seg-overlaps (:ff-seg-new-synapse-count spec))
+          [col-exc ff-seg-paths ff-good-paths]
+          (best-segment-excitations-and-paths col-seg-overlaps
+                                              (:ff-seg-new-synapse-count spec))
           prox-exc (columns/apply-overlap-boosting col-exc boosts) ;; now keyed by col
           ;; temporal pooling:
           ;; stable inputs (from predicted cells) add to ongoing "tp" activation
           stable-col-seg-overlaps (p/excitations proximal-sg stable-ff-bits
                                                  (:ff-stimulus-threshold spec))
           stable-col-exc (best-segment-excitations stable-col-seg-overlaps)
-          stable-prox-exc (columns/apply-overlap-boosting stable-col-exc boosts) ;; keyed by col
           tp-exc (apply-loss-fn (:temporal-pooling-exc state)
                                  (linear-loss-fn (:temporal-pooling-fall spec)))
           ;; integrate excitation values to activate cells
@@ -710,7 +717,7 @@
           ;; update continuing TP activation
           lc-stable-exc (for [cell-id lc
                               :let [[col ci] cell-id
-                                    exc (stable-prox-exc col)]
+                                    exc (stable-col-exc [col 0])]
                               :when exc]
                           [cell-id exc])
           next-tp-exc (-> (apply-excitation tp-exc
@@ -730,13 +737,13 @@
                       :out-stable-ff-bits (set (cells->bits depth stable-ac))
                       :col-overlaps col-exc
                       :matching-ff-seg-paths ff-seg-paths
+                      :well-matching-ff-seg-paths ff-good-paths
                       :temporal-pooling-exc next-tp-exc
                       :active-cells ac
                       :active-cols a-cols
                       :burst-cols b-cols
                       :learn-cells lc
                       :tp-cells (keys next-tp-exc)
-                      :diagnostics {:adj-exc adj-exc}
                       }))))
 
   (layer-learn
@@ -746,7 +753,7 @@
           prior-lci (:distal-lc-bits distal-state)
           burst-cols (:burst-cols state)
           lc (:learn-cells state)
-          distal-learning (segment-learning-map lc (:matching-seg-paths distal-state)
+          distal-learning (segment-learning-map lc (:well-matching-seg-paths distal-state)
                                                 distal-sg prior-aci prior-lci
                                                 {:pcon (:distal-perm-connected spec)
                                                  :min-act (:seg-learn-threshold spec)
@@ -774,7 +781,7 @@
           tp-cols (map first (:tp-cells state))
           higher-level? (> (:ff-max-segments spec) 1)
           prox-learning (segment-learning-map (map vector a-cols (repeat 0))
-                                              (:matching-ff-seg-paths state)
+                                              (:well-matching-ff-seg-paths state)
                                               proximal-sg
                                               (:in-ff-bits state)
                                               (if higher-level?
@@ -820,8 +827,8 @@
                                    (if (:use-feedback? spec) distal-fb-bits [])])
           seg-exc (p/excitations distal-sg aci (:seg-stimulus-threshold spec))
           ;; TODO - should reflect one seg or many? - more vs fewer synapses?
-          [distal-exc seg-paths] (best-segment-excitations-and-paths
-                                  seg-exc (:seg-new-synapse-count spec))
+          [distal-exc seg-paths good-paths] (best-segment-excitations-and-paths
+                                             seg-exc (:seg-new-synapse-count spec))
           pc (set (keys distal-exc))]
       (assoc this
         :prior-distal-state distal-state
@@ -829,6 +836,7 @@
                        {:distal-bits (set aci)
                         :distal-lc-bits (set lci)
                         :matching-seg-paths seg-paths
+                        :well-matching-seg-paths good-paths
                         :distal-exc distal-exc
                         :pred-cells pc}))))
 
@@ -896,12 +904,12 @@
                 :active-cells #{}
                 :active-cols #{}
                 :temporal-pooling-exc {}
-                :matching-ff-seg-paths {}})
+                :well-matching-ff-seg-paths {}})
         distal-state (map->LayerDistalState
                       {:distal-bits #{}
                        :pred-cells #{}
                        :distal-exc {}
-                       :matching-seg-paths {}})]
+                       :well-matching-seg-paths {}})]
     (->
      (map->LayerOfCells
       {:spec spec

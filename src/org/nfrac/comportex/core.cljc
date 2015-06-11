@@ -570,3 +570,111 @@
         inp (first (input-seq htm))
         pr-votes (predicted-bit-votes rgn)]
     (p/decode (:encoder inp) pr-votes n-predictions)))
+
+(defn- zap-fewer
+  [n xs]
+  (if (< (count xs) n) (empty xs) xs))
+
+(defn cell-excitation-breakdowns
+  "Calculates the various sources contributing to total excitation
+  level of each of the `cell-ids` in the given layer. Returns a map
+  keyed by these cell ids. Each cell value is a map with keys
+
+  * :total - number.
+  * :proximal-unstable - a map keyed by source region/input id.
+  * :proximal-stable - a map keyed by source region/input id.
+  * :distal - a map keyed by source region/input id.
+  * :boost - number.
+  * :temporal-pooling - number.
+  "
+  [htm prior-htm rgn-id lyr-id cell-ids]
+  (let [rgn (get-in htm [:regions rgn-id])
+        lyr (get-in htm [:regions rgn-id lyr-id])
+        prior-lyr (get-in prior-htm [:regions rgn-id lyr-id])
+        spec (:spec lyr)
+        ff-stim-thresh (:ff-stimulus-threshold spec)
+        d-stim-thresh (:seg-stimulus-threshold spec)
+        distal-weight (:distal-vs-proximal-weight spec)
+        tp-fall (:temporal-pooling-fall spec)
+        state (:state lyr)
+        prior-state (:state prior-lyr)
+        distal-state (:distal-state prior-lyr)
+        ;; inputs to layer
+        ff-bits (:in-ff-bits state)
+        ff-s-bits (:in-stable-ff-bits state)
+        ff-b-bits (set/difference ff-bits ff-s-bits)
+        distal-bits (:distal-bits distal-state)
+        is-input-layer? (= lyr-id (first (layers rgn)))
+        ff-bits-srcs (if is-input-layer?
+                       (into {}
+                             (map (fn [i]
+                                    (let [[k _] (source-of-incoming-bit
+                                                 htm rgn-id i)]
+                                      [i k])))
+                             ff-bits)
+                       (constantly rgn-id))
+        distal-bits-srcs (into {}
+                               (map (fn [i]
+                                      (let [[k _] (source-of-distal-bit
+                                                   htm rgn-id lyr-id i)]
+                                        [i k])))
+                               distal-bits)
+        ;; synapse graphs - pre-learning state so from prior time step
+        psg (:proximal-sg prior-lyr)
+        dsg (:distal-sg prior-lyr)
+        ;; internal sources
+        boosts (:boosts prior-lyr)
+        p-tp-exc (:temporal-pooling-exc prior-state)]
+    (into {}
+          (map (fn [cell-id]
+                 (let [[col ci] cell-id
+                       ;; breakdown of proximal excitation by source
+                       ff-seg-path (get (:matching-ff-seg-paths state) [col 0])
+                       ff-conn-sources (p/sources-connected-to psg ff-seg-path)
+                       active-ff-b (->> (filter ff-b-bits ff-conn-sources)
+                                        (zap-fewer ff-stim-thresh))
+                       active-ff-s (->> (filter ff-s-bits ff-conn-sources)
+                                        (zap-fewer ff-stim-thresh))
+                       ff-b-by-src (frequencies (map ff-bits-srcs active-ff-b))
+                       ff-s-by-src (frequencies (map ff-bits-srcs active-ff-s))
+                       ;; breakdown of distal excitation by source
+                       d-seg-path (get (:matching-seg-paths distal-state) cell-id)
+                       d-conn-sources (p/sources-connected-to dsg d-seg-path)
+                       active-d (->> (filter distal-bits d-conn-sources)
+                                     (zap-fewer d-stim-thresh))
+                       d-by-src (->> (frequencies (map distal-bits-srcs active-d))
+                                     (util/remap #(* % distal-weight)))
+                       ;; excitation levels
+                       b-overlap (count active-ff-b)
+                       s-overlap (count active-ff-s)
+                       distal-exc (->> (count active-d)
+                                       (* distal-weight))
+                       ;; effect of boosting
+                       overlap (+ b-overlap s-overlap)
+                       boost-amt (* overlap (- (get boosts col) 1.0))
+                       ;; temporal pooling excitation
+                       prior-tp (max 0 (- (get p-tp-exc cell-id 0.0) tp-fall))
+                       ;; total excitation
+                       total (+ b-overlap s-overlap boost-amt prior-tp distal-exc)]
+                   [cell-id {:total total
+                             :proximal-unstable ff-b-by-src
+                             :proximal-stable ff-s-by-src
+                             :boost boost-amt
+                             :temporal-pooling prior-tp
+                             :distal d-by-src}])))
+          cell-ids)))
+
+(defn scale-excitation-breakdown
+  "Takes an excitation breakdown such as returned under one key from
+  cell-excitation-breakdowns, and scales each component so the total
+  is 1.0. To aggregate breakdowns, use (util/deep-merge-with + ...)."
+  ([breakdown]
+   (scale-excitation-breakdown 1.0 breakdown))
+  ([new-total breakdown]
+   (let [scale (/ new-total (:total breakdown))]
+     (into {}
+           (map (fn [[k v]]
+                  [k (if (map? v)
+                       (util/remap #(* % scale) v)
+                       (* v scale))]))
+           breakdown))))

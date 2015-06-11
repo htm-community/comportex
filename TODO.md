@@ -1,6 +1,9 @@
 # TODO
 
-* update marginalia
+* update marginalia / move to codox
+
+* store prior-state vs passing htm + prior-htm?
+  * prior-state only really used for punish-distal?
 
 * most functions should take parameter value arguments, not whole spec
 

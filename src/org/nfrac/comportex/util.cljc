@@ -183,6 +183,16 @@
     (persistent!
      (update-each! (transient m) ks f))))
 
+(defn deep-merge-with
+  "Like merge-with, but merges maps recursively, applying the given fn
+  only when there's a non-map at a particular level."
+  [f & maps]
+  (apply
+   (fn m [& maps]
+     (if (every? map? maps)
+       (apply merge-with m maps)
+       (apply f maps)))
+   maps))
 
 (defn remap
   "Transforms a map `m` applying function `f` to each value."

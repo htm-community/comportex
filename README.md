@@ -15,8 +15,6 @@ Comportex is not yet stable. Our aims are to:
 
 ## Documentation
 
-See the [annotated source code](http://nupic-community.github.io/comportex/).
-
 The main API is in the namespace `org.nfrac.comportex.core` and in
 `org.nfrac.comportex.protocols`.
 
