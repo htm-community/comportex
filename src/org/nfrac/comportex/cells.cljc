@@ -109,10 +109,13 @@
      bursting column.
 
    * `distal-perm-inc` - amount by which to increase synapse
-     permanence when reinforcing dendrite segments.
+     permanence when reinforcing distal dendrite segments.
 
    * `distal-perm-dec` - amount by which to decrease synapse permanence
-     when reinforcing dendrite segments.
+     when reinforcing distal dendrite segments.
+
+   * `distal-perm-punish` - amount by which to decrease synapse permanence
+     when punishing distal dendrite segments in case of failed prediction.
 
    * `distal-perm-connected` - permanence value at which a synapse is
      functionally connected. Permanence values are defined to be
@@ -121,8 +124,8 @@
    * `distal-perm-init` - permanence value for new synapses on
      dendrite segments.
 
-   * `distal-punish?` - whether to negatively reinforce synapses on
-     segments incorrectly predicting activation.
+   * `distal-punish?` - whether to reduce synapse permanence on
+     distal segments incorrectly predicting activation.
 
    * `activation-level` - fraction of columns that can be
      active (either locally or globally); inhibition kicks in to
@@ -193,6 +196,7 @@
    :seg-learn-threshold 7
    :distal-perm-inc 0.05
    :distal-perm-dec 0.01
+   :distal-perm-punish 0.002
    :distal-perm-connected 0.20
    :distal-perm-init 0.16
    :distal-punish? true
@@ -774,7 +778,7 @@
                                 (:distal-perm-init spec))
                 (:distal-punish? spec)
                 (p/bulk-learn distal-punishments prior-aci
-                              (:distal-perm-inc spec) (:distal-perm-dec spec)
+                              (:distal-perm-inc spec) (:distal-perm-punish spec)
                               (:distal-perm-init spec)))
           a-cols (:active-cols state)
           tp-cols (map first (:tp-cells state))

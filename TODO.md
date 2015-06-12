@@ -1,9 +1,9 @@
 # TODO
 
-* update marginalia / move to codox
+* separate parameters for permanence inc / dec from stable inputs (temporal pooling)
 
-* store prior-state vs passing htm + prior-htm?
-  * prior-state only really used for punish-distal?
+
+* update marginalia / move to codox
 
 * most functions should take parameter value arguments, not whole spec
 
@@ -22,9 +22,6 @@
 * :distal-state :distal-bits / :pred-cells
 
 
-* separate parameter for punishment permanence decrement
-* punish all active cells vs reinforce only learning cells??
-
 * motor/top-down distal inputs to distal synapses
   * lateral synapses as an option
 
@@ -37,9 +34,6 @@
     * use an implicit potential pool, same as lateral activation
       * extending / shrinking the segment
     * avoids the need to specify potential-radius
-
-* higher-levels regions only grow ff-synapses to learn-cells from below?
-  (otherwise typically grow to all cells of a bursting column)
 
 
 * only update synapses when cells turn on/off? (not when continuing?)
