@@ -664,17 +664,25 @@
                              :distal d-by-src}])))
           cell-ids)))
 
-(defn scale-excitation-breakdown
+(defn update-excitation-breakdown
   "Takes an excitation breakdown such as returned under one key from
-  cell-excitation-breakdowns, and scales each component so the total
-  is 1.0. To aggregate breakdowns, use (util/deep-merge-with + ...)."
+  cell-excitation-breakdowns, and updates each numeric component with
+  the function f. Key :total will be updated accordingly. The default
+  is to scale the values to a total of 1.0. To aggregate breakdowns,
+  use `(util/deep-merge-with +)`."
   ([breakdown]
-   (scale-excitation-breakdown 1.0 breakdown))
-  ([new-total breakdown]
-   (let [scale (/ new-total (:total breakdown))]
-     (into {}
-           (map (fn [[k v]]
-                  [k (if (map? v)
-                       (util/remap #(* % scale) v)
-                       (* v scale))]))
-           breakdown))))
+   (let [total (:total breakdown)]
+     (update-excitation-breakdown breakdown #(/ % total))))
+  ([breakdown f]
+   (persistent!
+    (reduce-kv (fn [m k v]
+                 (let [new-v (if (map? v)
+                               (util/remap f v)
+                               (f v))
+                       v-total (if (map? v)
+                                 (reduce + (vals new-v))
+                                 new-v)]
+                   (assoc! m k new-v
+                           :total (+ (get m :total) v-total))))
+               (transient {:total 0.0})
+               (dissoc breakdown :total)))))
