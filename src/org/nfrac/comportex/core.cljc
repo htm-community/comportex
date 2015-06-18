@@ -7,7 +7,7 @@
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.cells :as cells]
             [org.nfrac.comportex.util :as util]
-            [org.nfrac.comportex.algo-graph :as graph]
+            [org.nfrac.comportex.util.algo-graph :as graph]
             [cljs-uuid.core :as uuid]
             [clojure.set :as set]))
 
@@ -20,12 +20,11 @@
 (declare sensory-region)
 
 (defrecord SensoryRegion
-    [layer-3 uuid step-counter]
+    [layer-3 uuid]
   p/PRegion
   (region-activate
     [this ff-bits stable-ff-bits]
     (assoc this
-      :step-counter (inc step-counter)
       :layer-3 (p/layer-activate layer-3 ff-bits stable-ff-bits)))
 
   (region-learn
@@ -60,7 +59,7 @@
     (sequence nil))
   p/PTemporal
   (timestep [_]
-    step-counter)
+    (p/timestep layer-3))
   p/PParameterised
   (params [_]
     (p/params layer-3))
@@ -80,13 +79,12 @@
       (println "Warning: unknown keys in spec:" unk)))
   (map->SensoryRegion
    {:layer-3 (cells/layer-of-cells spec)
-    :uuid (uuid/make-random)
-    :step-counter 0}))
+    :uuid (uuid/make-random)}))
 
 (declare sensorimotor-region)
 
 (defrecord SensoriMotorRegion
-    [layer-4 layer-3 uuid step-counter]
+    [layer-4 layer-3 uuid]
   p/PRegion
   (region-activate
     [this ff-bits stable-ff-bits]
@@ -95,7 +93,6 @@
                                (p/bits-value l4)
                                (p/stable-bits-value l4))]
       (assoc this
-       :step-counter (inc step-counter)
        :layer-4 l4
        :layer-3 l3)))
 
@@ -137,7 +134,7 @@
     (sequence nil))
   p/PTemporal
   (timestep [_]
-    step-counter)
+    (p/timestep layer-4))
   p/PParameterised
   (params [_]
     (p/params layer-4))
@@ -170,8 +167,7 @@
     (map->SensoriMotorRegion
     {:layer-3 l3
      :layer-4 l4
-     :uuid (uuid/make-random)
-     :step-counter 0})))
+     :uuid (uuid/make-random)})))
 
 ;; Include defaced `encoder` and `motor-encoder` as bools so consumers can still
 ;; check via map lookup whether they previously existed.

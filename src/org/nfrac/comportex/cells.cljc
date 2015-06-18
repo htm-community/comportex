@@ -669,16 +669,15 @@
      out-ff-bits out-stable-ff-bits
      col-overlaps matching-ff-seg-paths well-matching-ff-seg-paths
      temporal-pooling-exc
-     active-cols burst-cols active-cells learn-cells tp-cells])
+     active-cols burst-cols active-cells learn-cells tp-cells timestep])
 
 (defrecord LayerDistalState
     [distal-bits distal-lc-bits distal-exc pred-cells
      matching-seg-paths well-matching-seg-paths])
 
 (defrecord LayerOfCells
-    [spec topology input-topology inh-radius proximal-sg distal-sg
-     state distal-state prior-distal-state
-     boosts active-duty-cycles]
+    [spec topology input-topology inh-radius boosts active-duty-cycles
+     proximal-sg distal-sg state distal-state prior-distal-state]
   p/PLayerOfCells
   (layer-activate
     [this ff-bits stable-ff-bits]
@@ -732,7 +731,6 @@
                           (select-keys lc))
           depth (:depth spec)]
       (assoc this
-             :timestep (inc (:timestep this 0))
              :state (map->LayerActiveState
                      {:in-ff-bits ff-bits
                       :in-stable-ff-bits stable-ff-bits
@@ -747,12 +745,12 @@
                       :burst-cols b-cols
                       :learn-cells lc
                       :tp-cells (keys next-tp-exc)
+                      :timestep (inc (:timestep state))
                       }))))
 
   (layer-learn
     [this]
-    (let [t (:timestep this)
-          prior-aci (:distal-bits distal-state)
+    (let [prior-aci (:distal-bits distal-state)
           prior-lci (:distal-lc-bits distal-state)
           burst-cols (:burst-cols state)
           lc (:learn-cells state)
@@ -798,7 +796,8 @@
           psg (p/bulk-learn proximal-sg (vals prox-learning)
                             (:in-ff-bits state) ; TODO: (:in-stable-ff-bits state)
                             (:ff-perm-inc spec) (:ff-perm-dec spec)
-                            (:ff-perm-init-hi spec))]
+                            (:ff-perm-init-hi spec))
+          timestep (:timestep state)]
       (cond->
        (assoc this
               :state (assoc state
@@ -808,8 +807,8 @@
               :proximal-sg psg)
        true (update-in [:active-duty-cycles] columns/update-duty-cycles
                        (:active-cols state) (:duty-cycle-period spec))
-       (zero? (mod t (:boost-active-every spec))) (columns/boost-active)
-       (zero? (mod t (:inh-radius-every spec))) (update-inhibition-radius))))
+       (zero? (mod timestep (:boost-active-every spec))) (columns/boost-active)
+       (zero? (mod timestep (:inh-radius-every spec))) (update-inhibition-radius))))
 
   (layer-depolarise
     [this distal-ff-bits distal-fb-bits]
@@ -874,8 +873,8 @@
     [_ i]
     (id->cell (:depth spec) i))
   p/PTemporal
-  (timestep [this]
-    (:timestep this 0))
+  (timestep [_]
+    (:timestep state))
   p/PParameterised
   (params [_]
     spec))
@@ -907,7 +906,8 @@
                 :active-cells #{}
                 :active-cols #{}
                 :temporal-pooling-exc {}
-                :well-matching-ff-seg-paths {}})
+                :well-matching-ff-seg-paths {}
+                :timestep 0})
         distal-state (map->LayerDistalState
                       {:distal-bits #{}
                        :pred-cells #{}

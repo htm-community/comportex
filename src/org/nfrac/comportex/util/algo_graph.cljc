@@ -1,9 +1,3 @@
-;; copied from
-;; https://github.com/clojure/algo.graph/blob/03c740c61/src/main/clojure/clojure/algo/graph.clj
-;; because distributed snapshot release does not have clojurescript.
-
-;; updated to use records not structs.
-
 ;;  Copyright (c) Jeffrey Straszheim. All rights reserved.  The use and
 ;;  distribution terms for this software are covered by the Eclipse Public
 ;;  License 1.0 (http://opensource.org/licenses/eclipse-1.0.php) which can
@@ -22,8 +16,14 @@
 
 (ns
   ^{:author "Jeffrey Straszheim",
-     :doc "Basic graph theory algorithms"}
-  org.nfrac.comportex.algo-graph
+    :doc "Basic graph theory algorithms.
+
+Copied from
+https://github.com/clojure/algo.graph/blob/03c740c61/src/main/clojure/clojure/algo/graph.clj
+because its available snapshot release does not have clojurescript support.
+
+Updated to use records not structs."}
+  org.nfrac.comportex.util.algo-graph
   (:require [clojure.set :refer [union]]))
 
 
