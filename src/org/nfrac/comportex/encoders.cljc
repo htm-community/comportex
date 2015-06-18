@@ -277,6 +277,7 @@
   ;; need a different seed from coordinate-order here;
   ;; otherwise highest orders always have highest bits!
   ;; (in cljs, (rng/int) is just a scaling of (rng/double).)
+  ;; TODO: splittable random number generator
   (let [seedval (if (= 1 (count coord))
                   (let [[x] coord] (reverse (str x)))
                   (reverse coord))

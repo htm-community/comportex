@@ -10,10 +10,11 @@
     #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
 (def input-dim [30 30])
-(def on-bits 90)
 (def grid-w 7)
 (def grid-h 7)
-(def radius 2)
+(def on-bits 90)
+(def surface-coord-scale 20)
+(def coord-radius 30)
 (def empty-reward -3)
 (def hazard-reward -200)
 (def finish-reward 200)
@@ -65,6 +66,8 @@
    :depth 1
    :q-alpha 0.75
    :q-discount 0.9
+   ;; do not want temporal pooling here - actions are not static
+   :temporal-pooling-max-exc 0.0
    ;; disable learning
    :freeze? true})
 
@@ -107,8 +110,9 @@
 (defn make-model
   []
   (let [encoder (enc/pre-transform (fn [{:keys [x y]}]
-                                     {:coord [x y]
-                                      :radii [radius radius]})
+                                     {:coord [(* x surface-coord-scale)
+                                              (* y surface-coord-scale)]
+                                      :radii [coord-radius coord-radius]})
                                    (enc/coordinate-encoder input-dim on-bits))
         mencoder (enc/pre-transform (juxt :dx :dy)
                                     (enc/encat 2
@@ -118,8 +122,7 @@
     (core/region-network {:rgn-1 [:input :motor]
                           :action [:rgn-1]}
                          {:input sensory-input
-                          :motor motor-input
-                          }
+                          :motor motor-input}
                          core/sensory-region
                          {:rgn-1 (assoc spec :lateral-synapses? false)
                           :action action-spec})))
@@ -128,28 +131,30 @@
   [in-model-steps-c out-world-c model-atom]
   (go
    (loop [inval (assoc initial-input-val
-                  :Q-map {})]
+                       :Q-map {})
+          prev-htm @model-atom]
      (>! out-world-c inval)
-     (when-let [model (<! in-model-steps-c)]
+     (when-let [htm (<! in-model-steps-c)]
        ;; scale reward to be comparable to [0-1] permanences
        (let [reward (* 0.01 (:z inval))
              ;; do the Q learning on previous step
-             newmodel (swap! model-atom q-learn reward)
+             upd-htm (swap! model-atom q-learn prev-htm reward)
              ;; maintain map of state+action -> approx Q values, for diagnostics
-             info (get-in newmodel [:regions :action :layer-3 :state :Q-info])
-             newQ (-> (+ (:Qt info 0) (:adj info 0))
+             info (get-in upd-htm [:regions :action :layer-3 :Q-info])
+             newQ (-> (+ (:Q-prev info 0) (:adj info 0))
                       (max -1.0)
                       (min 1.0))
              Q-map (assoc (:Q-map inval)
-                     (select-keys inval [:x :y :dx :dy])
-                     newQ)]
+                          (select-keys inval [:x :y :dx :dy])
+                          newQ)]
          (if (>= (abs (:z inval)) 100)
            ;; terminal state, restart
            (recur (assoc initial-input-val
-                    :Q-map Q-map))
+                         :Q-map Q-map)
+                  upd-htm)
            (let [x (:x inval)
                  y (:y inval)
-                 act (select-action model [x y])
+                 act (select-action upd-htm [x y])
                  [dx dy] (action->movement act)
                  next-x (-> (+ x dx)
                             (min (dec grid-w))
@@ -163,7 +168,8 @@
                      :dx dx
                      :dy dy
                      :z next-z
-                     :Q-map Q-map}))))))))
+                     :Q-map Q-map}
+                    upd-htm))))))))
 
 (comment
   (require '[clojure.core.async :as async :refer [>!! <!!]])

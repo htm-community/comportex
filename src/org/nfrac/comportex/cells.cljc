@@ -631,13 +631,16 @@
 
 (defn apply-excitation
   [continuing-exc immed-exc max-exc amp]
-  (persistent!
-   (reduce (fn [m [id exc]]
-             (assoc! m id (-> (get m id 0.0)
-                              (+ (* exc amp))
-                              (min max-exc))))
-           (transient continuing-exc)
-           immed-exc)))
+  (if (or (zero? max-exc) (zero? amp))
+    continuing-exc
+    ;; continuing excitation is enabled
+    (persistent!
+     (reduce (fn [m [id exc]]
+               (assoc! m id (-> (get m id 0.0)
+                                (+ (* exc amp))
+                                (min max-exc))))
+             (transient continuing-exc)
+             immed-exc))))
 
 (defn apply-loss-fn
   [continuing-exc loss-func]
