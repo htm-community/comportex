@@ -3,6 +3,12 @@
 * separate parameters for permanence inc / dec from stable inputs (temporal pooling)
 
 
+* can we speed up init?
+
+* LTD
+
+* higher level sequences demo
+
 * update marginalia / move to codox
 
 * most functions should take parameter value arguments, not whole spec

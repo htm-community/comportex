@@ -1,7 +1,7 @@
 (ns org.nfrac.comportex.topology
   (:require [org.nfrac.comportex.protocols :as p]))
 
-(defn abs
+(defn- abs
   [x]
   (if (neg? x) (- x) x))
 

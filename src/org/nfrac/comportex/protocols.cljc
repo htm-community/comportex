@@ -34,8 +34,11 @@
   "A feed-forward input source with a bit set representation. Could be
    sensory input or a region (where cells are bits)."
   (ff-topology [this])
-  (bits-value [this])
-  (stable-bits-value [this])
+  (bits-value [this]
+    "The set of indices of all active bits/cells.")
+  (stable-bits-value [this]
+    "The set of indices of active cells where those cells were
+    predicted (so, excluding cells from bursting columns).")
   (source-of-bit [this i]
     "Given the index of an output bit from this source, return the
     corresponding local cell id as [col ci] where col is the column
@@ -49,14 +52,27 @@
   (layer-activate [this ff-bits stable-ff-bits])
   (layer-learn [this])
   (layer-depolarise [this distal-ff-bits distal-fb-bits])
-  (layer-depth [this])
-  (bursting-columns [this])
-  (active-columns [this])
-  (active-cells [this])
-  (learnable-cells [this])
-  (temporal-pooling-cells [this])
-  (predictive-cells [this])
-  (prior-predictive-cells [this]))
+  (layer-depth [this]
+    "Number of cells per column.")
+  (bursting-columns [this]
+    "The set of bursting column ids.")
+  (active-columns [this]
+    "The set of active column ids.")
+  (active-cells [this]
+    "The set of active cell ids.")
+  (learnable-cells [this]
+    "The set of active, learnable cell ids. These are the winning
+    cells in each active column, and could be thought of as having
+    more prolonged activation than other active cells.")
+  (temporal-pooling-cells [this]
+    "The collection of temporal pooling cells, i.e. those having some
+    non-zero level of continuing temporal pooling excitation.")
+  (predictive-cells [this]
+    "The set of predictive cell ids.")
+  (prior-predictive-cells [this]
+    "The set of predictive cell ids from the previous timestep,
+    i.e. their prediction can be compared to the current active
+    cells."))
 
 (defprotocol PSynapseGraph
   "The synaptic connections from a set of sources to a set of targets.

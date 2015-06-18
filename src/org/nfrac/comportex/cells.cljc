@@ -779,7 +779,6 @@
                               (:distal-perm-inc spec) (:distal-perm-punish spec)
                               (:distal-perm-init spec)))
           a-cols (:active-cols state)
-          tp-cols (map first (:tp-cells state))
           higher-level? (> (:ff-max-segments spec) 1)
           prox-learning (segment-learning-map (map vector a-cols (repeat 0))
                                               (:well-matching-ff-seg-paths state)
