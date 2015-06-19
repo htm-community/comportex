@@ -9,10 +9,10 @@
                :cljs [cljs.core.async :refer [<! >!]]))
     #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
-(def input-dim [1000])
-(def on-bits 50)
-(def surface-coord-scale 30)
-(def coord-radius 30)
+(def input-dim [400])
+(def on-bits 40)
+(def coord-radius 60) ;; so 60+1+60 = 121 candidates (and we choose 40)
+(def surface-coord-scale 60) ;; so neighbouring positions (x +/- 1) share ~50% bits
 (def surface [0 0.5 1 1.5 2 1.5 1 0.5
               0 1 2 3 4 5 4 3 2
               1 1 1 1 1 1
@@ -29,16 +29,16 @@
   {:column-dimensions [1000]
    :depth 4
    :distal-punish? true
-   :duty-cycle-period 500
+   :duty-cycle-period 300
    :boost-active-duty-ratio 0.01
    :ff-potential-radius 0.15
    :ff-init-frac 0.5})
 
 (def action-spec
-  {:column-dimensions [240]
-   :activation-level 0.05
+  {:column-dimensions [30]
+   :activation-level 0.20
    :ff-potential-radius 1.0
-   :ff-init-frac 0.25
+   :ff-init-frac 0.5
    :ff-perm-inc 0.05
    :ff-perm-dec 0.05
    :ff-perm-connected 0.10
@@ -48,7 +48,7 @@
    :max-boost 3.0
    :global-inhibition? true
    :boost-active-every 1
-   :duty-cycle-period 250
+   :duty-cycle-period 150
    :boost-active-duty-ratio 0.05
    :depth 1
    :q-alpha 0.2
@@ -58,12 +58,15 @@
    ;; disable learning
    :freeze? true})
 
+(def action->movement
+  {:left -1
+   :right 1})
+
 ;; lookup on columns of :action region
 (def column->signal
   (zipmap (range)
           (for [motion [:left :right]
-                influence (concat (repeat 40 -1)  ;; inhibit
-                                  (repeat 80 1))] ;; excite
+                influence (repeat 15 1.0)]
             [motion influence])))
 
 (defn select-action
@@ -76,13 +79,9 @@
                    (assoc! m motion (+ (get m motion 0) influence)))
                  (transient {}))
          (persistent!)
-         (map (fn [[motion total]]
-                (let [effect (max 0 total)]
-                  (if (= motion :left) (- effect) effect))))
-         (apply + 0)
-         (int)
-         (max -1)
-         (min 1))))
+         (shuffle)
+         (apply max-key val)
+         (key))))
 
 (defn active-synapses
   [sg target-id ff-bits]
@@ -138,7 +137,7 @@
   []
   (let [encoder (enc/pre-transform (fn [{:keys [x]}]
                                      {:coord [(* x surface-coord-scale)]
-                                      :radii [coord-radius coord-radius]})
+                                      :radii [coord-radius]})
                                    (enc/coordinate-encoder input-dim on-bits))
         mencoder (enc/pre-transform :dx (enc/linear-encoder 100 30 [-1 1]))
         sensory-input (core/sensorimotor-input encoder encoder)
@@ -172,7 +171,8 @@
                           (select-keys inval [:x :dx])
                           newQ)]
          (let [x (:x inval)
-               dx (select-action upd-htm)
+               act (select-action upd-htm)
+               dx (action->movement act)
                next-x (-> (+ x dx)
                           (min (dec (count surface)))
                           (max 0))

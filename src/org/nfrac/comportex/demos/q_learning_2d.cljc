@@ -9,12 +9,12 @@
                :cljs [cljs.core.async :refer [<! >!]]))
     #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
-(def input-dim [30 30])
+(def input-dim [10 40])
 (def grid-w 7)
 (def grid-h 7)
-(def on-bits 90)
-(def surface-coord-scale 20)
-(def coord-radius 30)
+(def on-bits 40)
+(def coord-radius 5) ;; so 11x11 grid = 121 candidates (and we choose 40)
+(def surface-coord-scale 5) ;; so neighbouring positions (x or y +/- 1) share ~50% bits
 (def empty-reward -3)
 (def hazard-reward -200)
 (def finish-reward 200)
@@ -42,16 +42,16 @@
   {:column-dimensions [30 30]
    :depth 4
    :distal-punish? true
-   :duty-cycle-period 500
+   :duty-cycle-period 300
    :boost-active-duty-ratio 0.01
    :ff-potential-radius 0.15
    :ff-init-frac 0.5})
 
 (def action-spec
-  {:column-dimensions [4 100]
-   :activation-level 0.05
+  {:column-dimensions [4 10]
+   :activation-level 0.20
    :ff-potential-radius 1
-   :ff-init-frac 0.25
+   :ff-init-frac 0.5
    :ff-perm-inc 0.05
    :ff-perm-dec 0.05
    :ff-perm-connected 0.10
@@ -89,7 +89,7 @@
 (def column->signal
   (zipmap (range)
           (for [motion [:up :down :left :right]
-                influence (repeat 100 1.0)]
+                influence (repeat 10 1.0)]
             [motion influence])))
 
 (defn select-action
