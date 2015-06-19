@@ -187,7 +187,9 @@
         cached-bits (atom {})
         gen (fn [x]
               (let [RNG (rng/rng (hash x))]
-                (repeatedly on-bits #(rng/int RNG bit-width))))]
+                (->> (repeatedly #(rng/int RNG bit-width))
+                     (distinct)
+                     (take on-bits))))]
     (reify
       p/PTopological
       (topology [_]
@@ -303,5 +305,6 @@
           (let [neighs (coordinate-neighbours coord radii)]
             (->> (zipmap neighs (map coordinate-order neighs))
                  (util/top-n-keys-by-value on-bits)
-                 (map (partial coordinate-bit size))))))
+                 (map (partial coordinate-bit size))
+                 (distinct)))))
       )))

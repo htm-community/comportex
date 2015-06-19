@@ -13,8 +13,12 @@
 
 * most functions should take parameter value arguments, not whole spec
 
+
+* encoding can be expensive (coordinate encoder!) so cache it in Encoder. otherwise end up encoding twice in comportexviz (extra one for drawing active bits)
+
 * serialisable encoders - handle general pre-transform?
 * encoders should not be part of a model?
+
 
 * keep track of existing segment ids per cell?
 
