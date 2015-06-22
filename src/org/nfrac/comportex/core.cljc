@@ -8,11 +8,11 @@
             [org.nfrac.comportex.cells :as cells]
             [org.nfrac.comportex.util :as util]
             [org.nfrac.comportex.util.algo-graph :as graph]
-            [cljs-uuid.core :as uuid]
             [clojure.set :as set]))
 
 (defn layers
-  "first is the input layer, last is the output layer."
+  "A sequence of keywords looking up layers in the region. The first
+  is the input layer, the last is the (feed-forward) output layer."
   [rgn]
   (concat (when (:layer-4 rgn) [:layer-4])
           (when (:layer-3 rgn) [:layer-3])))
@@ -20,7 +20,7 @@
 (declare sensory-region)
 
 (defrecord SensoryRegion
-    [layer-3 uuid]
+    [layer-3]
   p/PRegion
   (region-activate
     [this ff-bits stable-ff-bits]
@@ -65,8 +65,7 @@
     (p/params layer-3))
   p/PResettable
   (reset [this]
-    (-> (sensory-region (p/params this))
-        (assoc :uuid uuid))))
+    (sensory-region (p/params this))))
 
 (defn sensory-region
   "Constructs a cortical region with the given specification map. See
@@ -78,13 +77,12 @@
     (when (seq unk)
       (println "Warning: unknown keys in spec:" unk)))
   (map->SensoryRegion
-   {:layer-3 (cells/layer-of-cells spec)
-    :uuid (uuid/make-random)}))
+   {:layer-3 (cells/layer-of-cells spec)}))
 
 (declare sensorimotor-region)
 
 (defrecord SensoriMotorRegion
-    [layer-4 layer-3 uuid]
+    [layer-4 layer-3]
   p/PRegion
   (region-activate
     [this ff-bits stable-ff-bits]
@@ -140,8 +138,7 @@
     (p/params layer-4))
   p/PResettable
   (reset [this]
-    (-> (sensorimotor-region (p/params this))
-        (assoc :uuid uuid))))
+    (sensorimotor-region (p/params this))))
 
 (defn sensorimotor-region
   "spec can contain nested maps under :layer-3 and :layer-4 that are
@@ -166,8 +163,7 @@
         l3 (cells/layer-of-cells l3-spec)]
     (map->SensoriMotorRegion
     {:layer-3 l3
-     :layer-4 l4
-     :uuid (uuid/make-random)})))
+     :layer-4 l4})))
 
 ;; Include defaced `encoder` and `motor-encoder` as bools so consumers can still
 ;; check via map lookup whether they previously existed.
@@ -339,7 +335,7 @@
 #?(:cljs (def pmap map))
 
 (defrecord RegionNetwork
-    [ff-deps fb-deps strata inputs regions uuid->id]
+    [ff-deps fb-deps strata inputs regions]
   p/PHTM
   (htm-activate
     [this in-value]
@@ -491,8 +487,7 @@
       :fb-deps fb-deps
       :strata strata
       :inputs inputs
-      :regions rm
-      :uuid->id (zipmap (map :uuid (vals rm)) (keys rm))})))
+      :regions rm})))
 
 (defn regions-in-series
   "Constructs an HTM network consisting of one input and n regions in

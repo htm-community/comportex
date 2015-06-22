@@ -8,8 +8,7 @@
                  [org.clojure/data.int-map "0.1.0"]
                  [com.cemerick/pprng "0.0.3"]
                  [clj-http "1.1.1"]
-                 [cljs-http "0.1.30"]
-                 [cljs-uuid "0.0.4"]]
+                 [cljs-http "0.1.30"]]
 
   :jvm-opts ^:replace ["-server" "-Xmx2500m"]
 
