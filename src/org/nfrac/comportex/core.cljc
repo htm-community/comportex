@@ -17,6 +17,8 @@
   (concat (when (:layer-4 rgn) [:layer-4])
           (when (:layer-3 rgn) [:layer-3])))
 
+;;; # Sensory = L3
+
 (declare sensory-region)
 
 (defrecord SensoryRegion
@@ -78,6 +80,75 @@
       (println "Warning: unknown keys in spec:" unk)))
   (map->SensoryRegion
    {:layer-3 (cells/layer-of-cells spec)}))
+
+;;; # Motor = L4
+
+(declare motor-region)
+
+(defrecord MotorRegion
+    [layer-4]
+  p/PRegion
+  (region-activate
+    [this ff-bits stable-ff-bits]
+    (assoc this
+        :layer-4 (p/layer-activate layer-4 ff-bits stable-ff-bits)))
+
+  (region-learn
+    [this]
+    (if (:freeze? (p/params this))
+      this
+      (assoc this
+        :layer-4 (p/layer-learn layer-4))))
+
+  (region-depolarise
+    [this distal-ff-bits distal-fb-bits]
+    (assoc this
+      :layer-4 (p/layer-depolarise layer-4 distal-ff-bits distal-fb-bits)))
+
+  p/PTopological
+  (topology [_]
+    (p/topology layer-4))
+  p/PFeedForward
+  (ff-topology [_]
+    (p/ff-topology layer-4))
+  (bits-value [_]
+    (p/bits-value layer-4))
+  (stable-bits-value [_]
+    (p/stable-bits-value layer-4))
+  (source-of-bit [_ i]
+    (p/source-of-bit layer-4 i))
+  p/PFeedForwardMotor
+  (ff-motor-topology [_]
+    topology/empty-topology)
+  (motor-bits-value
+    [_]
+    (sequence nil))
+  p/PTemporal
+  (timestep [_]
+    (p/timestep layer-4))
+  p/PParameterised
+  (params [_]
+    (p/params layer-4))
+  p/PResettable
+  (reset [this]
+    (motor-region (p/params this))))
+
+(defn motor-region
+  "Constructs a cortical region with the given specification map. See
+   documentation on `cells/parameter-defaults` for possible keys. Any
+   keys given here will override those default values.
+
+   This does not set `:lateral-synapses? false` - that may be desirable
+   in Layer 4."
+  [spec]
+  (let [unk (set/difference (set (keys spec))
+                            (set (keys cells/parameter-defaults)))]
+    (when (seq unk)
+      (println "Warning: unknown keys in spec:" unk)))
+  (map->MotorRegion
+   {:layer-4 (cells/layer-of-cells spec)}))
+
+;;; # Sensorimotor = L3 + L4
 
 (declare sensorimotor-region)
 
@@ -142,7 +213,10 @@
 
 (defn sensorimotor-region
   "spec can contain nested maps under :layer-3 and :layer-4 that are
-   merged in for specific layers."
+   merged in for specific layers.
+
+  This does set `:lateral-synapses? false` in Layer 4, and true in
+  Layer 3."
   [spec]
   (let [unk (set/difference (set (keys spec))
                             (set (keys cells/parameter-defaults))
@@ -515,9 +589,9 @@
   `:active` (bursting), `:predicted`, `:active-predicted`. Note that
   these are distinct categories. The names are possibly misleading.
   Argument `layer-fn` is called on the region to obtain a layer of
-  cells; if omitted it defaults to `:layer-3`."
+  cells; if omitted it defaults to the output layer."
   ([rgn]
-     (column-state-freqs rgn :layer-3))
+     (column-state-freqs rgn (last (layers rgn))))
   ([rgn layer-fn]
      (let [lyr (layer-fn rgn)
            a-cols (p/active-columns lyr)
