@@ -50,6 +50,9 @@
    * `ff-perm-dec` - amount to decrease a synapse's permanence value
      by when it is not reinforced.
 
+   * `ff-perm-stable-inc` - amount to increase a synapse's permanence
+     value by when it is reinforced by a stable (predicted) input.
+
    * `ff-perm-connected` - permanence value at which a synapse is
      functionally connected. Permanence values are defined to be
      between 0 and 1.
@@ -169,8 +172,9 @@
    :column-dimensions [1000]
    :ff-potential-radius 1.0
    :ff-init-frac 0.25
-   :ff-perm-inc 0.05
+   :ff-perm-inc 0.04
    :ff-perm-dec 0.01
+   :ff-perm-stable-inc 0.15
    :ff-perm-connected 0.20
    :ff-perm-init-hi 0.25
    :ff-perm-init-lo 0.10
@@ -821,10 +825,20 @@
                                                :new-syns (:ff-seg-new-synapse-count spec)
                                                :max-syns (:ff-seg-max-synapse-count spec)
                                                :max-segs (:ff-max-segments spec)})
-          psg (p/bulk-learn proximal-sg (vals prox-learning)
-                            (:in-ff-bits state) ; TODO: (:in-stable-ff-bits state)
-                            (:ff-perm-inc spec) (:ff-perm-dec spec)
-                            (:ff-perm-init-hi spec))
+          psg (cond->
+                  (p/bulk-learn proximal-sg (vals prox-learning)
+                                (:in-ff-bits state)
+                                (:ff-perm-inc spec) (:ff-perm-dec spec)
+                                (:ff-perm-init-hi spec))
+                ;; positive learning rate is higher for stable (predicted) inputs
+                (and (seq (:in-stable-ff-bits state))
+                     (> (:ff-perm-stable-inc spec) (:ff-perm-inc spec)))
+                (p/bulk-learn (map #(syn/seg-update (:target-id %) :reinforce nil nil)
+                                   (vals prox-learning))
+                              (:in-stable-ff-bits state)
+                              (- (:ff-perm-stable-inc spec) (:ff-perm-inc spec))
+                              (:ff-perm-dec spec)
+                              (:ff-perm-init-hi spec)))
           timestep (:timestep state)]
       (cond->
        (assoc this
@@ -856,7 +870,6 @@
                                    distal-ff-bits
                                    (if (:use-feedback? spec) distal-fb-bits [])])
           seg-exc (p/excitations distal-sg aci (:seg-stimulus-threshold spec))
-          ;; TODO - should reflect one seg or many? - more vs fewer synapses?
           [distal-exc seg-paths good-paths] (best-segment-excitations-and-paths
                                              seg-exc (:seg-new-synapse-count spec))
           pc (set (keys distal-exc))]
