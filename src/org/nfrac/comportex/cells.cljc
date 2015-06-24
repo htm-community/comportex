@@ -640,10 +640,9 @@
                  grow-n (- new-syns exc)
                  grow-source-ids (segment-new-synapse-source-ids seg lci-vec grow-n)
                  die-source-ids (if new-segment?
+                                  (keys die-syns) ;; remove any existing (replaced)
                                   (segment-excess-synapse-source-ids seg grow-n
-                                                                     max-syns)
-                                  ;; growing new segment, remove any existing
-                                  (keys die-syns))
+                                                                     max-syns))
                  seg-path (conj cell-id seg-idx)]
              ;; if not enough learnable sources to grow a new segment, skip it
              (if (and new-segment?
