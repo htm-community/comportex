@@ -336,7 +336,7 @@
               (transient {})
               seg-exc)))
 
-(defn best-excitations-by-column
+(defn best-by-column
   "Returns a map of column ids to representative excitation values,
   being the greatest excitation of its constituent cells or segments."
   [cell-exc]
@@ -355,7 +355,11 @@
   but if `spontaneous-activation?` is true, this is relaxed
   (i.e. prediction alone could cause activation)."
   [col-exc tp-exc distal-exc distal-weight spontaneous-activation? depth]
-  (let [basic-exc (for [[col exc] col-exc
+  (let [;; add TP columns to list of columns to consider (may have no proximal)
+        basic-col-exc (merge-with + col-exc
+                                  (into {} (map (fn [[col _]] [col 0])) (keys tp-exc)))
+        ;; expand to all cells within columns, add TP values
+        basic-exc (for [[col exc] basic-col-exc
                         ci (range depth)
                         :let [cell-id [col ci]
                               tp (get tp-exc cell-id 0.0)]]
@@ -364,8 +368,9 @@
       (into {} basic-exc)
       (let [basic-exc (if spontaneous-activation?
                         (merge (zipmap (keys distal-exc) (repeat 0.0))
-                               basic-exc)
+                               (into {} basic-exc))
                         basic-exc)]
+        ;; add distal values
         (persistent!
          (reduce (fn [m [id p-exc]]
                    (let [d-exc (distal-exc id 0.0)]
@@ -594,7 +599,12 @@
   while `lci` is the set of learnable source indices, used to grow new
   synapses. If `poor-match?` returns true for a cell id then
   unconnected synapses are used to find a matching segment. Otherwise
-  only connected synapses are used."
+  only connected synapses are used.
+
+  Note that ''cell-ids'' here may also refer to columns in a proximal
+  synapse graph, where the convention is [col 0]. Everything else is
+  the same since proximal synapses graphs can also have multiple
+  segments [col 0 seg-idx]."
   [lc well-matching-paths sg aci lci {:keys [pcon
                                              min-act
                                              new-syns
@@ -661,30 +671,22 @@
              (transient continuing-exc)
              immed-exc))))
 
-(defn apply-loss-fn
-  [continuing-exc loss-func]
+(defn decay-tp
+  [tp-exc fall burst-exc]
   (persistent!
    (reduce-kv (fn [m id exc]
-                (let [e (loss-func exc)]
+                ;; constant fall amount
+                (let [e (- exc fall)]
                   (if (pos? e)
-                    (assoc! m id e)
+                    ;; additional fall by bursting amount
+                    (let [[col _] id
+                          eb (- e (burst-exc [col 0] 0))]
+                      (if (pos? eb)
+                       (assoc! m id eb)
+                       m))
                     m)))
               (transient {})
-              continuing-exc)))
-
-(defn exponential-loss-fn
-  [decay epsilon]
-  (fn [exc]
-    (if (< exc epsilon)
-      0.0
-      (* exc decay))))
-
-(defn linear-loss-fn
-  [fall]
-  (fn [exc]
-    (if (> exc fall)
-      (- exc fall)
-      0.0)))
+              tp-exc)))
 
 (defrecord LayerActiveState
     [in-ff-bits in-stable-ff-bits
@@ -709,23 +711,26 @@
           [col-exc ff-seg-paths ff-good-paths]
           (best-segment-excitations-and-paths col-seg-overlaps
                                               (:ff-seg-new-synapse-count spec))
-          prox-exc (columns/apply-overlap-boosting col-exc boosts) ;; now keyed by col
           ;; temporal pooling:
           ;; stable inputs (from predicted cells) add to ongoing "tp" activation
           stable-col-seg-overlaps (p/excitations proximal-sg stable-ff-bits
                                                  (:ff-stimulus-threshold spec))
           stable-col-exc (best-segment-excitations stable-col-seg-overlaps)
-          tp-exc (apply-loss-fn (:temporal-pooling-exc state)
-                                 (linear-loss-fn (:temporal-pooling-fall spec)))
-          ;; integrate excitation values to activate cells
-          cell-exc (total-excitations prox-exc tp-exc
-                                      (:distal-exc distal-state)
-                                      (:distal-vs-proximal-weight spec)
-                                      (:spontaneous-activation? spec)
-                                      (:depth spec))
-          a-cols (select-active-columns (best-excitations-by-column cell-exc)
+          ;; bursting inputs reduce it. also it decays over time.
+          burst-col-exc (merge-with - col-exc stable-col-exc)
+          tp-exc (decay-tp (:temporal-pooling-exc state)
+                           (:temporal-pooling-fall spec)
+                           burst-col-exc)
+          ;; combine excitation values for selecting columns
+          prox-exc (columns/apply-overlap-boosting col-exc boosts) ;; now keyed by col
+          abs-cell-exc (total-excitations prox-exc tp-exc
+                                          (:distal-exc distal-state)
+                                          (:distal-vs-proximal-weight spec)
+                                          (:spontaneous-activation? spec)
+                                          (:depth spec))
+          a-cols (select-active-columns (best-by-column abs-cell-exc)
                                         topology inh-radius spec)
-          ;; calculate relative excitations for all cells in each active column:
+          ;; calculate relative excitations for cells within each active column:
           ;; * include distal excitation on predicted cells.
           ;; * matching segments below connected threshold get a bonus.
           ;; * cells with inactive segments get a penalty.

@@ -723,8 +723,10 @@
                        ;; effect of boosting
                        overlap (+ b-overlap s-overlap)
                        boost-amt (* overlap (- (get boosts col) 1.0))
-                       ;; temporal pooling excitation
-                       prior-tp (max 0 (- (get p-tp-exc cell-id 0.0) tp-fall))
+                       ;; temporal pooling excitation (see cells/decay-tp)
+                       prior-tp (max 0 (- (get p-tp-exc cell-id 0.0)
+                                          tp-fall
+                                          b-overlap))
                        ;; total excitation
                        total (+ b-overlap s-overlap boost-amt prior-tp distal-exc)]
                    [cell-id {:total total
