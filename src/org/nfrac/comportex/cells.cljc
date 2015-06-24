@@ -470,22 +470,34 @@
          :winner-cells (persistent! lc)}
         ))))
 
-(defn effects-of-inactive-segments
-  "Calculates an excitation effect on cells caused by inactive distal
-  segments. It looks for segments matching the input -- meeting a
-  number `:seg-learn-threshold` of active synapses -- even if the
-  synapses are not yet connected (below the permanence threshold). If
-  a cell does have a segment that matches the input this way, its
-  adjustment is positive. If a cell has segments but none match the
-  input, its adjustment is negative and proportional to the number of
-  segments. The positive adjustment amount is chosen to be lower than
-  for a connected active segment: half the `:seg-learn-threshold`, and
-  in the negative case it is 1.0 times the number of segments. Returns
-  a map of cell ids to these excitation adjustment values."
-  [a-cols distal-sg aci spec]
-  (let [depth (:depth spec)
-        min-act (:seg-learn-threshold spec)
-        adj-base-amount (quot min-act 2)]
+(defn within-column-cell-exc
+  "Calculates cell excitation values to be used to select cells within
+  columns `a-cols`; they are compared only within each column, not
+  across columns. Where no segments exist, the value is
+  zero. Otherwise three cases are possible:
+
+  * For predicted cells, the distal excitation (number of active
+  synapses on the most active segment) is returned.
+
+  * A positive value is given for cells with partially-matching
+  segments. This applies if any segments exist with at least
+  `:seg-learn-threshold` active synapses -- even if the synapses are
+  not yet connected (below the permanence threshold).  The value is
+  chosen to be lower than any connected active segment: half the
+  `:seg-learn-threshold`.
+
+  * A negative value is given for cells with only inactive distal
+  segments. We need this to encourage context-specific choice of cells
+  in a column: avoid cells that are missing their learned context
+  signal (segment). (As a biological justification, perhaps more
+  segments create a larger cell surface area to lose potential?)
+
+  The value is negatively proportional to the number of segments:
+  again the unit amount is half the `:seg-learn-threshold`.
+
+  Returns a map of cell ids to these relative excitation values."
+  [a-cols distal-sg aci distal-exc min-act depth]
+  (let [adj-base-amount (quot min-act 2)]
     (->> (for [col a-cols
                ci (range depth)
                :let [cell-id [col ci]
@@ -493,11 +505,18 @@
                                     (filter seq))
                      n-segs (count cell-segs)]
                :when (pos? n-segs)]
-           (if (first (best-matching-segment cell-segs aci min-act 0.0))
-             ;; some segment matches the input even if synapses disconnected
-             [cell-id adj-base-amount]
-             ;; there are segments but none match the input; apply penalty
-             [cell-id (* -1 n-segs)]))
+           (let [d-exc (distal-exc cell-id)]
+             (cond
+               ;; predicted cell, use distal excitation
+               d-exc
+               [cell-id d-exc]
+               ;; some segment matches the input even if synapses disconnected
+               (first (best-matching-segment cell-segs aci min-act 0.0))
+               [cell-id adj-base-amount]
+               ;; there are segments but none match the input; apply penalty
+               :else
+               [cell-id (* -1 adj-base-amount n-segs)]
+               )))
          (into {}))))
 
 ;;; ## Learning
@@ -706,20 +725,22 @@
                                       (:depth spec))
           a-cols (select-active-columns (best-excitations-by-column cell-exc)
                                         topology inh-radius spec)
-          ;; inactive distal segments induce _negative_ depolarisation of cells.
-          ;; need this to encourage context-specific choice of cells in a column:
-          ;; avoid a cell that is missing its learned context signal (segment).
-          ;; (biology -- more segments = larger surface area to lose potential?).
-          ;; matching segments below connected threshold get a bonus.
-          adj-exc (effects-of-inactive-segments a-cols distal-sg
-                                                (:distal-bits distal-state) spec)
-          within-col-cell-exc (merge-with + cell-exc adj-exc)
+          ;; calculate relative excitations for all cells in each active column:
+          ;; * include distal excitation on predicted cells.
+          ;; * matching segments below connected threshold get a bonus.
+          ;; * cells with inactive segments get a penalty.
+          rel-cell-exc (->> (within-column-cell-exc a-cols distal-sg
+                                                    (:distal-bits distal-state)
+                                                    (:distal-exc distal-state)
+                                                    (:seg-learn-threshold spec)
+                                                    (:depth spec))
+                            (merge-with + tp-exc))
           ;; find active and winner cells in the columns
           {ac :active-cells
            lc :winner-cells
            b-cols :burst-cols
            stable-ac :stable-active-cells}
-          (select-active-cells a-cols within-col-cell-exc (:pred-cells distal-state) spec)
+          (select-active-cells a-cols rel-cell-exc (:pred-cells distal-state) spec)
           ;; update continuing TP activation
           lc-stable-exc (for [cell-id lc
                               :let [[col ci] cell-id
