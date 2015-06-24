@@ -70,9 +70,11 @@
     (sensory-region (p/params this))))
 
 (defn sensory-region
-  "Constructs a cortical region with the given specification map. See
-   documentation on `cells/parameter-defaults` for possible keys. Any
-   keys given here will override those default values."
+  "Constructs a cortical region with one layer.
+
+  `spec` is the parameter specification map. See documentation on
+  `cells/parameter-defaults` for possible keys. Any keys given here
+  will override those default values."
   [spec]
   (let [unk (set/difference (set (keys spec))
                             (set (keys cells/parameter-defaults)))]
@@ -119,10 +121,9 @@
     (p/source-of-bit layer-4 i))
   p/PFeedForwardMotor
   (ff-motor-topology [_]
-    topology/empty-topology)
-  (motor-bits-value
-    [_]
-    (sequence nil))
+    (p/ff-topology layer-4))
+  (motor-bits-value [_]
+    (p/bits-value layer-4))
   p/PTemporal
   (timestep [_]
     (p/timestep layer-4))
@@ -134,12 +135,16 @@
     (motor-region (p/params this))))
 
 (defn motor-region
-  "Constructs a cortical region with the given specification map. See
-   documentation on `cells/parameter-defaults` for possible keys. Any
-   keys given here will override those default values.
+  "Constructs a cortical region with one layer. It exposes its active
+  cells directly as feedforward output, and also indirectly as
+  motor feedforward output.
 
-   This does not set `:lateral-synapses? false` - that may be desirable
-   in Layer 4."
+  `spec` is the parameter specification map. See documentation on
+  `cells/parameter-defaults` for possible keys. Any keys given here
+  will override those default values.
+
+  This does not set `:lateral-synapses? false` but you would normally
+  set that in spec."
   [spec]
   (let [unk (set/difference (set (keys spec))
                             (set (keys cells/parameter-defaults)))]
@@ -212,11 +217,12 @@
     (sensorimotor-region (p/params this))))
 
 (defn sensorimotor-region
-  "spec can contain nested maps under :layer-3 and :layer-4 that are
-   merged in for specific layers.
+  "Constructs a cortical region with two layers. `spec` can contain
+  nested maps under :layer-3 and :layer-4 that are merged in for
+  specific layers.
 
-  This does set `:lateral-synapses? false` in Layer 4, and true in
-  Layer 3."
+  This sets `:lateral-synapses? false` in Layer 4, and true in Layer
+  3."
   [spec]
   (let [unk (set/difference (set (keys spec))
                             (set (keys cells/parameter-defaults))
