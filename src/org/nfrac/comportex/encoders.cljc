@@ -271,19 +271,19 @@
 
 (defn coordinate-order
   [coord]
-  (let [RNG (rng/rng (hash coord))]
+  ;; NOTE it is not enough to take (hash coord) as the seed here,
+  ;; due to imperfections in cljs pprng this leads to the first
+  ;; element of the coordinate vector dominating, so e.g. big shifts
+  ;; in y coordinate have little effect on encoded bits.
+  (let [RNG (rng/rng (hash (str coord)))]
     (rng/double RNG)))
 
 (defn coordinate-bit
   [size coord]
-  ;; need a different seed from coordinate-order here;
-  ;; otherwise highest orders always have highest bits!
-  ;; (in cljs, (rng/int) is just a scaling of (rng/double).)
-  ;; TODO: splittable random number generator
-  (let [seedval (if (= 1 (count coord))
-                  (let [[x] coord] (reverse (str x)))
-                  (reverse coord))
-        RNG (rng/rng (hash seedval))]
+  (let [RNG (rng/rng (hash (str coord)))]
+    ;; take second random value to distinguish from coordinate-order
+    ;; (otherwise highest orders always have highest bits!)
+    (rng/int RNG size)
     (rng/int RNG size)))
 
 (defn coordinate-encoder
