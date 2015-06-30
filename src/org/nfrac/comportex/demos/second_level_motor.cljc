@@ -10,8 +10,8 @@
 
 (def bit-width 600)
 (def on-bits 30)
-(def motor-bit-width 75)
-(def motor-on-bits 25)
+(def motor-bit-width 30)
+(def motor-on-bits 15)
 
 (def test-text
   "one two three four.
@@ -33,16 +33,20 @@ the three little pigs.")
 (def spec
   {:column-dimensions [800]
    :depth 5
-   :ff-perm-inc 0.10
+   :ff-perm-stable-inc 0.15
+   :ff-perm-inc 0.04
    :ff-perm-dec 0.01
-   :lateral-synapses? false
+   :temporal-pooling-amp 3.0
+   :boost-active-duty-ratio 0 ;; disable boosting
+   :lateral-synapses? true
    :distal-vs-proximal-weight 0.5
-   :use-feedback? true})
+   :use-feedback? false
+   })
 
 (def initial-input-val
   {:sentences (parse-sentences test-text)
    :position [0 0 0] ;; [sentence word letter]
-   :next-letter-saccade 0
+   :next-letter-saccade -1
    :next-word-saccade -1
    :next-sentence-saccade -1
    })
@@ -67,16 +71,16 @@ the three little pigs.")
 (def sensory-input
   (let [e (enc/pre-transform #(get-in (:sentences %) (:position %))
                              (enc/unique-encoder [bit-width] on-bits))]
-    (core/sensorimotor-input e e)))
+    (core/sensory-input e)))
 
 (def letter-motor-input
   (let [e (enc/pre-transform :next-letter-saccade
-                             (enc/category-encoder motor-bit-width [1 0 -1]))]
+                             (enc/category-encoder motor-bit-width [1 -1]))]
     (core/sensorimotor-input nil e)))
 
 (def word-motor-input
   (let [e (enc/pre-transform :next-word-saccade
-                             (enc/category-encoder motor-bit-width [1 0 -1]))]
+                             (enc/category-encoder motor-bit-width [1 -1]))]
     (core/sensorimotor-input nil e)))
 
 (defn two-region-model
@@ -88,14 +92,16 @@ the three little pigs.")
                         {:input sensory-input
                          :letter-motor letter-motor-input
                          :word-motor word-motor-input}
-                        core/motor-region
+                        core/sensory-region
                         {:rgn-0 spec
                          :rgn-1 (merge spec higher-level-spec-diff)})))
 
 (defn feed-world-c-with-actions!
   [in-model-steps-c in-control-c out-world-c]
   (go
-    (loop [inval initial-input-val]
+    (loop [inval (assoc initial-input-val
+                        :word-bursting? false
+                        :sentence-bursting? false)]
       (let [[x port] (alts! [in-control-c
                              [out-world-c inval]]
                             :priority true)]
@@ -115,43 +121,57 @@ the three little pigs.")
                     end-of-word? (= nk (dec (count word)))
                     end-of-sentence? (= nj (dec (count sentence)))
                     end-of-passage? (= ni (dec (count sentences)))
-                    r0-lyr4 (get-in htm [:regions :rgn-0 :layer-4])
-                    r1-lyr4 (get-in htm [:regions :rgn-1 :layer-4])
-                    r0-burst-frac (/ (count (p/bursting-columns r0-lyr4))
-                                     (count (p/active-columns r0-lyr4)))
-                    r1-burst-frac (/ (count (p/bursting-columns r1-lyr4))
-                                     (count (p/active-columns r1-lyr4)))
+                    r0-lyr (get-in htm [:regions :rgn-0 :layer-3])
+                    r1-lyr (get-in htm [:regions :rgn-1 :layer-3])
+                    r0-burst-frac (/ (count (p/bursting-columns r0-lyr))
+                                     (count (p/active-columns r0-lyr)))
+                    r1-burst-frac (/ (count (p/bursting-columns r1-lyr))
+                                     (count (p/active-columns r1-lyr)))
+                    word-burst? (or (:word-bursting? inval)
+                                    (> r0-burst-frac 0.10))
+                    sent-burst? (or (:sentence-bursting? inval)
+                                    (> r1-burst-frac 0.10))
                     new-in-static {:sentences sentences
                                    :position new-posn
                                    :next-letter-saccade 0
                                    :next-word-saccade 0
-                                   :next-sentence-saccade 0}
+                                   :next-sentence-saccade 0
+                                   :word-bursting? word-burst?
+                                   :sentence-bursting? sent-burst?}
                     action (cond
                              ;; not yet at end of word
                              (not end-of-word?)
                              {:next-letter-saccade 1}
 
                              ;; word not yet learned, repeat word
-                             (> r0-burst-frac 0.05)
-                             {:next-letter-saccade -1}
+                             word-burst?
+                             {:next-letter-saccade -1
+                              :word-bursting? false}
 
                              ;; not yet at end of sentence, go to next word
                              (not end-of-sentence?)
-                             {:next-word-saccade 1}
+                             {:next-word-saccade 1
+                              :word-bursting? false}
 
                              ;; sentence not yet learned, repeat sentence
-                             (> r1-burst-frac 0.05)
-                             { :next-word-saccade -1}
+                             sent-burst?
+                             {:next-word-saccade -1
+                              :word-bursting? false
+                              :sentence-bursting? false}
 
                              ;; not yet at end of passage, go to next sentence
                              (not end-of-passage?)
                              {:next-sentence-saccade 1
-                              :next-word-saccade 1}
+                              :next-word-saccade 1
+                              :word-bursting? false
+                              :sentence-bursting? false}
 
                              ;; reached end of passage
                              :else
                              {:next-sentence-saccade -1
-                              :next-word-saccade -1}
+                              :next-word-saccade -1
+                              :word-bursting? false
+                              :sentence-bursting? false}
                              )]
                 ;; the next input value:
                 (recur (merge new-in-static action))))))))))
