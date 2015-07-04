@@ -425,7 +425,7 @@
     (topology/make-topology (conj (:column-dimensions spec)
                                   (:depth spec)))))
 
-#?(:cljs (def pmap map))
+(do #?(:cljs (def pmap map)))
 
 (defrecord RegionNetwork
     [ff-deps fb-deps strata inputs regions]

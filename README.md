@@ -8,15 +8,23 @@ Temporal Memory as a Clojure library.
 
 Comportex is not yet stable. Our aims are to:
 
-1. understand the theory deeply by implementing it and playing with it;
+1. understand the theory deeply by implementing it and experimenting with it;
 2. help others to understand the theory via interactive visual demonstrations; and
 3. further develop the theory by attempting to apply it to new problem types.
 
 
 ## Documentation
 
+For now there is the
+[annotated source code](http://nupic-community.github.com/comportex/doc/).
+
 The main API is in the namespace `org.nfrac.comportex.core` and in
 `org.nfrac.comportex.protocols`.
+
+Parameter descriptions can be found on [`org.nfrac.comportex.cells/parameter-defaults`](https://github.com/nupic-community/comportex/blob/master/src/org/nfrac/comportex/cells.cljc#L31).
+
+[This blog post](http://floybix.github.io/2014/11/05/htm-protocols/)
+has some explanation of the protocols.
 
 
 ## Usage
