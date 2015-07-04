@@ -696,7 +696,7 @@
      out-ff-bits out-stable-ff-bits
      col-overlaps matching-ff-seg-paths well-matching-ff-seg-paths
      temporal-pooling-exc
-     active-cols burst-cols active-cells learn-cells tp-cells timestep])
+     active-cols burst-cols active-cells learn-cells timestep])
 
 (defrecord LayerDistalState
     [distal-bits distal-lc-bits distal-exc pred-cells
@@ -791,7 +791,6 @@
                       :active-cols a-cols
                       :burst-cols b-cols
                       :learn-cells lc
-                      :tp-cells (keys next-tp-exc)
                       :timestep (inc (:timestep state))
                       }))))
 
@@ -908,7 +907,7 @@
   (learnable-cells [_]
     (:learn-cells state))
   (temporal-pooling-cells [_]
-    (:tp-cells state))
+    (keys (:temporal-pooling-exc state)))
   (predictive-cells [_]
     (:pred-cells distal-state))
   (prior-predictive-cells [_]
