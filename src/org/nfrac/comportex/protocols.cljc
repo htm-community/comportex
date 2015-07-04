@@ -114,8 +114,17 @@
   (input-step [this in-value])
   (input-export [this]))
 
-(defprotocol PResettable
-  (reset [this]))
+(defprotocol PRestartable
+  (restart [this]
+    "Returns this model (or model component) reverted to its initial
+    state prior to any learning."))
+
+(defprotocol PInterruptable
+  (break [this]
+    "Returns this model (or model component) without its current
+    sequence state, forcing the following input to be treated as a new
+    sequence. I.e. prevents learning distal connections to current
+    cells, and cancels any temporal pooling potential."))
 
 (defprotocol PTemporal
   (timestep [this]))

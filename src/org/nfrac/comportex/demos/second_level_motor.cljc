@@ -97,7 +97,7 @@ the three little pigs.")
                          :rgn-1 (merge spec higher-level-spec-diff)})))
 
 (defn feed-world-c-with-actions!
-  [in-model-steps-c in-control-c out-world-c]
+  [in-model-steps-c in-control-c out-world-c model-atom]
   (go
     (loop [inval (assoc initial-input-val
                         :word-bursting? false
@@ -128,9 +128,9 @@ the three little pigs.")
                     r1-burst-frac (/ (count (p/bursting-columns r1-lyr))
                                      (count (p/active-columns r1-lyr)))
                     word-burst? (or (:word-bursting? inval)
-                                    (> r0-burst-frac 0.10))
+                                    (>= r0-burst-frac 0.50))
                     sent-burst? (or (:sentence-bursting? inval)
-                                    (> r1-burst-frac 0.10))
+                                    (>= r1-burst-frac 0.50))
                     new-in-static {:sentences sentences
                                    :position new-posn
                                    :next-letter-saccade 0
@@ -143,6 +143,7 @@ the three little pigs.")
                              (not end-of-word?)
                              {:next-letter-saccade 1}
 
+                             ;; end of word.
                              ;; word not yet learned, repeat word
                              word-burst?
                              {:next-letter-saccade -1
@@ -153,6 +154,7 @@ the three little pigs.")
                              {:next-word-saccade 1
                               :word-bursting? false}
 
+                             ;; end of sentence.
                              ;; sentence not yet learned, repeat sentence
                              sent-burst?
                              {:next-word-saccade -1
@@ -173,5 +175,11 @@ the three little pigs.")
                               :word-bursting? false
                               :sentence-bursting? false}
                              )]
+                ;; reset first region when going on to new word
+                (when (and end-of-word? (not word-burst?))
+                  (swap! model-atom update-in [:regions :rgn-0] p/break))
+                ;; reset second region when going on to new sentence
+                (when (and end-of-sentence? (not sent-burst?))
+                  (swap! model-atom update-in [:regions :rgn-1] p/break))
                 ;; the next input value:
                 (recur (merge new-in-static action))))))))))

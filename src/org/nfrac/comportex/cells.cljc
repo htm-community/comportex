@@ -702,6 +702,21 @@
     [distal-bits distal-lc-bits distal-exc pred-cells
      matching-seg-paths well-matching-seg-paths])
 
+(def empty-active-state
+  (map->LayerActiveState
+   {:learn-cells #{}
+    :active-cells #{}
+    :active-cols #{}
+    :temporal-pooling-exc {}
+    :well-matching-ff-seg-paths {}}))
+
+(def empty-distal-state
+  (map->LayerDistalState
+   {:distal-bits #{}
+    :pred-cells #{}
+    :distal-exc {}
+    :well-matching-seg-paths {}}))
+
 (defrecord LayerOfCells
     [spec topology input-topology inh-radius boosts active-duty-cycles
      proximal-sg distal-sg state distal-state prior-distal-state]
@@ -898,6 +913,13 @@
     (:pred-cells distal-state))
   (prior-predictive-cells [_]
     (:pred-cells prior-distal-state))
+
+  p/PInterruptable
+  (break [this]
+    (-> this
+        (assoc :distal-state empty-distal-state)
+        (update-in [:state :temporal-pooling-exc] empty)))
+
   p/PTopological
   (topology [this]
     (:topology this))
@@ -941,18 +963,7 @@
                                                n-distal
                                                (:distal-perm-connected spec)
                                                true)
-        state (map->LayerActiveState
-               {:learn-cells #{}
-                :active-cells #{}
-                :active-cols #{}
-                :temporal-pooling-exc {}
-                :well-matching-ff-seg-paths {}
-                :timestep 0})
-        distal-state (map->LayerDistalState
-                      {:distal-bits #{}
-                       :pred-cells #{}
-                       :distal-exc {}
-                       :well-matching-seg-paths {}})]
+        state (assoc empty-active-state :timestep 0)]
     (->
      (map->LayerOfCells
       {:spec spec
@@ -962,8 +973,8 @@
        :proximal-sg proximal-sg
        :distal-sg distal-sg
        :state state
-       :distal-state distal-state
-       :prior-distal-state distal-state
+       :distal-state empty-distal-state
+       :prior-distal-state empty-distal-state
        :boosts (vec (repeat n-cols 1.0))
        :active-duty-cycles (vec (repeat n-cols 0.0))
        })

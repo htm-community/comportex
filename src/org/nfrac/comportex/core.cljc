@@ -65,8 +65,12 @@
   p/PParameterised
   (params [_]
     (p/params layer-3))
-  p/PResettable
-  (reset [this]
+  p/PInterruptable
+  (break [this]
+    (assoc this
+           :layer-3 (p/break layer-3)))
+  p/PRestartable
+  (restart [this]
     (sensory-region (p/params this))))
 
 (defn sensory-region
@@ -130,8 +134,12 @@
   p/PParameterised
   (params [_]
     (p/params layer-4))
-  p/PResettable
-  (reset [this]
+  p/PInterruptable
+  (break [this]
+    (assoc this
+           :layer-4 (p/break layer-4)))
+  p/PRestartable
+  (restart [this]
     (motor-region (p/params this))))
 
 (defn motor-region
@@ -212,8 +220,13 @@
   p/PParameterised
   (params [_]
     (p/params layer-4))
-  p/PResettable
-  (reset [this]
+  p/PInterruptable
+  (break [this]
+    (assoc this
+           :layer-4 (p/break layer-4)
+           :layer-3 (p/break layer-3)))
+  p/PRestartable
+  (restart [this]
     (sensorimotor-region (p/params this))))
 
 (defn sensorimotor-region
@@ -473,31 +486,44 @@
   p/PTemporal
   (timestep [_]
     (p/timestep (first (vals regions))))
-  p/PResettable
-  (reset [this]
+
+  p/PInterruptable
+  (break [this]
+    (assoc this
+           :regions (->> (vals regions)
+                         (map p/break)
+                         (zipmap (keys regions)))))
+
+  p/PRestartable
+  (restart [this]
     (assoc this
       :regions (->> (vals regions)
-                    (pmap p/reset)
+                    (pmap p/restart)
                     (zipmap (keys regions))))))
 
 (defn region-keys
-  "A sequence of the keys of all regions in topologically-sorted order."
-  [this]
-  ;; topologically sorted: drop 1st stratum i.e. drop the inputs
-  (apply concat (rest (:strata this))))
+  "A sequence of the keys of all regions in topologically-sorted
+  order. If `n-levels` is provided, only the regions from that many
+  hierarchical levels are included. So 1 gives the first tier directly
+  receiving inputs."
+  ([htm]
+   (region-keys htm (dec (count (:strata htm)))))
+  ([htm n-levels]
+   ;; topologically sorted: drop 1st stratum i.e. drop the inputs
+   (apply concat (take n-levels (rest (:strata htm))))))
 
 (defn input-keys
   "A sequence of the keys of all inputs."
-  [this]
-  (first (:strata this)))
+  [htm]
+  (first (:strata htm)))
 
 (defn region-seq
-  [this]
-  (map (:regions this) (region-keys this)))
+  [htm]
+  (map (:regions htm) (region-keys htm)))
 
 (defn input-seq
-  [this]
-  (map (:inputs this) (input-keys this)))
+  [htm]
+  (map (:inputs htm) (input-keys htm)))
 
 (defn- in-vals-not-keys
   [deps]
