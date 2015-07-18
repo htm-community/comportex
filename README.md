@@ -17,9 +17,8 @@ Comportex is not yet stable. Our aims are to:
 
 For now there is the
 [annotated source code](http://nupic-community.github.com/comportex/docs/).
-
-The main API is in the namespace `org.nfrac.comportex.core` and in
-`org.nfrac.comportex.protocols`.
+The main API is in the namespaces `core` and `protocols`, while the
+algorithms are mainly in `cells`, `synapses` and `inhibition`.
 
 Parameter descriptions can be found on [`org.nfrac.comportex.cells/parameter-defaults`](https://github.com/nupic-community/comportex/blob/master/src/org/nfrac/comportex/cells.cljc#L31).
 
@@ -48,6 +47,7 @@ that they can be visualised in the browser with
 ## Related projects
 
 * [ComportexViz](http://github.com/nupic-community/comportexviz/)
+* [Comportex Notebook](https://github.com/mrcslws/comportex-notebook)
 * [Clortex](https://github.com/nupic-community/clortex/)
 * [NuPIC](http://www.numenta.org/)
 

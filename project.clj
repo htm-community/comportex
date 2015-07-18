@@ -20,6 +20,6 @@
                                   [criterium "0.4.3"]]
                    :plugins [[lein-cljsbuild "1.0.5"]
                              [com.cemerick/clojurescript.test "0.3.3"]
-                             [com.cemerick/austin "0.1.6"]
-                             [lein-marginalia "0.8.1-SNAPSHOT"]]}
+                             ;[lein-marginalia "0.8.1-SNAPSHOT"]
+                             ]}
              :repl {:source-paths ["dev" "src"]}})
