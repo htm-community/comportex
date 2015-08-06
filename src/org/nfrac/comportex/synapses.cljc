@@ -184,7 +184,7 @@
   (targets-connected-from
     [_ source-id]
     (->> (p/targets-connected-from int-sg source-id)
-         (map (partial seg-uidx depth max-segs))))
+         (map (partial seg-path depth max-segs))))
   (excitations
     [_ active-sources stimulus-threshold]
     (let [exc-m (p/excitations int-sg active-sources stimulus-threshold)]
