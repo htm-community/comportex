@@ -727,7 +727,8 @@
                  (let [[col ci] cell-id
                        ;; breakdown of proximal excitation by source
                        ff-seg-path (get (:matching-ff-seg-paths state) [col 0])
-                       ff-conn-sources (p/sources-connected-to psg ff-seg-path)
+                       ff-conn-sources (when ff-seg-path
+                                         (p/sources-connected-to psg ff-seg-path))
                        active-ff-b (->> (filter ff-b-bits ff-conn-sources)
                                         (zap-fewer ff-stim-thresh))
                        active-ff-s (->> (filter ff-s-bits ff-conn-sources)
@@ -736,7 +737,8 @@
                        ff-s-by-src (frequencies (map ff-bits-srcs active-ff-s))
                        ;; breakdown of distal excitation by source
                        d-seg-path (get (:matching-seg-paths distal-state) cell-id)
-                       d-conn-sources (p/sources-connected-to dsg d-seg-path)
+                       d-conn-sources (when d-seg-path
+                                        (p/sources-connected-to dsg d-seg-path))
                        active-d (->> (filter distal-bits d-conn-sources)
                                      (zap-fewer d-stim-thresh))
                        d-by-src (->> (frequencies (map distal-bits-srcs active-d))
