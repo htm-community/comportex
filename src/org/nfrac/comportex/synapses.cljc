@@ -180,8 +180,8 @@
     (p/in-synapses int-sg (seg-uidx depth max-segs target-id)))
   (sources-connected-to
     [_ target-id]
-    (p/sources-connected-to int-sg (when target-id
-                                     (seg-uidx depth max-segs target-id))))
+    (assert target-id)
+    (p/sources-connected-to int-sg (seg-uidx depth max-segs target-id)))
   (targets-connected-from
     [_ source-id]
     (->> (p/targets-connected-from int-sg source-id)
