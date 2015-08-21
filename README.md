@@ -33,21 +33,19 @@ Get [Leiningen](http://leiningen.org/) first.
 Use git to clone this repository. Then, e.g. to start an interactive session:
 
 ```
+cd comportex
 lein repl
 ```
 
 See [A sample workflow with the
 REPL](https://github.com/nupic-community/comportex/wiki/A-sample-workflow-with-the-REPL).
-
-For examples look in `src/cljx/org/nfrac/comportex/demos/` and note
-that they can be visualised in the browser with
+Or check out the Notebook (browser-based REPL with super powers) in
 [ComportexViz](http://github.com/nupic-community/comportexviz/).
 
 
 ## Related projects
 
 * [ComportexViz](http://github.com/nupic-community/comportexviz/)
-* [Comportex Notebook](https://github.com/mrcslws/comportex-notebook)
 * [Clortex](https://github.com/nupic-community/clortex/)
 * [NuPIC](http://www.numenta.org/)
 
