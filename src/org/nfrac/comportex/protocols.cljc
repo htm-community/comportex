@@ -81,9 +81,9 @@
   (in-synapses [this target-id]
     "All synapses to the target. A map from source ids to permanences.")
   (sources-connected-to [this target-id]
-    "The set of source ids actually connected to target id.")
+    "The collection of source ids actually connected to target id.")
   (targets-connected-from [this source-id]
-    "The set of target ids actually connected from source id.")
+    "The collection of target ids actually connected from source id.")
   (excitations [this active-sources stimulus-threshold]
     "Computes a map of target ids to their degree of excitation -- the
     number of sources in `active-sources` they are connected to -- excluding
