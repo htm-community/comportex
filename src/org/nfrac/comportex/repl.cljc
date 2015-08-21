@@ -3,9 +3,11 @@
   #?(:clj (:require [clojure.pprint :as pprint]
                     [org.nfrac.comportex.cells]
                     [org.nfrac.comportex.synapses])
-     :cljs (:require [org.nfrac.comportex.cells :refer [LayerOfCells]]
+     :cljs (:require [org.nfrac.comportex.cells
+                      :refer [LayerOfCells LayerActiveState LayerDistalState]]
                      [org.nfrac.comportex.synapses :refer [SynapseGraph]]))
-  #?(:clj (:import [org.nfrac.comportex.cells LayerOfCells]
+  #?(:clj (:import [org.nfrac.comportex.cells
+                    LayerOfCells LayerActiveState LayerDistalState]
                    [org.nfrac.comportex.synapses SynapseGraph])))
 
 ;;; ## Truncate large data structures
@@ -27,9 +29,17 @@
                       :cljs []))
 
 (def should-truncate {LayerOfCells
-                      [:boosts :active-duty-cycles :overlap-duty-cycles],
+                      [:boosts :active-duty-cycles]
                       SynapseGraph
-                      [:syns-by-target :targets-by-source]})
+                      [:syns-by-target :targets-by-source]
+                      LayerActiveState
+                      [:col-overlaps :matching-ff-seg-paths
+                       :in-ff-bits :in-stable-ff-bits
+                       :out-ff-bits :out-stable-ff-bits
+                       :active-cells]
+                      LayerDistalState
+                      [:distal-bits :distal-lc-bits :distal-exc :pred-cells
+                       :matching-seg-paths]})
 
 (defrecord TruncateOnPrint [v])
 
