@@ -59,16 +59,14 @@
       :last-saccade dx
       :next-saccade sacc)))
 
-(def block-sensory-input
-  (let [e (enc/pre-transform #(get (:field %) (:position %))
-                             (enc/category-encoder bit-width items))]
-    (core/sensorimotor-input e e)))
+(def block-encoder
+  (enc/pre-transform #(get (:field %) (:position %))
+                     (enc/category-encoder bit-width items)))
 
-(def block-motor-input
-  (let [e (enc/pre-transform :next-saccade
-                             (enc/linear-encoder motor-bit-width motor-on-bits
-                                                 [(first saccades) (last saccades)]))]
-    (core/sensorimotor-input nil e)))
+(def block-motor-encoder
+  (enc/pre-transform :next-saccade
+                     (enc/linear-encoder motor-bit-width motor-on-bits
+                                         [(first saccades) (last saccades)])))
 
 (defn world-seq
   "Returns an infinite lazy seq of sensory input values."
@@ -80,6 +78,5 @@
      (n-region-model n spec))
   ([n spec]
      (core/regions-in-series core/sensorimotor-region
-                             block-sensory-input block-motor-input
-                             n
+                             block-encoder block-motor-encoder n
                              (list* spec (repeat (merge spec higher-level-spec-diff))))))

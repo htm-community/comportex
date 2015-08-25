@@ -35,7 +35,7 @@
 
 (defn model
   []
-  (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+  (core/regions-in-series core/sensory-region encoder
                           1 [spec]))
 
 (deftest sp-test
@@ -51,8 +51,6 @@
         lyr (:layer-3 rgn)
         n-cols (p/size-of lyr)]
     (testing "Column activation is distributed and moderated."
-      (is (pos? (util/quantile (:overlap-duty-cycles lyr) 0.01))
-          "At least 99% of columns have overlapped with input at least once.")
       (is (pos? (util/quantile (:active-duty-cycles lyr) 0.9))
           "At least 10% of columns have been active.")
       (let [nactive-ts (for [t (range 400 500)]
@@ -61,7 +59,7 @@
             "Inhibition limits active columns in each time step."))
       (let [sg (:proximal-sg lyr)
             nsyns (for [col (range n-cols)]
-                    (count (p/sources-connected-to sg col)))]
+                    (count (p/sources-connected-to sg [col 0 0])))]
         (is (>= (apply min nsyns) 1)
             "All columns have at least one connected input synapse."))
       (let [bs (:boosts lyr)]

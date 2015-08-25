@@ -2,14 +2,37 @@
 
 (defprotocol PHTM
   "A network of regions, forming Hierarchical Temporal Memory."
-  (htm-activate [this in-value])
-  (htm-learn [this])
-  (htm-depolarise [this])
-  (htm-export [this]))
+  (sense [this in-value]
+    "Takes an input value. Encodes each sense's associated value to a
+    bit set, returning them in a map.")
+  (htm-activate-raw [this in-bits]
+    "Takes encoded bit sets with keys matching the HTM's
+    senses. Propagates feed-forward input through the network to
+    activate columns and cells.")
+  (htm-learn [this]
+    "Applies learning rules to synapses. Assumes `this` has been through
+    the `htm-activate` phase already.")
+  (htm-depolarise [this]
+    "Propagates lateral and feed-back activity to put cells into a
+    depolarised (predictive) state. Assumes `this` has been through
+    the `htm-activate` phase already.")
+  (htm-export [this]
+    "Prepares for serialization."))
 
-(defn htm-step
+(defn htm-activate
+  "Takes an input value. Propagates feed-forward input through the
+  network to activate columns and cells. Updates :input-value. Starts
+  a new time step."
   [this in-value]
   (-> this
+      (assoc :input-value in-value)
+      (htm-activate-raw (sense this in-value))))
+
+(defn htm-step
+  "Advances a HTM by one time step with the given input value. Does
+  (-> htm (htm-activate in-value) (htm-learn) (htm-depolarise))."
+  [htm in-value]
+  (-> htm
       (htm-activate in-value)
       (htm-learn)
       (htm-depolarise)))
@@ -42,7 +65,7 @@
   (source-of-bit [this i]
     "Given the index of an output bit from this source, return the
     corresponding local cell id as [col ci] where col is the column
-    index. If the source is an input encoder, returns [i]."))
+    index. If the source is a sense, returns [i]."))
 
 (defprotocol PFeedForwardMotor
   (ff-motor-topology [this])
@@ -97,6 +120,10 @@
   (cell-segments [this cell-id]
     "A vector of segments on the cell, each being a synapse map."))
 
+(defprotocol PSense
+  "Sense nodes need to extend this together with PFeedForward."
+  (sense-activate [this bits]))
+
 (defprotocol PEncodable
   "Encoders need to extend this together with PTopological."
   (encode [this x]
@@ -108,11 +135,6 @@
      decreasing. The argument `bit-votes` is a map from encoded bit
      index to a number of votes, typically the number of synapse
      connections from predictive cells."))
-
-(defprotocol PInputSource
-  "Inputs need to extend this together with PFeedForward."
-  (input-step [this in-value])
-  (input-export [this]))
 
 (defprotocol PRestartable
   (restart [this]
