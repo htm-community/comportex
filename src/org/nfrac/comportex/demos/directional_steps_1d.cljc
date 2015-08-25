@@ -50,6 +50,6 @@
   ([n]
      (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+     (core/regions-in-series core/sensory-region encoder
                              n
                              (list* spec (repeat (merge spec higher-level-spec-diff))))))

@@ -139,16 +139,15 @@
                                      {:coord [(* x surface-coord-scale)]
                                       :radii [coord-radius]})
                                    (enc/coordinate-encoder input-dim on-bits))
-        mencoder (enc/pre-transform :dx (enc/linear-encoder 100 30 [-1 1]))
-        sensory-input (core/sensorimotor-input encoder encoder)
-        motor-input (core/sensorimotor-input nil mencoder)]
+        mencoder (enc/pre-transform :dx (enc/linear-encoder 100 30 [-1 1]))]
     (core/region-network {:rgn-1 [:input :motor]
                           :action [:rgn-1]}
-                         {:input sensory-input
-                          :motor motor-input}
-                         core/sensory-region
+                         (constantly core/sensory-region)
                          {:rgn-1 (assoc spec :lateral-synapses? false)
-                          :action action-spec})))
+                          :action action-spec}
+                         {:input encoder}
+                         {:input encoder
+                          :motor mencoder})))
 
 (defn feed-world-c-with-actions!
   [in-model-steps-c out-world-c model-atom]

@@ -38,7 +38,7 @@
 
 (defn model
   []
-  (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+  (core/regions-in-series core/sensory-region encoder
                           1 [spec]))
 
 (defn world-seq

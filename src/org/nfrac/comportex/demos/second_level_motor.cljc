@@ -4,8 +4,8 @@
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.string :as str]
-            #?(:clj [clojure.core.async :refer [<! >! go]]
-               :cljs [cljs.core.async :refer [<! >!]]))
+            #?(:clj [clojure.core.async :refer [<! >! alts! go]]
+               :cljs [cljs.core.async :refer [<! >! alts!]]))
   #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
 (def bit-width 600)
@@ -68,20 +68,17 @@ the three little pigs.")
       (neg? (:next-letter-saccade inval))
       [i j 0])))
 
-(def sensory-input
-  (let [e (enc/pre-transform #(get-in (:sentences %) (:position %))
-                             (enc/unique-encoder [bit-width] on-bits))]
-    (core/sensory-input e)))
+(def letter-encoder
+  (enc/pre-transform #(get-in (:sentences %) (:position %))
+                     (enc/unique-encoder [bit-width] on-bits)))
 
-(def letter-motor-input
-  (let [e (enc/pre-transform :next-letter-saccade
-                             (enc/category-encoder motor-bit-width [1 -1]))]
-    (core/sensorimotor-input nil e)))
+(def letter-motor-encoder
+  (enc/pre-transform :next-letter-saccade
+                     (enc/category-encoder motor-bit-width [1 -1])))
 
-(def word-motor-input
-  (let [e (enc/pre-transform :next-word-saccade
-                             (enc/category-encoder motor-bit-width [1 -1]))]
-    (core/sensorimotor-input nil e)))
+(def word-motor-encoder
+  (enc/pre-transform :next-word-saccade
+                     (enc/category-encoder motor-bit-width [1 -1])))
 
 (defn two-region-model
   ([]
@@ -89,12 +86,13 @@ the three little pigs.")
   ([spec]
    (core/region-network {:rgn-0 [:input :letter-motor]
                          :rgn-1 [:rgn-0 :word-motor]}
-                        {:input sensory-input
-                         :letter-motor letter-motor-input
-                         :word-motor word-motor-input}
-                        core/sensory-region
+                        (constantly core/sensory-region)
                         {:rgn-0 spec
-                         :rgn-1 (merge spec higher-level-spec-diff)})))
+                         :rgn-1 (merge spec higher-level-spec-diff)}
+                        {:input letter-encoder}
+                        {:letter-motor letter-motor-encoder
+                         :word-motor word-motor-encoder}
+                        )))
 
 (defn feed-world-c-with-actions!
   [in-model-steps-c in-control-c out-world-c model-atom]

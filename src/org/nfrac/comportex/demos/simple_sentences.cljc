@@ -126,6 +126,5 @@ Chifung has no tail.
    (let [encoder random-encoder]
      (n-region-model n spec encoder)))
   ([n spec encoder]
-   (let [inp (core/sensory-input encoder)]
-     (core/regions-in-series core/sensory-region inp n
-                             (list* spec (repeat (merge spec higher-level-spec-diff)))))))
+   (core/regions-in-series core/sensory-region encoder n
+                           (list* spec (repeat (merge spec higher-level-spec-diff))))))

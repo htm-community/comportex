@@ -258,45 +258,20 @@
     {:layer-3 l3
      :layer-4 l4})))
 
-;; Include defaced `encoder` and `motor-encoder` as bools so consumers can still
-;; check via map lookup whether they previously existed.
-(defrecord ExportedSensoriMotorInput
-    [encoder motor-encoder value topo ff-topo bitsv stable-bitsv ff-motor-topo
-     motor-bitsv]
+(defrecord SenseNode
+    [topo bits sensory? motor?]
   p/PTopological
   (topology [_]
     topo)
   p/PFeedForward
   (ff-topology [_]
-    ff-topo)
-  (bits-value [_]
-    bitsv)
-  (stable-bits-value [_]
-    stable-bitsv)
-  (source-of-bit [_ i]
-    [i])
-  p/PFeedForwardMotor
-  (ff-motor-topology [_]
-    ff-motor-topo)
-  (motor-bits-value [_]
-    motor-bitsv))
-
-(defrecord SensoriMotorInput
-    [encoder motor-encoder value]
-  p/PTopological
-  (topology [_]
-    (if encoder
-      (p/topology encoder)
-      (p/topology motor-encoder)))
-  p/PFeedForward
-  (ff-topology [_]
-    (if encoder
-      (p/topology encoder)
+    (if sensory?
+      topo
       topology/empty-topology))
   (bits-value
     [_]
-    (if encoder
-      (p/encode encoder value)
+    (if sensory?
+      bits
       (sequence nil)))
   (stable-bits-value
     [_]
@@ -306,44 +281,23 @@
     [i])
   p/PFeedForwardMotor
   (ff-motor-topology [_]
-    (if motor-encoder
-      (p/topology motor-encoder)
+    (if motor?
+      topo
       topology/empty-topology))
   (motor-bits-value
     [_]
-    (if motor-encoder
-      (p/encode motor-encoder value)
+    (if motor?
+      bits
       (sequence nil)))
-  p/PInputSource
-  (input-step [this in-value]
-    (assoc this :value in-value))
-  (input-export [this]
-    (->ExportedSensoriMotorInput (when encoder true)
-                                 (when motor-encoder true)
-                                 value
-                                 (p/topology this)
-                                 (p/ff-topology this)
-                                 (p/bits-value this)
-                                 (p/stable-bits-value this)
-                                 (p/ff-motor-topology this)
-                                 (p/motor-bits-value this))))
+  p/PSense
+  (sense-activate [this bits]
+    (assoc this :bits bits)))
 
-(defn sensory-input
-  "Creates an input source from an encoder."
-  [encoder]
-  (->SensoriMotorInput encoder nil nil))
-
-(defn sensorimotor-input
-  "Creates an input source from an encoder (for the proximal
-   feed-forward output) and/or a motor encoder (for the distal
-   feed-forward output). The encoders operate on the same value so
-   should select their relevant parts of it. Remember that HTM models
-   go through the three phases [activate -> learn -> depolarise] on
-   each timestep: therefore motor signals, which act to depolarise
-   cells, should appear the time step before a corresponding sensory
-   signal."
-  [encoder motor-encoder]
-  (->SensoriMotorInput encoder motor-encoder nil))
+(defn sense-node
+  "Creates a sense node with given topology, matching the encoder that
+  will generate its bits."
+  [topo sensory? motor?]
+  (->SenseNode topo () sensory? motor?))
 
 ;;; ## Region Networks
 
@@ -368,18 +322,18 @@
 (defn source-of-incoming-bit
   "Taking the index of an input bit as received by the given region,
   return its source element as [k id] where k is the key of the source
-  region or input, and id is the index adjusted to refer to the output
+  region or sense, and id is the index adjusted to refer to the output
   of that source."
   ([htm rgn-id i]
      (source-of-incoming-bit htm rgn-id i p/ff-topology))
   ([htm rgn-id i topology-fn]
-     (let [inputs (:inputs htm)
+     (let [senses (:senses htm)
            regions (:regions htm)
            ff-ids (get-in htm [:ff-deps rgn-id])]
        (loop [ff-ids ff-ids
               offset 0]
          (when-let [ff-id (first ff-ids)]
-           (let [ff (or (inputs ff-id)
+           (let [ff (or (senses ff-id)
                         (regions ff-id))
                  width (long (p/size (topology-fn ff)))]
              (if (< i (+ offset width))
@@ -389,7 +343,7 @@
 
 (defn source-of-distal-bit
   "Returns [src-id src-lyr-id j] where src-id may be a region key or
-   input key, src-lyr-id is nil for inputs, and j is the index into
+   sense key, src-lyr-id is nil for senses, and j is the index into
    the output of the source."
   [htm rgn-id lyr-id i]
   (let [rgn (get-in htm [:regions rgn-id])
@@ -403,7 +357,7 @@
                                                      p/ff-motor-topology)
                   src-rgn (get-in htm [:regions src-id])]
               [src-id
-               (when src-rgn (last (layers src-rgn))) ;; nil for inputs
+               (when src-rgn (last (layers src-rgn))) ;; nil for senses
                j])
             ;; this is not the input layer; source may be within region?
             [])
@@ -428,12 +382,21 @@
 (do #?(:cljs (def pmap map)))
 
 (defrecord RegionNetwork
-    [ff-deps fb-deps strata inputs regions]
+    [ff-deps fb-deps strata encoders senses regions]
   p/PHTM
-  (htm-activate
+  (sense
     [this in-value]
-    (let [im (zipmap (keys inputs)
-                     (map p/input-step (vals inputs) (repeat in-value)))
+    (reduce-kv (fn [m k e]
+                 (assoc m k (p/encode e in-value)))
+               {}
+               encoders))
+
+  (htm-activate-raw
+    [this in-bits]
+    (let [sm (reduce-kv (fn [m k node]
+                          (assoc m k (p/sense-activate node (get in-bits k))))
+                        {}
+                        senses)
           rm (-> (reduce
                   (fn [m stratum]
                     (->> stratum
@@ -447,12 +410,12 @@
                                     (combined-bits-value ffs :stable)))))
                          (zipmap stratum)
                          (into m)))
-                  im
-                  ;; drop 1st stratum i.e. drop the inputs
+                  sm
+                  ;; drop 1st stratum i.e. drop the sensory inputs
                   (rest strata))
-                 ;; get rid of the inputs which were seeded into the reduce
+                 ;; get rid of the sense nodes which were seeded into the reduce
                  (select-keys (keys regions)))]
-      (assoc this :inputs im :regions rm)))
+      (assoc this :senses sm :regions rm)))
 
   (htm-learn
     [this]
@@ -467,7 +430,7 @@
                   (pmap (fn [[id region]]
                           (let [ff-ids (ff-deps id)
                                 fb-ids (fb-deps id)
-                                ffs (map #(or (inputs %) (regions %))
+                                ffs (map #(or (senses %) (regions %))
                                          ff-ids)
                                 fbs (map regions fb-ids)]
                             (p/region-depolarise
@@ -479,9 +442,7 @@
 
   (htm-export
     [this]
-    (assoc this
-      :inputs (zipmap (keys inputs)
-                      (map p/input-export (vals inputs)))))
+    (dissoc this :encoders))
 
   p/PTemporal
   (timestep [_]
@@ -505,25 +466,21 @@
   "A sequence of the keys of all regions in topologically-sorted
   order. If `n-levels` is provided, only the regions from that many
   hierarchical levels are included. So 1 gives the first tier directly
-  receiving inputs."
+  receiving sensory inputs."
   ([htm]
    (region-keys htm (dec (count (:strata htm)))))
   ([htm n-levels]
-   ;; topologically sorted: drop 1st stratum i.e. drop the inputs
+   ;; topologically sorted: drop 1st stratum i.e. drop the sensory inputs
    (apply concat (take n-levels (rest (:strata htm))))))
 
-(defn input-keys
-  "A sequence of the keys of all inputs."
+(defn sense-keys
+  "A sequence of the keys of all sense nodes."
   [htm]
   (first (:strata htm)))
 
 (defn region-seq
   [htm]
   (map (:regions htm) (region-keys htm)))
-
-(defn input-seq
-  [htm]
-  (map (:inputs htm) (input-keys htm)))
 
 (defn- in-vals-not-keys
   [deps]
@@ -532,34 +489,41 @@
     (set/difference are-deps have-deps)))
 
 (defn region-network
-  "Builds a network of regions and inputs from the given dependency map.
+  "Builds a network of regions and senses from the given dependency
+  map. The keywords used in the dependency map are used to look up
+  region-building functions, parameter specifications, and encoders in
+  the remaining argments.
 
-   For each node, the combined dimensions of its feed-forward sources
-   is calculated and used to set the `:input-dimensions` parameter in
-   its `spec`. Also, the combined dimensions of feed-forward motor
-   inputs are used to set the `:distal-motor-dimensions` parameter,
-   and the combined dimensions of its feed-back superior regions is
-   used to set the `:distal-topdown-dimensions` parameter. The updated
-   spec is passed to `build-region`, which is typically
-   `sensory-region`. Returns a RegionNetwork.
+  For each node, the combined dimensions of its feed-forward sources
+  is calculated and used to set the `:input-dimensions` parameter in
+  its `spec`. Also, the combined dimensions of feed-forward motor
+  inputs are used to set the `:distal-motor-dimensions` parameter, and
+  the combined dimensions of its feed-back superior regions is used to
+  set the `:distal-topdown-dimensions` parameter. The updated spec is
+  passed to a function (typically `sensory-region`) to build a
+  region. The build function is looked up in `region-builders`.
 
-   For example to build the network `inp -> v1 -> v2`:
+  For example to build the network `inp -> v1 -> v2`:
 
    `
-   (region-network {:v1 [:inp]
-                    :v2 [:v1]}
-                   {:inp (sensory-input nil input-transform encoder)}
-                   sensory-region
-                   {:v1 spec
-                    :v2 spec})`"
-  [ff-deps inputs build-region region-specs]
-  {:pre [;; anything with a dependency must be a region
+   (region-network
+    {:v1 [:inp]
+     :v2 [:v1]}
+    {:v1 sensory-region
+     :v2 sensory-region}
+    {:v1 spec
+     :v2 spec}
+    {:inp encoder}
+    nil)`"
+  [ff-deps region-builders region-specs sensory-encoders motor-encoders]
+  {:pre [;; all regions must have dependencies
          (every? ff-deps (keys region-specs))
-         ;; anything without a dependency must be an input
-         (every? (in-vals-not-keys ff-deps) (keys inputs))
+         ;; all sense nodes must not have dependencies
+         (every? (in-vals-not-keys ff-deps) (keys sensory-encoders))
+         (every? (in-vals-not-keys ff-deps) (keys motor-encoders))
          ;; all ids in dependency map must be defined
          (every? region-specs (keys ff-deps))
-         (every? inputs (in-vals-not-keys ff-deps))]}
+         (every? (merge sensory-encoders motor-encoders) (in-vals-not-keys ff-deps))]}
   (let [all-ids (into (set (keys ff-deps))
                       (in-vals-not-keys ff-deps))
         ff-dag (graph/directed-graph all-ids ff-deps)
@@ -567,8 +531,17 @@
         fb-deps (->> (graph/reverse-graph ff-dag)
                          :neighbors
                          (util/remap seq))
+        ;; encoders may appear with same key in both sensory- and motor-
+        sm (->> (merge-with merge
+                            (util/remap (fn [e] {:encoder e, :sensory? true})
+                                        sensory-encoders)
+                            (util/remap (fn [e] {:encoder e, :motor? true})
+                                        motor-encoders))
+                (util/remap (fn [{:keys [encoder sensory? motor?]}]
+                              (sense-node (p/topology encoder) sensory? motor?))))
         rm (-> (reduce (fn [m id]
                          (let [spec (region-specs id)
+                               build-region (region-builders id)
                                ;; feed-forward
                                ff-ids (ff-deps id)
                                ffs (map m ff-ids)
@@ -583,36 +556,38 @@
                                        :distal-topdown-dimensions fb-dim)
                                 (build-region)
                                 (assoc m id))))
-                       inputs
-                       ;; topological sort. drop 1st stratum i.e. drop the inputs
+                       sm
+                       ;; topological sort. drop 1st stratum i.e. senses
                        (apply concat (rest strata)))
-               ;; get rid of the inputs which were seeded into the reduce
+               ;; get rid of the sense nodes which were seeded into the reduce
                (select-keys (keys region-specs)))]
     (map->RegionNetwork
      {:ff-deps ff-deps
       :fb-deps fb-deps
       :strata strata
-      :inputs inputs
+      :encoders (merge sensory-encoders motor-encoders)
+      :senses sm
       :regions rm})))
 
 (defn regions-in-series
-  "Constructs an HTM network consisting of one input and n regions in
-   a linear series. The input key is :input, optional motor input key
-   is :motor, and the region keys are :rgn-0, :rgn-1, etc. See
-   `region-network`."
-  ([build-region input n specs]
-   (regions-in-series build-region input nil n specs))
-  ([build-region input motor-input n specs]
+  "Constructs an HTM network consisting of one sense and n regions in
+  a linear series. The sense key is :input, optional motor sense key
+  is :motor, and the region keys are :rgn-0, :rgn-1, etc. See
+  `region-network`."
+  ([build-region encoder n specs]
+   (regions-in-series build-region encoder nil n specs))
+  ([build-region encoder motor-encoder n specs]
    {:pre [(sequential? specs)
           (= n (count (take n specs)))]}
    (let [rgn-keys (map #(keyword (str "rgn-" %)) (range n))
-         inp-keys (if motor-input [:input :motor] [:input])
+         sense-keys (if motor-encoder [:input :motor] [:input])
          ;; make {:rgn-0 [:input], :rgn-1 [:rgn-0], :rgn-2 [:rgn-1], ...}
-         deps (zipmap rgn-keys (list* inp-keys (map vector rgn-keys)))]
+         deps (zipmap rgn-keys (list* sense-keys (map vector rgn-keys)))]
      (region-network deps
-                     (zipmap inp-keys [input motor-input])
-                     build-region
-                     (zipmap rgn-keys specs)))))
+                     (constantly build-region)
+                     (zipmap rgn-keys specs)
+                     {:input encoder}
+                     (if motor-encoder {:motor motor-encoder})))))
 
 ;;; ## Stats
 
@@ -638,10 +613,10 @@
            (assoc :timestep (p/timestep rgn)
                   :size (p/size (p/topology rgn)))))))
 
-;;; ## Tracing columns back to input
+;;; ## Tracing columns back to senses
 
 (defn layer-predicted-bit-votes
-  "Returns a map from input bit index to the number of connections to
+  "Returns a map from sense bit index to the number of connections to
   it from cells in the predictive state."
   [lyr]
   (let [psg (:proximal-sg lyr)]
@@ -664,9 +639,9 @@
 (defn predictions
   [htm n-predictions]
   (let [rgn (first (region-seq htm))
-        inp (first (input-seq htm))
+        encoder (first (vals (:encoders htm)))
         pr-votes (predicted-bit-votes rgn)]
-    (p/decode (:encoder inp) pr-votes n-predictions)))
+    (p/decode encoder pr-votes n-predictions)))
 
 (defn- zap-fewer
   [n xs]
@@ -678,9 +653,9 @@
   keyed by these cell ids. Each cell value is a map with keys
 
   * :total - number.
-  * :proximal-unstable - a map keyed by source region/input id.
-  * :proximal-stable - a map keyed by source region/input id.
-  * :distal - a map keyed by source region/input id.
+  * :proximal-unstable - a map keyed by source region/sense id.
+  * :proximal-stable - a map keyed by source region/sense id.
+  * :distal - a map keyed by source region/sense id.
   * :boost - number.
   * :temporal-pooling - number.
   "

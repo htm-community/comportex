@@ -33,7 +33,7 @@
 
 (defn model
   []
-  (core/regions-in-series core/sensory-region (core/sensory-input encoder)
+  (core/regions-in-series core/sensory-region encoder
                           2 (repeat spec)))
 
 (defn world-seq

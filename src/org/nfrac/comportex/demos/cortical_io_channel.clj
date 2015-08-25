@@ -31,19 +31,10 @@
        ;(mapv #(conj % "."))
        ))
 
-(defn sensory-input-from-channel
-  "Here `input-c` is a channel to read words from. Transitions of the
-   input use a blocking take from the channel."
-  [api-key input-c cache]
-  (let [encoder (cortical-io-encoder api-key cache)
-        xform (fn [_] (<!! input-c))]
-    (core/sensory-input nil xform encoder)))
-
 (defn n-region-model
-  "Here `input-c` is a channel to read words from."
-  [api-key input-c cache n]
+  [api-key cache n]
   (core/regions-in-series core/sensory-region
-                          (sensory-input-from-channel api-key input-c cache)
+                          (cortical-io-encoder api-key cache)
                           n
                           (list* spec (repeat (merge spec higher-level-spec-diff)))))
 
@@ -58,7 +49,7 @@
   (def input-c (chan 5))
   (def cache (atom {}))
   ;; the HTM model
-  (def current (atom (n-region-model api-key input-c cache 1)))
+  (def current (atom (n-region-model api-key cache 1)))
 
   (defn submit
     [txt]
@@ -82,8 +73,9 @@
     (thread
       (try
         (loop []
-          (swap! current p/htm-step)
-          (recur))
+          (let [in-val (<!! input-c)]
+            (swap! current p/htm-step in-val)
+            (recur)))
         (catch Exception e
           (println e)))))
 
