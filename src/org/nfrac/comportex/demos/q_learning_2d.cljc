@@ -12,7 +12,7 @@
 (def input-dim [10 40])
 (def grid-w 7)
 (def grid-h 7)
-(def on-bits 40)
+(def n-on-bits 40)
 (def coord-radius 5) ;; so 11x11 grid = 121 candidates (and we choose 40)
 (def surface-coord-scale 5) ;; so neighbouring positions (x or y +/- 1) share ~50% bits
 (def empty-reward -3)
@@ -109,22 +109,21 @@
 
 (defn make-model
   []
-  (let [encoder (enc/pre-transform (fn [{:keys [x y]}]
-                                     {:coord [(* x surface-coord-scale)
-                                              (* y surface-coord-scale)]
-                                      :radii [coord-radius coord-radius]})
-                                   (enc/coordinate-encoder input-dim on-bits))
-        mencoder (enc/pre-transform (juxt :dx :dy)
-                                    (enc/encat 2
-                                               (enc/linear-encoder 100 30 [-1 1])))]
+  (let [sensor [(enc/vec-selector :x :y)
+                (enc/coordinate-encoder input-dim n-on-bits
+                                        [surface-coord-scale surface-coord-scale]
+                                        [coord-radius coord-radius])]
+        dx-sensor [:dx (enc/linear-encoder [100] 30 [-1 1])]
+        dy-sensor [:dy (enc/linear-encoder [100] 30 [-1 1])]
+        msensor (enc/sensor-cat dx-sensor dy-sensor)]
     (core/region-network {:rgn-1 [:input :motor]
                           :action [:rgn-1]}
                          (constantly core/sensory-region)
                          {:rgn-1 (assoc spec :lateral-synapses? false)
                           :action action-spec}
-                         {:input encoder}
-                         {:input encoder
-                          :motor mencoder})))
+                         {:input sensor}
+                         {:input sensor
+                          :motor msensor})))
 
 (defn feed-world-c-with-actions!
   [in-model-steps-c out-world-c model-atom]

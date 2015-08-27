@@ -9,18 +9,18 @@
 
 
 (deftest encode-decode-test
-  (let [e (enc/category-encoder 10 [:a :b :c])]
-    (is (= :a (:value (first (p/decode e (frequencies (p/encode e :a)) 1)))))
+  (let [e (enc/category-encoder [10] [:a :b :c])]
+    (is (= :a (:value (first (p/dcode e (frequencies (p/encode e :a)) 1)))))
     (is (= :b (:value (first (p/decode e (frequencies (p/encode e :b)) 1)))))
     (is (= :c (:value (first (p/decode e (frequencies (p/encode e :c)) 1))))))
   )
 
 (deftest coordinate-encoder-test
-  (let [e (enc/coordinate-encoder [1000] 40)
+  (let [radius 80
+        e (enc/coordinate-encoder [1000] 40 [1 1] [radius radius])
         coords [0 10 30 90 270]
-        radius 80
         bitsets (zipmap coords
-                        (map #(set (p/encode e {:coord [%] :radii [radius]}))
+                        (map #(set (p/encode e [%]))
                              coords))
         overlap (fn [s1 s2] (count (set/intersection s1 s2)))]
     (is (> (overlap (bitsets 0) (bitsets 10))

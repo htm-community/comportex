@@ -5,7 +5,7 @@
             [org.nfrac.comportex.util :as util :refer [abs round]]))
 
 (def input-dim [30 30])
-(def on-bits 30)
+(def n-on-bits 30)
 (def max-pos 45)
 (def max-vel 5)
 (def radius 15)
@@ -55,21 +55,19 @@
            (* ay -1)
            ay)}))
 
-(def encoder
-  (enc/pre-transform (fn [{:keys [x y]}]
-                       {:coord [x y]
-                        :radii [radius radius]})
-   (enc/coordinate-encoder input-dim on-bits)))
-
-(defn world-seq
+(defn input-seq
   "Returns an infinite lazy seq of sensory input values."
   []
   (iterate input-transform initial-input-val))
 
+(def sensor
+  [(enc/vec-selector :x :y)
+   (enc/coordinate-encoder input-dim n-on-bits [1 1] [radius radius])])
+
 (defn n-region-model
   ([n]
-     (n-region-model n spec))
+   (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/sensory-region encoder
-                             n
-                             (list* spec (repeat (merge spec higher-level-spec-diff))))))
+   (core/regions-in-series n core/sensory-region
+                           (list* spec (repeat (merge spec higher-level-spec-diff)))
+                           {:input sensor})))

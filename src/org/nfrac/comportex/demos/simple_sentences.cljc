@@ -106,25 +106,26 @@ Chifung has no tail.
         [j word] (map-indexed vector sen)]
     {:word word :index [i j]}))
 
-(defn make-block-encoder
+(defn make-block-sensor
   [text]
   (let [split-sens (split-sentences text)
         uniq-words (distinct (apply concat split-sens))
         bit-width (* bits-per-word (count uniq-words))]
-    (enc/pre-transform :word
-                       (enc/category-encoder bit-width uniq-words))))
+    [:word
+     (enc/category-encoder [bit-width] uniq-words)]))
 
-(def random-encoder
+(def random-sensor
   (let [bit-width 500]
-    (enc/pre-transform :word
-                       (enc/unique-encoder [bit-width] bits-per-word))))
+    [:word
+     (enc/unique-encoder [bit-width] bits-per-word)]))
 
 (defn n-region-model
   ([n]
    (n-region-model n spec))
   ([n spec]
-   (let [encoder random-encoder]
-     (n-region-model n spec encoder)))
-  ([n spec encoder]
-   (core/regions-in-series core/sensory-region encoder n
-                           (list* spec (repeat (merge spec higher-level-spec-diff))))))
+   (let [sensor random-sensor]
+     (n-region-model n spec sensor)))
+  ([n spec sensor]
+   (core/regions-in-series n core/sensory-region
+                           (list* spec (repeat (merge spec higher-level-spec-diff)))
+                           {:input sensor})))

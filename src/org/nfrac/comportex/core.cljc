@@ -382,14 +382,14 @@
 (do #?(:cljs (def pmap map)))
 
 (defrecord RegionNetwork
-    [ff-deps fb-deps strata encoders senses regions]
+    [ff-deps fb-deps strata sensors senses regions]
   p/PHTM
   (sense
     [this in-value]
-    (reduce-kv (fn [m k e]
-                 (assoc m k (p/encode e in-value)))
+    (reduce-kv (fn [m k [selector encoder]]
+                 (assoc m k (p/encode encoder (p/extract selector in-value))))
                {}
-               encoders))
+               sensors))
 
   (htm-activate-raw
     [this in-bits]
@@ -442,7 +442,8 @@
 
   (htm-export
     [this]
-    (dissoc this :encoders))
+    ;; TODO - is this needed any more? Maybe a general export protocol to clear caches?
+    this)
 
   p/PTemporal
   (timestep [_]
@@ -491,8 +492,10 @@
 (defn region-network
   "Builds a network of regions and senses from the given dependency
   map. The keywords used in the dependency map are used to look up
-  region-building functions, parameter specifications, and encoders in
+  region-building functions, parameter specifications, and sensors in
   the remaining argments.
+
+  Sensors are defined to be the form `[selector encoder]`.
 
   For each node, the combined dimensions of its feed-forward sources
   is calculated and used to set the `:input-dimensions` parameter in
@@ -507,23 +510,23 @@
 
    `
    (region-network
-    {:v1 [:inp]
+    {:v1 [:input]
      :v2 [:v1]}
     {:v1 sensory-region
      :v2 sensory-region}
     {:v1 spec
      :v2 spec}
-    {:inp encoder}
+    {:input sensor}
     nil)`"
-  [ff-deps region-builders region-specs sensory-encoders motor-encoders]
+  [ff-deps region-builders region-specs main-sensors motor-sensors]
   {:pre [;; all regions must have dependencies
          (every? ff-deps (keys region-specs))
          ;; all sense nodes must not have dependencies
-         (every? (in-vals-not-keys ff-deps) (keys sensory-encoders))
-         (every? (in-vals-not-keys ff-deps) (keys motor-encoders))
+         (every? (in-vals-not-keys ff-deps) (keys main-sensors))
+         (every? (in-vals-not-keys ff-deps) (keys motor-sensors))
          ;; all ids in dependency map must be defined
          (every? region-specs (keys ff-deps))
-         (every? (merge sensory-encoders motor-encoders) (in-vals-not-keys ff-deps))]}
+         (every? (merge main-sensors motor-sensors) (in-vals-not-keys ff-deps))]}
   (let [all-ids (into (set (keys ff-deps))
                       (in-vals-not-keys ff-deps))
         ff-dag (graph/directed-graph all-ids ff-deps)
@@ -531,14 +534,16 @@
         fb-deps (->> (graph/reverse-graph ff-dag)
                          :neighbors
                          (util/remap seq))
-        ;; encoders may appear with same key in both sensory- and motor-
+        ;; sensors may appear with same key in both main- and motor-
         sm (->> (merge-with merge
-                            (util/remap (fn [e] {:encoder e, :sensory? true})
-                                        sensory-encoders)
-                            (util/remap (fn [e] {:encoder e, :motor? true})
-                                        motor-encoders))
-                (util/remap (fn [{:keys [encoder sensory? motor?]}]
-                              (sense-node (p/topology encoder) sensory? motor?))))
+                            (util/remap (fn [[_ e]]
+                                          {:topo (p/topology e), :sensory? true})
+                                        main-sensors)
+                            (util/remap (fn [[_ e]]
+                                          {:topo (p/topology e), :motor? true})
+                                        motor-sensors))
+                (util/remap (fn [{:keys [topo sensory? motor?]}]
+                              (sense-node topo sensory? motor?))))
         rm (-> (reduce (fn [m id]
                          (let [spec (region-specs id)
                                build-region (region-builders id)
@@ -565,29 +570,32 @@
      {:ff-deps ff-deps
       :fb-deps fb-deps
       :strata strata
-      :encoders (merge sensory-encoders motor-encoders)
+      :sensors (merge main-sensors motor-sensors)
       :senses sm
       :regions rm})))
 
 (defn regions-in-series
-  "Constructs an HTM network consisting of one sense and n regions in
-  a linear series. The sense key is :input, optional motor sense key
-  is :motor, and the region keys are :rgn-0, :rgn-1, etc. See
-  `region-network`."
-  ([build-region encoder n specs]
-   (regions-in-series build-region encoder nil n specs))
-  ([build-region encoder motor-encoder n specs]
+  "Constructs an HTM network consisting of n regions in a linear
+  series. The regions are given keys :rgn-0, :rgn-1, etc. Senses feed
+  only to the first region. Their sensors are given in a map with
+  keyword keys. Sensors are defined to be the form `[selector encoder]`.
+
+  This is a convenience wrapper around `region-network`."
+  ([n build-region specs sensors]
+   (regions-in-series
+    n build-region specs sensors nil))
+  ([n build-region specs main-sensors motor-sensors]
    {:pre [(sequential? specs)
           (= n (count (take n specs)))]}
    (let [rgn-keys (map #(keyword (str "rgn-" %)) (range n))
-         sense-keys (if motor-encoder [:input :motor] [:input])
-         ;; make {:rgn-0 [:input], :rgn-1 [:rgn-0], :rgn-2 [:rgn-1], ...}
+         sense-keys (keys (merge main-sensors motor-sensors))
+         ;; make {:rgn-0 [senses], :rgn-1 [:rgn-0], :rgn-2 [:rgn-1], ...}
          deps (zipmap rgn-keys (list* sense-keys (map vector rgn-keys)))]
      (region-network deps
                      (constantly build-region)
                      (zipmap rgn-keys specs)
-                     {:input encoder}
-                     (if motor-encoder {:motor motor-encoder})))))
+                     main-sensors
+                     motor-sensors))))
 
 ;;; ## Stats
 
@@ -639,7 +647,7 @@
 (defn predictions
   [htm n-predictions]
   (let [rgn (first (region-seq htm))
-        encoder (first (vals (:encoders htm)))
+        [_ encoder] (first (vals (:sensors htm)))
         pr-votes (predicted-bit-votes rgn)]
     (p/decode encoder pr-votes n-predictions)))
 

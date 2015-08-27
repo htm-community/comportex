@@ -128,7 +128,7 @@
       p/PTopological
       (topology [_]
         topo)
-      p/PEncodable
+      p/PEncoder
       (encode
         [_ term]
         (if (seq term)

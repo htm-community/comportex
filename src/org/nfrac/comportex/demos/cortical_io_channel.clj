@@ -33,10 +33,9 @@
 
 (defn n-region-model
   [api-key cache n]
-  (core/regions-in-series core/sensory-region
-                          (cortical-io-encoder api-key cache)
-                          n
-                          (list* spec (repeat (merge spec higher-level-spec-diff)))))
+  (core/regions-in-series n core/sensory-region
+                          (list* spec (repeat (merge spec higher-level-spec-diff)))
+                          {:input (cortical-io-encoder api-key cache)}))
 
 (comment
 

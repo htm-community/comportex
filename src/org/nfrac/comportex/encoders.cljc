@@ -6,6 +6,31 @@
             [org.nfrac.comportex.util :as util]
             [cemerick.pprng :as rng]))
 
+;;; # Selectors
+;;; Implemented as values not functions for serializability.
+
+(extend-protocol p/PSelector
+  #?(:clj clojure.lang.Keyword
+     :cljs cljs.core.Keyword)
+  (extract [this state]
+    (get state this))
+  #?(:clj clojure.lang.IPersistentVector
+     :cljs cljs.core.PersistentVector)
+  (extract [this state]
+    (get-in state this)))
+
+(defrecord VecSelector
+    [selectors]
+  p/PSelector
+  (extract [_ state]
+    (mapv p/extract selectors (repeat state))))
+
+(defn vec-selector
+  [& selectors]
+  (->VecSelector selectors))
+
+;;; # Decoding
+
 (defn prediction-stats
   [x-bits bit-votes total-votes]
   ;; calculate overlaps of prediction `x` bits with all votes
@@ -43,211 +68,210 @@
         partitioned-vs (util/splits-at (map count partitioned-is) vs)]
     (map zipmap partitioned-is partitioned-vs)))
 
-(defn pre-transform
-  "Returns an encoder wrapping another encoder `e`, where the function
-   `f` is applied to input values prior to encoding by `e`."
-  [f e]
-  (reify
-    p/PTopological
-    (topology [_]
-      (p/topology e))
-    p/PEncodable
-    (encode
-      [_ x]
-      (p/encode e (f x)))
-    (decode
-      [_ bit-votes n]
-      (p/decode e bit-votes n))))
+;;; # Encoders
 
-(defn ensplat
-  "A higher-level encoder for a sequence of values. The given encoder
-   will be applied to each value, and the resulting encodings
-   overlaid (splatted together), taking the union of the sets of
-   bits."
-  [e]
-  (reify
-    p/PTopological
-    (topology [_]
-      (p/topology e))
-    p/PEncodable
-    (encode
-      [_ xs]
+(defrecord ConcatEncoder
+    [encoders]
+  p/PTopological
+  (topology [_]
+    (let [dim (->> (map p/dims-of encoders)
+                   (apply topology/combined-dimensions))]
+      (topology/make-topology dim)))
+  p/PEncoder
+  (encode
+    [_ xs]
+    (let [bit-widths (map p/size-of encoders)]
       (->> xs
-           (mapcat (partial p/encode e))
-           (distinct)))))
+           (map p/encode encoders)
+           (util/align-indices bit-widths))))
+  (decode
+    [_ bit-votes n-values]
+    (let [bit-widths (map p/size-of encoders)]
+      (map #(p/decode % %2 n-values)
+           encoders
+           (unaligned-bit-votes bit-widths bit-votes)))))
 
 (defn encat
-  "A higher-level encoder for a sequence of `n` values. The given
-   encoder will be applied to each value, and the resulting encodings
-   concatenated; i.e. the bit width of the combined encoding is the
-   sum of the component bit widths. If multiple (`n`) encoders are
-   given they will be applied to corresponding elements of the input
-   collection."
-  ([n e]
-     (let [e-dim (p/dims-of e)
-           dim (update-in e-dim [0] * n)
-           topo (topology/make-topology dim)]
-       (reify
-         p/PTopological
-         (topology [_]
-           topo)
-         p/PEncodable
-         (encode
-           [_ xs]
-           (->> xs
-                (map (partial p/encode e))
-                (util/align-indices (repeat (p/size-of e)))))
-         (decode
-           [_ bit-votes n-values]
-           (map #(p/decode e % n-values)
-                (unaligned-bit-votes (repeat n (p/size-of e))
-                                     bit-votes))))))
-  ([n e & more]
-     (let [es (list* e more)
-           ws (map p/size-of es)
-           dim (apply topology/combined-dimensions (map p/dims-of es))
-           topo (topology/make-topology dim)]
-       (reify
-         p/PTopological
-         (topology [_]
-           topo)
-         p/PEncodable
-         (encode
-           [_ xs]
-           (->> xs
-                (map p/encode es)
-                (util/align-indices ws)))
-         (decode
-           [_ bit-votes n-values]
-           (map #(p/decode % %2 n-values)
-                es (unaligned-bit-votes ws bit-votes)))))))
+  "Returns an encoder for a sequence of values, where each is encoded
+  separately before the results are concatenated into a single
+  sense. Each value by index is passed to the corresponding index of
+  `encoders`."
+  [encoders]
+  (->ConcatEncoder encoders))
+
+(defrecord SplatEncoder
+    [encoder]
+  p/PTopological
+  (topology [_]
+    (p/topology encoder))
+  p/PEncoder
+  (encode
+    [_ xs]
+    (->> xs
+         (mapcat (partial p/encode encoder))
+         (distinct))))
+
+(defn ensplat
+  "Returns an encoder for a sequence of values. The given encoder will
+  be applied to each value, and the resulting encodings
+  overlaid (splatted together), taking the union of the sets of bits."
+  [encoder]
+  (->SplatEncoder encoder))
+
+(defrecord LinearEncoder
+    [topo n-active lower upper]
+  p/PTopological
+  (topology [_]
+    topo)
+  p/PEncoder
+  (encode
+    [_ x]
+    (if x
+      (let [n-bits (p/size topo)
+            span (double (- upper lower))
+            x (-> x (max lower) (min upper))
+            z (/ (- x lower) span)
+            i (long (* z (- n-bits n-active)))]
+        (range i (+ i n-active)))
+      (sequence nil)))
+  (decode
+    [this bit-votes n]
+    (let [span (double (- upper lower))
+          values (range lower upper (if (< 5 span 250)
+                                      1
+                                      (/ span 50)))]
+      (->> (decode-by-brute-force this values bit-votes)
+           (take n)))))
 
 (defn linear-encoder
-  "Returns a simple encoder for a single number. It encodes a
-   number by its position on a continuous scale within a numeric
-   range. It does not represent any other features of a number (its
-   component digits, integral/fractional parts, factors, etc).
+  "Returns a simple encoder for a single number. It encodes a number
+  by its position on a continuous scale within a numeric range.
 
-  * `bit-width` is the number of bits for the full (dense)
-    representation.
+  * `dimensions` is the size of the encoder in bits along one or more
+    dimensions, a vector e.g. [500].
 
-  * `on-bits` is the number of bits to be active.
+  * `n-active` is the number of bits to be active.
 
   * `[lower upper]` gives the numeric range to cover. The input number
     will be clamped to this range."
-  [bit-width on-bits [lower upper]]
-  (let [topo (topology/make-topology [bit-width])
-        span (double (- upper lower))]
-    (reify
-      p/PTopological
-      (topology [_]
-        topo)
-      p/PEncodable
-      (encode
-        [_ x]
-        (if x
-          (let [x (-> x (max lower) (min upper))
-                z (/ (- x lower) span)
-                i (long (* z (- bit-width on-bits)))]
-            (range i (+ i on-bits)))
-          (sequence nil)))
-      (decode
-        [this bit-votes n]
-        (let [values (range lower upper (if (< 5 span 250)
-                                          1
-                                          (/ span 50)))]
-          (->> (decode-by-brute-force this values bit-votes)
-               (take n)))))))
+  [dimensions n-active [lower upper]]
+  (let [topo (topology/make-topology dimensions)]
+    (map->LinearEncoder {:topo topo
+                         :n-active n-active
+                         :lower lower
+                         :upper upper})))
+
+(defrecord CategoryEncoder
+    [topo value->index]
+  p/PTopological
+  (topology [_]
+    topo)
+  p/PEncoder
+  (encode
+    [_ x]
+    (if-let [idx (value->index x)]
+      (let [n-bits (p/size topo)
+            n-active (quot n-bits (count value->index))
+            i (* idx n-active)]
+        (range i (+ i n-active)))
+      (sequence nil)))
+  (decode
+    [this bit-votes n]
+    (->> (decode-by-brute-force this (keys value->index) bit-votes)
+         (take n))))
 
 (defn category-encoder
-  [bit-width values]
-  (let [n (count values)
-        on-bits (/ bit-width n)
-        val-to-int (zipmap values (range))
-        int-e (linear-encoder bit-width on-bits [0 (dec n)])]
-    (reify
-      p/PTopological
-      (topology [_]
-        (p/topology int-e))
-      p/PEncodable
-      (encode
-        [_ x]
-        (p/encode int-e (val-to-int x)))
-      (decode
-        [this bit-votes n]
-        (->> (decode-by-brute-force this values bit-votes)
-             (take n))))))
+  [dimensions values]
+  (let [topo (topology/make-topology dimensions)]
+    (map->CategoryEncoder {:topo topo
+                           :value->index (zipmap values (range))})))
+
+(defn- unique-sdr
+  [x n-bits n-active]
+  (let [RNG (rng/rng (hash x))]
+    (->> (repeatedly #(rng/int RNG n-bits))
+         (distinct)
+         (take n-active))))
+
+(defrecord UniqueEncoder
+    [topo n-active cache]
+  p/PTopological
+  (topology [_]
+    topo)
+  p/PEncoder
+  (encode
+    [_ x]
+    (if (nil? x)
+      (sequence nil)
+      (or (get @cache x)
+          (let [sdr (unique-sdr x (p/size topo) n-active)]
+            (get (swap! cache assoc x sdr)
+                 x)))))
+  (decode
+    [this bit-votes n]
+    (->> (decode-by-brute-force this (keys @cache) bit-votes)
+         (take n))))
 
 (defn unique-encoder
-  "This encoder gives a unique, persistent bit set to any value when
-   it is encountered. `input-dim` is the dimensions as a vector."
-  [input-dim on-bits]
-  (let [topo (topology/make-topology input-dim)
-        bit-width (p/size topo)
-        cached-bits (atom {})
-        gen (fn [x]
-              (let [RNG (rng/rng (hash x))]
-                (->> (repeatedly #(rng/int RNG bit-width))
-                     (distinct)
-                     (take on-bits))))]
-    (reify
-      p/PTopological
-      (topology [_]
-        topo)
-      p/PEncodable
-      (encode
-        [_ x]
-        (if (nil? x)
-          (sequence nil)
-          (or (get @cached-bits x)
-              (get (swap! cached-bits assoc x (gen x)) x))))
-      (decode
-        [this bit-votes n]
-        (->> (decode-by-brute-force this (keys @cached-bits) bit-votes)
-             (take n))))))
+  "This encoder generates a unique bit set for each distinct value,
+  based on its hash. `dimensions` is given as a vector."
+  [dimensions n-active]
+  (let [topo (topology/make-topology dimensions)]
+    (map->UniqueEncoder {:topo topo
+                         :n-active n-active
+                         :cache (atom {})})))
+
+(defrecord Linear2DEncoder
+    [topo n-active x-max y-max]
+  p/PTopological
+  (topology [_]
+    topo)
+  p/PEncoder
+  (encode
+    [_ [x y]]
+    (if x
+      (let [[w h] (p/dimensions topo)
+            x (-> x (max 0) (min x-max))
+            y (-> y (max 0) (min y-max))
+            xz (/ x x-max)
+            yz (/ y y-max)
+            xi (long (* xz w))
+            yi (long (* yz h))
+            coord [xi yi]
+            idx (p/index-of-coordinates topo coord)]
+        (->> (range 10)
+             (mapcat (fn [radius]
+                       (p/neighbours-indices topo idx radius (dec radius))))
+             (take n-active)))
+      (sequence nil)))
+  (decode
+    [this bit-votes n]
+    (let [values (for [x (range x-max)
+                       y (range y-max)]
+                   [x y])]
+      (->> (decode-by-brute-force this values bit-votes)
+           (take n)))))
 
 (defn linear-2d-encoder
-  "Returns a simple encoder for a pair of numbers. It encodes each
-   number by its position on a continuous scale within a numeric
-   range.
+  "Returns a simple encoder for a tuple of two numbers representing a
+  position in rectangular bounds. The encoder maps input spatial
+  positions to boxes of active bits in corresponding spatial positions
+  of the encoded sense. So input positions close in both coordinates
+  will have overlapping bit sets.
 
-  * `input-size` is the number of bits along [x y] axes.
+  * `dimensions` - of the encoded bits, given as a vector [nx ny].
 
-  * `on-bits` is the number of bits to be active.
+  * `n-active` is the number of bits to be active.
 
-  * `[x-max y-max]` gives the numeric range to cover. The input number
-    will be clamped to this range."
-  [input-size on-bits [x-max y-max]]
-  (let [topo (topology/make-topology input-size)
-        [w h] input-size]
-    (reify
-      p/PTopological
-      (topology [_]
-        topo)
-      p/PEncodable
-      (encode
-        [_ [x y]]
-        (if x
-          (let [x (-> x (max 0) (min x-max))
-                y (-> y (max 0) (min y-max))
-                xz (/ x x-max)
-                yz (/ y y-max)
-                xi (long (* xz w))
-                yi (long (* yz h))
-                coord [xi yi]
-                idx (p/index-of-coordinates topo coord)]
-            (->> (range 10)
-                 (mapcat (fn [radius]
-                           (p/neighbours-indices topo idx radius (dec radius))))
-                 (take on-bits)))
-          (sequence nil)))
-      (decode
-        [this bit-votes n]
-        (let [values (for [x (range x-max)
-                           y (range y-max)]
-                       [x y])]
-          (->> (decode-by-brute-force this values bit-votes)
-               (take n)))))))
+  * `[x-max y-max]` gives the numeric range of input space to
+  cover. The numbers will be clamped to this range, and below by
+  zero."
+  [dimensions n-active [x-max y-max]]
+  (let [topo (topology/make-topology dimensions)]
+    (map->Linear2DEncoder {:topo topo
+                           :n-active n-active
+                           :x-max x-max
+                           :y-max y-max})))
 
 ;; we only support up to 3D. beyond that, perf will be bad anyway.
 (defn coordinate-neighbours
@@ -286,25 +310,41 @@
     (rng/int RNG size)
     (rng/int RNG size)))
 
+(defrecord CoordinateEncoder
+    [topo n-active scale-factors radii]
+  p/PTopological
+  (topology [_]
+    topo)
+  p/PEncoder
+  (encode
+    [_ coord]
+    (when (first coord)
+      (let [int-coord (map (comp util/round *) coord scale-factors)
+            neighs (coordinate-neighbours int-coord radii)]
+        (->> (zipmap neighs (map coordinate-order neighs))
+             (util/top-n-keys-by-value n-active)
+             (map (partial coordinate-bit (p/size topo)))
+             (distinct))))))
+
 (defn coordinate-encoder
-  "Coordinate encoder over integer coordinates, unbounded (up to
-   platform limit), with one, two or three dimensions. Each dimension
-   has an associated radius within which there is some similarity in
-   encoded SDRs. Looks up keys :coord and :radii from the input value."
-  [input-dim on-bits]
-  (let [topo (topology/make-topology input-dim)
-        size (p/size topo)]
-    (reify
-      p/PTopological
-      (topology [_]
-        topo)
-      p/PEncodable
-      (encode
-        [_ {:keys [coord radii]}]
-        (when coord
-          (let [neighs (coordinate-neighbours coord radii)]
-            (->> (zipmap neighs (map coordinate-order neighs))
-                 (util/top-n-keys-by-value on-bits)
-                 (map (partial coordinate-bit size))
-                 (distinct)))))
-      )))
+  "Coordinate encoder for integer coordinates, unbounded, with one,
+  two or three dimensions. Expects a coordinate, i.e. a sequence of
+  numbers with 1, 2 or 3 elements. These raw values will be multiplied
+  by corresponding `scale-factors` to obtain integer grid
+  coordinates. Each dimension has an associated radius within which
+  there is some similarity in encoded SDRs."
+  [dimensions n-active scale-factors radii]
+  (let [topo (topology/make-topology dimensions)]
+    (map->CoordinateEncoder {:topo topo
+                             :n-active n-active
+                             :scale-factors scale-factors
+                             :radii radii})))
+
+;;; # Sensors
+
+(defn sensor-cat
+  [& sensors]
+  (let [selectors (map first sensors)
+        encoders (map second sensors)]
+    [(apply vec-selector selectors)
+     (encat encoders)]))

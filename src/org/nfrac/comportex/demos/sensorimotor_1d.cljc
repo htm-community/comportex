@@ -5,7 +5,7 @@
 
 (def bit-width 300)
 (def motor-bit-width 100)
-(def motor-on-bits 25)
+(def motor-n-on-bits 25)
 (def world-size 10)
 (def items [:a :b :c :d :e :f :g :h :i :j])
 (def saccades [-1 0 1 2])
@@ -41,13 +41,13 @@
   [n]
   (vec (repeatedly n #(util/rand-nth items))))
 
-(defn initial-input
+(defn initial-world
   []
   {:field items
    :position (quot (count items) 2)
    :next-saccade 1})
 
-(defn input-transform
+(defn world-transform
   [m]
   (let [n (count (:field m))
         dx (:next-saccade m)
@@ -59,24 +59,30 @@
       :last-saccade dx
       :next-saccade sacc)))
 
-(def block-encoder
-  (enc/pre-transform #(get (:field %) (:position %))
-                     (enc/category-encoder bit-width items)))
+(defn attach-current-value
+  [m]
+  (assoc m :value (get (:field m) (:position m))))
 
-(def block-motor-encoder
-  (enc/pre-transform :next-saccade
-                     (enc/linear-encoder motor-bit-width motor-on-bits
-                                         [(first saccades) (last saccades)])))
-
-(defn world-seq
+(defn input-seq
   "Returns an infinite lazy seq of sensory input values."
-  []
-  (iterate input-transform (initial-input)))
+  [world]
+  (->> (iterate world-transform world)
+       (map attach-current-value)))
+
+(def block-sensor
+  [:value
+   (enc/category-encoder [bit-width] items)])
+
+(def block-motor-sensor
+  [:next-saccade
+   (enc/linear-encoder [motor-bit-width] motor-n-on-bits
+                       [(first saccades) (last saccades)])])
 
 (defn n-region-model
   ([n]
-     (n-region-model n spec))
+   (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/sensorimotor-region
-                             block-encoder block-motor-encoder n
-                             (list* spec (repeat (merge spec higher-level-spec-diff))))))
+   (core/regions-in-series n core/sensorimotor-region
+                           (list* spec (repeat (merge spec higher-level-spec-diff)))
+                           {:input block-sensor}
+                           {:motor block-motor-sensor})))

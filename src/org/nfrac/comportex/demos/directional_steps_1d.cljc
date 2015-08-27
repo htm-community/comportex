@@ -8,7 +8,7 @@
 (def numb-bit-width (- bit-width cat-bit-width))
 (def numb-max 7)
 (def numb-domain [0 numb-max])
-(def on-bits 30)
+(def n-on-bits 30)
 
 (def spec
   {:column-dimensions [500]
@@ -36,20 +36,20 @@
         new-dir (util/rand-nth [:up :down])]
     [new-dir new-i]))
 
-(def encoder
-  (enc/encat 2
-             (enc/category-encoder cat-bit-width [:down :up])
-             (enc/linear-encoder numb-bit-width on-bits numb-domain)))
-
-(defn world-seq
+(defn input-seq
   "Returns an infinite lazy seq of sensory input values."
   []
   (iterate input-transform initial-input-val))
 
+(def sensor
+  (enc/sensor-cat
+   [[0] (enc/category-encoder [cat-bit-width] [:down :up])]
+   [[1] (enc/linear-encoder [numb-bit-width] n-on-bits numb-domain)]))
+
 (defn n-region-model
   ([n]
-     (n-region-model n spec))
+   (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/sensory-region encoder
-                             n
-                             (list* spec (repeat (merge spec higher-level-spec-diff))))))
+   (core/regions-in-series n core/sensory-region
+                           (list* spec (repeat (merge spec higher-level-spec-diff)))
+                           {:input sensor})))

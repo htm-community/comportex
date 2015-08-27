@@ -8,8 +8,8 @@
 (def signals [:start :again :pause :stop])
 (def tokens (vec (concat signals stimuli stimuli2)))
 
-(def on-bits 20)
-(def bit-width (* on-bits (count tokens)))
+(def n-on-bits 20)
+(def bit-width (* n-on-bits (count tokens)))
 
 (def spec
   {:column-dimensions [1000]
@@ -28,15 +28,14 @@
           [:stop]
           [nil]))
 
-(def block-encoder
-  (enc/pre-transform :value
-                     (enc/category-encoder bit-width tokens)))
+(def block-sensor
+  [:value (enc/category-encoder [bit-width] tokens)])
 
 (defn repeatcat
   [n xs]
   (apply concat (repeat n xs)))
 
-(defn world-seq
+(defn input-seq
   [stimuli reps]
   (->> (concat (mapcat #(repeatcat reps (presentation 1 [%])) stimuli)
                (mapcat #(repeatcat reps (presentation 2 [%])) stimuli)
@@ -45,9 +44,8 @@
 
 (defn n-region-model
   ([n]
-     (n-region-model n spec))
+   (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/sensory-region
-                             block-encoder
-                             n
-                             (list* spec (repeat (merge spec higher-level-spec-diff))))))
+   (core/regions-in-series n core/sensory-region
+                           (list* spec (repeat (merge spec higher-level-spec-diff)))
+                           {:input block-sensor})))

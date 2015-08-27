@@ -3,7 +3,7 @@
 (defprotocol PHTM
   "A network of regions, forming Hierarchical Temporal Memory."
   (sense [this in-value]
-    "Takes an input value. Encodes each sense's associated value to a
+    "Takes an input value. Applies sensors, encoding each sense as a
     bit set, returning them in a map.")
   (htm-activate-raw [this in-bits]
     "Takes encoded bit sets with keys matching the HTM's
@@ -124,7 +124,14 @@
   "Sense nodes need to extend this together with PFeedForward."
   (sense-activate [this bits]))
 
-(defprotocol PEncodable
+(defprotocol PSelector
+  "Pulls out a value according to some pattern, like a path or lens.
+  Should be serializable. A Sensor is defined as [Selector Encoder]."
+  (extract [this state]
+    "Extracts a value from `state` according to some configured pattern. A
+    simple example is a lookup by keyword in a map."))
+
+(defprotocol PEncoder
   "Encoders need to extend this together with PTopological."
   (encode [this x]
     "Encodes `x` as a collection of distinct integers which are the on-bits.")

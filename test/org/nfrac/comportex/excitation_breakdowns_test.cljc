@@ -9,7 +9,7 @@
                       :refer-macros (is deftest testing run-tests)])))
 
 (def bit-width 200)
-(def on-bits 20)
+(def n-on-bits 20)
 
 (def inputs
   [:a :b :c :d
@@ -18,28 +18,29 @@
    :h :g :f :e
    :d :e :a :d])
 
-(def initial-input 0)
+(def initial-input {:index 0})
 
 (defn input-transform
-  [i]
-  (mod (inc i) (count inputs)))
+  [m]
+  (update m :index #(mod (inc %) (count inputs))))
 
-(def encoder
-  (enc/pre-transform #(get inputs %)
-                     (enc/unique-encoder [bit-width] on-bits)))
+(defn world-seq
+  "Returns a sequence of sensory input values."
+  []
+  (->> (iterate input-transform initial-input)
+       (map #(assoc % :value (get inputs %)))))
+
+(def sensor
+  [:value
+   (enc/unique-encoder [bit-width] n-on-bits)])
 
 (def spec
   {})
 
 (defn model
   []
-  (core/regions-in-series core/sensory-region encoder
-                          2 (repeat spec)))
-
-(defn world-seq
-  "Returns a sequence of sensory input values."
-  []
-  (iterate input-transform initial-input))
+  (core/regions-in-series 2 core/sensory-region (repeat spec)
+                          {:input sensor}))
 
 (deftest exc-bd-test
   (util/set-seed! 0)

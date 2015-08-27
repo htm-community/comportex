@@ -4,7 +4,7 @@
             [org.nfrac.comportex.util :as util]))
 
 (def bit-width 400)
-(def on-bits 25)
+(def n-on-bits 25)
 
 ;; for block encoder
 (def numb-max 15)
@@ -36,11 +36,11 @@
 (def gap-range
   (->> (vals patterns) (map count) (reduce +) (long) (* 2)))
 
-(defn initial-input
+(defn initial-world
   []
   (assoc {} (first pattern-order) 0))
 
-(defn input-transform
+(defn world-transform
   [input]
   (reduce (fn [m [id values]]
             (if-let [index (m id)]
@@ -59,26 +59,26 @@
           patterns))
 
 (defn current-values
-  [input]
+  [world]
   (map (fn [[id index]]
          (get-in patterns [id index]))
-       input))
+       world))
 
-(def block-encoder
-  (enc/pre-transform current-values
-                     (enc/ensplat
-                      (enc/linear-encoder bit-width on-bits numb-domain))))
-
-(defn world-seq
+(defn input-seq
   "Returns an infinite lazy seq of sensory input values."
   []
-  (iterate input-transform (initial-input)))
+  (->> (iterate world-transform (initial-world))
+       (map #(assoc % :values (current-values %)))))
+
+(def block-sensor
+  [:values
+   (enc/ensplat
+    (enc/linear-encoder [bit-width] n-on-bits numb-domain))])
 
 (defn n-region-model
   ([n]
-     (n-region-model n spec))
+   (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/sensory-region
-                             block-encoder
-                             n
-                             (list* spec (repeat (merge spec higher-level-spec-diff))))))
+   (core/regions-in-series n core/sensory-region
+                           (list* spec (repeat (merge spec higher-level-spec-diff)))
+                           {:input block-sensor})))

@@ -10,7 +10,7 @@
     #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
 (def input-dim [400])
-(def on-bits 40)
+(def n-on-bits 40)
 (def coord-radius 60) ;; so 60+1+60 = 121 candidates (and we choose 40)
 (def surface-coord-scale 60) ;; so neighbouring positions (x +/- 1) share ~50% bits
 (def surface [0 0.5 1 1.5 2 1.5 1 0.5
@@ -135,19 +135,19 @@
 
 (defn make-model
   []
-  (let [encoder (enc/pre-transform (fn [{:keys [x]}]
-                                     {:coord [(* x surface-coord-scale)]
-                                      :radii [coord-radius]})
-                                   (enc/coordinate-encoder input-dim on-bits))
-        mencoder (enc/pre-transform :dx (enc/linear-encoder 100 30 [-1 1]))]
+  (let [sensor [(enc/vec-selector :x)
+                (enc/coordinate-encoder input-dim n-on-bits [surface-coord-scale]
+                                        [coord-radius])]
+        msensor [:dx
+                 (enc/linear-encoder [100] 30 [-1 1])]]
     (core/region-network {:rgn-1 [:input :motor]
                           :action [:rgn-1]}
                          (constantly core/sensory-region)
                          {:rgn-1 (assoc spec :lateral-synapses? false)
                           :action action-spec}
-                         {:input encoder}
-                         {:input encoder
-                          :motor mencoder})))
+                         {:input sensor}
+                         {:input sensor
+                          :motor msensor})))
 
 (defn feed-world-c-with-actions!
   [in-model-steps-c out-world-c model-atom]

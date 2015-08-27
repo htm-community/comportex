@@ -4,14 +4,14 @@
             [org.nfrac.comportex.util :as util]))
 
 (def bit-width 300)
-(def on-bits 20)
+(def n-on-bits 20)
 
 ;; for block encoder
 (def numb-max 15)
 (def numb-domain [0 numb-max])
 
 ;; for coordinate encoder
-(def radius on-bits) ;; select 50%
+(def radius n-on-bits) ;; select 50%
 ;; number of coordinates between integers:
 (def resolution (* 2 radius
                    0.8)) ;; 0.2 overlap between successive integers
@@ -41,14 +41,15 @@
 
 (def gap-length 5)
 
-(defn initial-input
+(defn initial-world
   []
-  (let [id (first pattern-order)]
+  (let [id (first pattern-order)
+        values (patterns id)]
     {:id id
-     :values (patterns id)
+     :values values
      :index 0}))
 
-(defn input-transform
+(defn world-transform
   [{:keys [id values index] :as input}]
   (if (< index (dec (count values)))
     ;; continuing sequence
@@ -65,31 +66,28 @@
          :values (patterns id)
          :index 0}))))
 
-(defn current-value
+(defn attach-current-value
   [m]
-  (get (:values m) (:index m)))
+  (assoc m :value (get (:values m) (:index m))))
 
-(def block-encoder
-  (enc/pre-transform current-value
-                     (enc/linear-encoder bit-width on-bits numb-domain)))
-
-(def coord-encoder
-  (enc/pre-transform (fn [m]
-                       (when-let [x (current-value m)]
-                         {:coord [(* x resolution)]
-                          :radii [radius]}))
-                     (enc/coordinate-encoder [bit-width] on-bits)))
-
-(defn world-seq
+(defn input-seq
   "Returns an infinite lazy seq of sensory input values."
   []
-  (iterate input-transform (initial-input)))
+  (->> (iterate world-transform (initial-world))
+       (map attach-current-value)))
+
+(def block-sensor
+  [:value
+   (enc/linear-encoder [bit-width] n-on-bits numb-domain)])
+
+(def coord-sensor
+  [(enc/vec-selector :value)
+   (enc/coordinate-encoder [bit-width] n-on-bits [resolution] [radius])])
 
 (defn n-region-model
   ([n]
-     (n-region-model n spec))
+   (n-region-model n spec))
   ([n spec]
-     (core/regions-in-series core/sensory-region
-                             block-encoder
-                             n
-                             (list* spec (repeat (merge spec higher-level-spec-diff))))))
+   (core/regions-in-series n core/sensory-region
+                           (list* spec (repeat (merge spec higher-level-spec-diff)))
+                           {:input block-sensor})))
