@@ -384,20 +384,21 @@
 (defrecord RegionNetwork
     [ff-deps fb-deps strata sensors senses regions]
   p/PHTM
-  (sense
+  (htm-sense
     [this in-value]
-    (reduce-kv (fn [m k [selector encoder]]
-                 (assoc m k (p/encode encoder (p/extract selector in-value))))
-               {}
-               sensors))
-
-  (htm-activate-raw
-    [this in-bits]
-    (let [sm (reduce-kv (fn [m k node]
-                          (assoc m k (p/sense-activate node (get in-bits k))))
+    (let [sm (reduce-kv (fn [m k sense-node]
+                          (let [[selector encoder] (get sensors k)
+                                in-bits (p/encode encoder (p/extract selector in-value))]
+                            (assoc m k (p/sense-activate sense-node in-bits))))
                         {}
-                        senses)
-          rm (-> (reduce
+                        senses)]
+      (assoc this
+             :senses sm
+             :input-value in-value)))
+
+  (htm-activate
+    [this]
+    (let [rm (-> (reduce
                   (fn [m stratum]
                     (->> stratum
                          (pmap (fn [id]
@@ -410,12 +411,12 @@
                                     (combined-bits-value ffs :stable)))))
                          (zipmap stratum)
                          (into m)))
-                  sm
+                  senses
                   ;; drop 1st stratum i.e. drop the sensory inputs
                   (rest strata))
                  ;; get rid of the sense nodes which were seeded into the reduce
                  (select-keys (keys regions)))]
-      (assoc this :senses sm :regions rm)))
+      (assoc this :regions rm)))
 
   (htm-learn
     [this]
