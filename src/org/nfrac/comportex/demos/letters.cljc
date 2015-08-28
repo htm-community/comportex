@@ -26,19 +26,20 @@
 
 ;; encoders expect a string in key :value of the input data item.
 
-(def block-encoder
-  (enc/pre-transform :value
-                     (enc/category-encoder bit-width tokens)))
+(def block-sensor
+  [:value
+   (enc/category-encoder [bit-width] tokens)])
 
-(def random-encoder
-  (enc/pre-transform :value
-                     (enc/unique-encoder [bit-width] bits-per-char)))
+(def random-sensor
+  [:value
+   (enc/unique-encoder [bit-width] bits-per-char)])
 
 (defn n-region-model
   ([n]
    (n-region-model n spec))
   ([n spec]
-   (n-region-model n spec block-encoder))
-  ([n spec encoder]
-   (core/regions-in-series core/sensory-region encoder n
-                           (list* spec (repeat (merge spec higher-level-spec-diff))))))
+   (n-region-model n spec block-sensor))
+  ([n spec sensor]
+   (core/regions-in-series n core/sensory-region
+                           (list* spec (repeat (merge spec higher-level-spec-diff)))
+                           {:input sensor})))

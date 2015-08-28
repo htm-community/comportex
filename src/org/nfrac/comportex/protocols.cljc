@@ -2,38 +2,29 @@
 
 (defprotocol PHTM
   "A network of regions, forming Hierarchical Temporal Memory."
-  (sense [this in-value]
-    "Takes an input value. Encodes each sense's associated value to a
-    bit set, returning them in a map.")
-  (htm-activate-raw [this in-bits]
-    "Takes encoded bit sets with keys matching the HTM's
-    senses. Propagates feed-forward input through the network to
-    activate columns and cells.")
+  (htm-sense [this in-value]
+    "Takes an input value. Updates the HTM's senses by applying
+    corresponding sensors to the input value. Updates :input-value.
+    Returns updated HTM.")
+  (htm-activate [this]
+    "Propagates feed-forward input through the network to activate
+    columns and cells. Assumes senses have already been encoded, with
+    `htm-sense`. Increments the time step. Returns updated HTM.")
   (htm-learn [this]
     "Applies learning rules to synapses. Assumes `this` has been through
-    the `htm-activate` phase already.")
+    the `htm-activate` phase already. Returns updated HTM.")
   (htm-depolarise [this]
     "Propagates lateral and feed-back activity to put cells into a
     depolarised (predictive) state. Assumes `this` has been through
-    the `htm-activate` phase already.")
-  (htm-export [this]
-    "Prepares for serialization."))
-
-(defn htm-activate
-  "Takes an input value. Propagates feed-forward input through the
-  network to activate columns and cells. Updates :input-value. Starts
-  a new time step."
-  [this in-value]
-  (-> this
-      (assoc :input-value in-value)
-      (htm-activate-raw (sense this in-value))))
+    the `htm-activate` phase already. Returns updated HTM."))
 
 (defn htm-step
   "Advances a HTM by one time step with the given input value. Does
-  (-> htm (htm-activate in-value) (htm-learn) (htm-depolarise))."
+  (-> htm (htm-sense in-value) (htm-activate) (htm-learn) (htm-depolarise))."
   [htm in-value]
   (-> htm
-      (htm-activate in-value)
+      (htm-sense in-value)
+      (htm-activate)
       (htm-learn)
       (htm-depolarise)))
 
@@ -124,7 +115,14 @@
   "Sense nodes need to extend this together with PFeedForward."
   (sense-activate [this bits]))
 
-(defprotocol PEncodable
+(defprotocol PSelector
+  "Pulls out a value according to some pattern, like a path or lens.
+  Should be serializable. A Sensor is defined as [Selector Encoder]."
+  (extract [this state]
+    "Extracts a value from `state` according to some configured pattern. A
+    simple example is a lookup by keyword in a map."))
+
+(defprotocol PEncoder
   "Encoders need to extend this together with PTopological."
   (encode [this x]
     "Encodes `x` as a collection of distinct integers which are the on-bits.")

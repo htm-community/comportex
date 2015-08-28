@@ -18,37 +18,29 @@
    [:h :g :f :e]
    [:d :e :a :d]])
 
-(def initial-input [0 0])
+(defn attach-current-value
+  [m]
+  (assoc m :value (get-in patterns (:path m))))
 
-(defn input-transform
-  [[i j]]
-  (let [patt (get patterns i)]
-    (if (< (inc j) (count patt))
-      [i (inc j)]
-      ;; finished pattern, choose another one
-      [(util/rand-int 0 (dec (count patterns)))
-       0])))
+(defn input-seq
+  "Returns a sequence of sensory input values."
+  []
+  (apply concat (repeat (flatten patterns))))
 
-(def encoder
-  (enc/pre-transform #(get-in patterns %)
-                     (enc/category-encoder bit-width items)))
+(def sensor
+  [[]
+   (enc/category-encoder [bit-width] items)])
 
 (def spec
   {})
 
 (defn model
   []
-  (core/regions-in-series core/sensory-region encoder
-                          1 [spec]))
-
-(defn world-seq
-  "Returns a sequence of sensory input values."
-  []
-  (iterate input-transform initial-input))
+  (core/regions-in-series 1 core/sensory-region [spec] {:input sensor}))
 
 (deftest sm-test
   (util/set-seed! 0)
-  (let [[warmups continued] (split-at 500 (world-seq))
+  (let [[warmups continued] (split-at 500 (input-seq))
         m1 (reduce p/htm-step (model) warmups)
         rgn (first (core/region-seq m1))]
     (testing "Numbers of lateral dendrite segments"

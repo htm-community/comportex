@@ -43,7 +43,7 @@
       (println (str (newline) info))
       (perf-test-50* (demo1d/n-region-model 1 (assoc demo1d/spec :global-inhibition? true
                                                      :ff-potential-radius 1.0))
-                     (demo1d/world-seq)))))
+                     (demo1d/input-seq)))))
 
 (deftest perf-local-1d-test
   (util/set-seed! 0)
@@ -51,7 +51,7 @@
     (testing info
       (println (str (newline) info))
       (perf-test-50* (demo1d/n-region-model 1 demo1d/spec)
-                     (demo1d/world-seq)))))
+                     (demo1d/input-seq)))))
 
 (deftest perf-local-2d-test
   (util/set-seed! 0)
@@ -59,7 +59,7 @@
     (testing info
       (println (str (newline) info))
       (perf-test-50* (demo2d/n-region-model 1 demo2d/spec)
-                     (demo2d/world-seq)))))
+                     (demo2d/input-seq)))))
 
 (deftest perf-global-1d-2r-test
   (util/set-seed! 0)
@@ -67,7 +67,7 @@
     (testing info
       (println (str (newline) info))
       (perf-test-50* (demoi1d/n-region-model 2 demoi1d/spec)
-                     (demoi1d/world-seq)))))
+                     (demoi1d/input-seq)))))
 
 (deftest perf-inh-test
   (util/set-seed! 0)

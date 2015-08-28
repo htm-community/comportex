@@ -9,9 +9,9 @@
   #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
 (def bit-width 600)
-(def on-bits 30)
+(def n-on-bits 30)
 (def motor-bit-width 30)
-(def motor-on-bits 15)
+(def motor-n-on-bits 15)
 
 (def test-text
   "one two three four.
@@ -68,17 +68,25 @@ the three little pigs.")
       (neg? (:next-letter-saccade inval))
       [i j 0])))
 
-(def letter-encoder
-  (enc/pre-transform #(get-in (:sentences %) (:position %))
-                     (enc/unique-encoder [bit-width] on-bits)))
+(defn update-position
+  [inval]
+  (let [new-posn (next-position inval)
+        new-value (get-in (:sentences inval) new-posn)]
+    (assoc inval
+           :position new-posn
+           :value new-value)))
 
-(def letter-motor-encoder
-  (enc/pre-transform :next-letter-saccade
-                     (enc/category-encoder motor-bit-width [1 -1])))
+(def letter-sensor
+  [:value
+   (enc/unique-encoder [bit-width] n-on-bits)])
 
-(def word-motor-encoder
-  (enc/pre-transform :next-word-saccade
-                     (enc/category-encoder motor-bit-width [1 -1])))
+(def letter-motor-sensor
+  [:next-letter-saccade
+   (enc/category-encoder [motor-bit-width] [1 -1])])
+
+(def word-motor-sensor
+  [:next-word-saccade
+   (enc/category-encoder [motor-bit-width] [1 -1])])
 
 (defn two-region-model
   ([]
@@ -89,9 +97,9 @@ the three little pigs.")
                         (constantly core/sensory-region)
                         {:rgn-0 spec
                          :rgn-1 (merge spec higher-level-spec-diff)}
-                        {:input letter-encoder}
-                        {:letter-motor letter-motor-encoder
-                         :word-motor word-motor-encoder}
+                        {:input letter-sensor}
+                        {:letter-motor letter-motor-sensor
+                         :word-motor word-motor-sensor}
                         )))
 
 (defn feed-world-c-with-actions!
@@ -109,8 +117,8 @@ the three little pigs.")
             (recur (x inval))
             (when-let [htm (<! in-model-steps-c)]
               (let [[i j k] (:position inval)
-                    new-posn (next-position inval)
-                    [ni nj nk] new-posn
+                    new-in* (update-position inval)
+                    [ni nj nk] (:position new-in*)
                     ;; work out what the next action (saccade) should be
                     ;; TODO: this should be after htm-activate and before htm-depolarise
                     sentences (:sentences inval)
@@ -129,13 +137,12 @@ the three little pigs.")
                                     (>= r0-burst-frac 0.50))
                     sent-burst? (or (:sentence-bursting? inval)
                                     (>= r1-burst-frac 0.50))
-                    new-in-static {:sentences sentences
-                                   :position new-posn
-                                   :next-letter-saccade 0
-                                   :next-word-saccade 0
-                                   :next-sentence-saccade 0
-                                   :word-bursting? word-burst?
-                                   :sentence-bursting? sent-burst?}
+                    new-in-static (assoc new-in*
+                                         :next-letter-saccade 0
+                                         :next-word-saccade 0
+                                         :next-sentence-saccade 0
+                                         :word-bursting? word-burst?
+                                         :sentence-bursting? sent-burst?)
                     action (cond
                              ;; not yet at end of word
                              (not end-of-word?)

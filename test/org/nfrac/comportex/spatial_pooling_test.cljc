@@ -29,14 +29,15 @@
            :lateral-synapses? false
            })
 
-(def encoder
-  (enc/encat n-in-items
-             (enc/linear-encoder numb-bits numb-on-bits numb-domain)))
+(def sensor
+  [[]
+   (enc/encat (repeat n-in-items
+                      (enc/linear-encoder [numb-bits] numb-on-bits numb-domain)))])
 
 (defn model
   []
-  (core/regions-in-series core/sensory-region encoder
-                          1 [spec]))
+  (core/regions-in-series 1 core/sensory-region [spec]
+                          {:input sensor}))
 
 (deftest sp-test
   (util/set-seed! 0)
@@ -74,6 +75,7 @@
                             [:mid 8]
                             [:far 25]]
                      :let [this-in (mapv (partial + d) in)
+                           [_ encoder] sensor
                            ff-bits (into #{} (p/encode encoder this-in))
                            rgn2 (p/region-step rgn ff-bits)]]
                  [k (p/active-columns (:layer-3 rgn2))])
