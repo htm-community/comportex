@@ -10,7 +10,7 @@
 
 (deftest encode-decode-test
   (let [e (enc/category-encoder [10] [:a :b :c])]
-    (is (= :a (:value (first (p/dcode e (frequencies (p/encode e :a)) 1)))))
+    (is (= :a (:value (first (p/decode e (frequencies (p/encode e :a)) 1)))))
     (is (= :b (:value (first (p/decode e (frequencies (p/encode e :b)) 1)))))
     (is (= :c (:value (first (p/decode e (frequencies (p/encode e :c)) 1))))))
   )
