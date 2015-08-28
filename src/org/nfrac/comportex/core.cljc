@@ -440,11 +440,6 @@
                   (zipmap (keys regions)))]
       (assoc this :regions rm)))
 
-  (htm-export
-    [this]
-    ;; TODO - is this needed any more? Maybe a general export protocol to clear caches?
-    this)
-
   p/PTemporal
   (timestep [_]
     (p/timestep (first (vals regions))))

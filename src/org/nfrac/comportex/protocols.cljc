@@ -15,9 +15,7 @@
   (htm-depolarise [this]
     "Propagates lateral and feed-back activity to put cells into a
     depolarised (predictive) state. Assumes `this` has been through
-    the `htm-activate` phase already.")
-  (htm-export [this]
-    "Prepares for serialization."))
+    the `htm-activate` phase already."))
 
 (defn htm-activate
   "Takes an input value. Propagates feed-forward input through the
