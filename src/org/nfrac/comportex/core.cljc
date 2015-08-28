@@ -495,7 +495,11 @@
   region-building functions, parameter specifications, and sensors in
   the remaining argments.
 
-  Sensors are defined to be the form `[selector encoder]`.
+  Sensors are defined to be the form `[selector encoder]`, satisfying
+  protocols PSelector and PEncoder respectively. Sensors in the
+  `main-sensors` map can make activating (proximal) connections while
+  those in the `motor-sensors` map can make depolarising (distal)
+  connections. The same sensor may also be included in both maps.
 
   For each node, the combined dimensions of its feed-forward sources
   is calculated and used to set the `:input-dimensions` parameter in
@@ -504,7 +508,8 @@
   the combined dimensions of its feed-back superior regions is used to
   set the `:distal-topdown-dimensions` parameter. The updated spec is
   passed to a function (typically `sensory-region`) to build a
-  region. The build function is looked up in `region-builders`.
+  region. The build function is found by calling `region-builders`
+  with the region id keyword.
 
   For example to build the network `inp -> v1 -> v2`:
 
@@ -527,6 +532,10 @@
          ;; all ids in dependency map must be defined
          (every? region-specs (keys ff-deps))
          (every? (merge main-sensors motor-sensors) (in-vals-not-keys ff-deps))]}
+  (merge-with (fn [main-sensor motor-sensor]
+                (assert (= main-sensor motor-sensor)
+                        "Equal keys in main-sensors and motor-sensors must be same sensor."))
+              main-sensors motor-sensors)
   (let [all-ids (into (set (keys ff-deps))
                       (in-vals-not-keys ff-deps))
         ff-dag (graph/directed-graph all-ids ff-deps)
