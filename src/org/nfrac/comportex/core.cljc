@@ -385,16 +385,22 @@
     [ff-deps fb-deps strata sensors senses regions]
   p/PHTM
   (htm-sense
-    [this in-value]
+    [this inval mode]
     (let [sm (reduce-kv (fn [m k sense-node]
-                          (let [[selector encoder] (get sensors k)
-                                in-bits (p/encode encoder (p/extract selector in-value))]
-                            (assoc m k (p/sense-activate sense-node in-bits))))
-                        {}
+                          (if (case mode
+                                :sensory (:sensory? sense-node)
+                                :motor (:motor? sense-node)
+                                nil true)
+                            (let [[selector encoder] (get sensors k)
+                                  in-bits (->> (p/extract selector inval)
+                                               (p/encode encoder))]
+                              (assoc m k (p/sense-activate sense-node in-bits)))
+                            m))
+                        senses
                         senses)]
       (assoc this
              :senses sm
-             :input-value in-value)))
+             :input-value inval)))
 
   (htm-activate
     [this]

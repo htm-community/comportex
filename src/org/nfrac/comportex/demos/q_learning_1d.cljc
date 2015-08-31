@@ -5,9 +5,8 @@
             [org.nfrac.comportex.synapses :as syn]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util :refer [round abs]]
-            #?(:clj [clojure.core.async :refer [<! >! go]]
-               :cljs [cljs.core.async :refer [<! >!]]))
-    #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
+            #?(:clj [clojure.core.async :refer [put!]]
+               :cljs [cljs.core.async :refer [put!]])))
 
 (def input-dim [400])
 (def n-on-bits 40)
@@ -19,11 +18,11 @@
               1 2 3 4 5 6 7 8 6 4 2
               ])
 
-(def initial-input-val
+(def initial-inval
   {:x 5
    :y (surface 5)
    :dy 0
-   :dx 0})
+   :action {:dx 0}})
 
 (def spec
   {:column-dimensions [1000]
@@ -55,19 +54,19 @@
    :q-discount 0.8
    ;; do not want temporal pooling here - actions are not static
    :temporal-pooling-max-exc 0.0
-   ;; disable learning
+   ;; disable learning; custom learning function below
    :freeze? true})
 
-(def action->movement
-  {:left -1
-   :right 1})
+(def direction->action
+  {:left {:dx -1}
+   :right {:dx 1}})
 
 ;; lookup on columns of :action region
 (def column->signal
   (zipmap (range)
-          (for [motion [:left :right]
+          (for [direction [:left :right]
                 influence (repeat 15 1.0)]
-            [motion influence])))
+            [direction influence])))
 
 (defn select-action
   [htm]
@@ -81,7 +80,22 @@
          (persistent!)
          (shuffle)
          (apply max-key val)
-         (key))))
+         (key)
+         (direction->action))))
+
+(defn apply-action
+  [inval]
+  (let [x (:x inval)
+        dx (:dx (:action inval))
+        next-x (-> (+ x dx)
+                   (min (dec (count surface)))
+                   (max 0))
+        next-y (surface next-x)
+        dy (- next-y (:y inval))]
+    (assoc inval
+           :x next-x
+           :y next-y
+           :dy dy)))
 
 (defn active-synapses
   [sg target-id ff-bits]
@@ -108,15 +122,16 @@
                      prev-ff-bits (or (:in-ff-bits (:state prev-lyr)) #{})
                      prev-acols (:active-cols (:state prev-lyr))
                      psg (:proximal-sg lyr)
+                     ;; Q = estimate of optimal future value = average active perm.
                      aperms (mapcat (fn [col]
                                       (active-synapse-perms psg [col 0 0] ff-bits))
                                     acols)
-                     Qt-st+1 (if (seq aperms)
-                               (- (mean aperms) ff-perm-init-lo) ;; TODO: include boost?
-                               0)
-                     Qt-st (:Q-val (:Q-info lyr) 0)
-                     learn-value (+ reward (* q-discount Qt-st+1))
-                     adjust (* q-alpha (- learn-value Qt-st))
+                     Q-est (if (seq aperms)
+                             (- (mean aperms) ff-perm-init-lo) ;; TODO include boost
+                             0)
+                     Q-old (:Q-val (:Q-info lyr) 0)
+                     learn-value (+ reward (* q-discount Q-est))
+                     adjust (* q-alpha (- learn-value Q-old))
                      op (if (pos? adjust) :reinforce :punish)
                      seg-updates (map (fn [col]
                                         (syn/seg-update [col 0 0] op nil nil))
@@ -126,8 +141,8 @@
                   (assoc :proximal-sg
                          (p/bulk-learn psg seg-updates prev-ff-bits
                                        (abs adjust) (abs adjust) 0.0))
-                  (assoc :Q-info {:Q-val Qt-st+1
-                                  :Q-prev Qt-st
+                  (assoc :Q-info {:Q-val Q-est
+                                  :Q-old Q-old
                                   :reward reward
                                   :lrn learn-value
                                   :adj adjust
@@ -138,7 +153,7 @@
   (let [sensor [(enc/vec-selector :x)
                 (enc/coordinate-encoder input-dim n-on-bits [surface-coord-scale]
                                         [coord-radius])]
-        msensor [:dx
+        msensor [[:action :dx]
                  (enc/linear-encoder [100] 30 [-1 1])]]
     (core/region-network {:rgn-1 [:input :motor]
                           :action [:rgn-1]}
@@ -149,57 +164,50 @@
                          {:input sensor
                           :motor msensor})))
 
-(defn feed-world-c-with-actions!
-  [in-model-steps-c out-world-c model-atom]
-  (go
-   (loop [inval (assoc initial-input-val
-                       :Q-map {})
-          prev-htm @model-atom]
-     (>! out-world-c inval)
-     (when-let [htm (<! in-model-steps-c)]
-       ;; scale reward to be comparable to [0-1] permanences
-       (let [reward (* 0.5 (:dy inval))
-             ;; do the Q learning on previous step
-             upd-htm (swap! model-atom q-learn prev-htm reward)
-             ;; maintain map of state+action -> approx Q values, for diagnostics
-             info (get-in upd-htm [:regions :action :layer-3 :Q-info])
-             newQ (-> (+ (:Q-prev info 0) (:adj info 0))
-                      (max -1.0)
-                      (min 1.0))
-             Q-map (assoc (:Q-map inval)
-                          (select-keys inval [:x :dx])
-                          newQ)]
-         (let [x (:x inval)
-               act (select-action upd-htm)
-               dx (action->movement act)
-               next-x (-> (+ x dx)
-                          (min (dec (count surface)))
-                          (max 0))
-               next-y (surface next-x)
-               dy (- next-y (:y inval))]
-           (recur {:x next-x
-                   :y next-y
-                   :dx dx
-                   :dy dy
-                   :Q-map Q-map}
-                  upd-htm)))))))
+(defn htm-step-with-action-selection
+  [world-c]
+  (fn [htm inval]
+    (let [;; do first part of step, but not depolarise yet (depends on action)
+          htm-a (-> htm
+                    (p/htm-sense inval :sensory)
+                    (p/htm-activate)
+                    (p/htm-learn))
+          ;; scale reward to be comparable to [0-1] permanences
+          reward (* 0.5 (:dy inval))
+          ;; do the Q learning update on action layer
+          upd-htm (q-learn htm-a htm reward)
+          ;; maintain map of state+action -> approx Q values, for diagnostics
+          info (get-in upd-htm [:regions :action :layer-3 :Q-info])
+          newQ (-> (+ (:Q-old info 0) (:adj info 0))
+                   (max -1.0)
+                   (min 1.0))
+          Q-map (assoc (:Q-map inval)
+                       (select-keys inval [:x :action])
+                       newQ)
+          action (select-action upd-htm)
+          inval-with-action (assoc inval
+                                   :action action
+                                   :prev-action (:action inval)
+                                   :Q-map Q-map)]
+      ;; calculate the next position
+      (let [new-inval (apply-action inval-with-action)]
+        (put! world-c new-inval))
+      (-> upd-htm
+          (p/htm-sense inval-with-action :motor)
+          (p/htm-depolarise)))))
 
 (comment
   (require '[clojure.core.async :as async :refer [>!! <!!]])
-  (require '[org.nfrac.comportex.protocols :as p])
   (def world-c (async/chan))
   (def model (atom (make-model)))
-  (def steps-c (async/chan))
+  (def step (htm-step-with-action-selection world-c))
 
-  (feed-world-c-with-actions! steps-c world-c model)
+  (def inval initial-inval)
+  (swap! model step inval)
+  (def inval (<!! world-c))
 
-  (def inv (<!! world-c))
-  (def model2 (swap! model p/htm-step inv))
-  (>!! steps-c model2)
-
-  inv
-  (get-in @model [:regions :action :layer-3 :state :Q-val])
-  (get-in @model [:regions :action :layer-3 :state :Q-info])
+  inval
+  (get-in @model [:regions :action :layer-3 :Q-info])
   (get-in @model [:regions :action :layer-3 :state :active-cols])
 
   )

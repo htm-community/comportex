@@ -1,11 +1,12 @@
 (ns org.nfrac.comportex.protocols)
 
 (defprotocol PHTM
-  "A network of regions, forming Hierarchical Temporal Memory."
-  (htm-sense [this in-value]
+  "A network of regions and senses, forming Hierarchical Temporal Memory."
+  (htm-sense [this inval mode]
     "Takes an input value. Updates the HTM's senses by applying
-    corresponding sensors to the input value. Updates :input-value.
-    Returns updated HTM.")
+    corresponding sensors to the input value. `mode` may be
+    :sensory or :motor to update only such senses, or nil to update
+    all. Also updates :input-value. Returns updated HTM.")
   (htm-activate [this]
     "Propagates feed-forward input through the network to activate
     columns and cells. Assumes senses have already been encoded, with
@@ -19,11 +20,11 @@
     the `htm-activate` phase already. Returns updated HTM."))
 
 (defn htm-step
-  "Advances a HTM by one time step with the given input value. Does
-  (-> htm (htm-sense in-value) (htm-activate) (htm-learn) (htm-depolarise))."
-  [htm in-value]
+  "Advances a HTM by a full time step with the given input value. Just
+  (-> htm (htm-sense inval nil) htm-activate htm-learn htm-depolarise)"
+  [htm inval]
   (-> htm
-      (htm-sense in-value)
+      (htm-sense inval nil)
       (htm-activate)
       (htm-learn)
       (htm-depolarise)))
