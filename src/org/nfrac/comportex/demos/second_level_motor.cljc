@@ -82,11 +82,11 @@ the three little pigs.")
    (enc/unique-encoder [bit-width] n-on-bits)])
 
 (def letter-motor-sensor
-  [:next-letter-saccade
+  [[:action :next-letter-saccade]
    (enc/category-encoder [motor-bit-width] [1 -1])])
 
 (def word-motor-sensor
-  [:next-word-saccade
+  [[:action :next-word-saccade]
    (enc/category-encoder [motor-bit-width] [1 -1])])
 
 (defn two-region-model
