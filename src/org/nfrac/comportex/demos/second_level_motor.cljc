@@ -4,8 +4,8 @@
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.string :as str]
-            #?(:clj [clojure.core.async :refer [<! >! alts! go]]
-               :cljs [cljs.core.async :refer [<! >! alts!]]))
+            #?(:clj [clojure.core.async :refer [put! >! <! go]]
+               :cljs [cljs.core.async :refer [put! >! <!]]))
   #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
 (def bit-width 600)
@@ -43,34 +43,35 @@ the three little pigs.")
    :use-feedback? false
    })
 
-(def initial-input-val
-  {:sentences (parse-sentences test-text)
-   :position [0 0 0] ;; [sentence word letter]
-   :next-letter-saccade -1
-   :next-word-saccade -1
-   :next-sentence-saccade -1
-   })
+(def initial-inval
+  (let [sentences (parse-sentences test-text)]
+    {:sentences sentences
+     :position [0 0 0] ;; [sentence word letter]
+     :value (get-in sentences [0 0 0])
+     :action {:next-letter-saccade -1
+              :next-word-saccade -1
+              :next-sentence-saccade -1}
+     }))
 
 (defn next-position
-  [inval]
-  (let [[i j k] (:position inval)]
-    (cond
-      (pos? (:next-sentence-saccade inval))
-      [(inc i) 0 0]
-      (neg? (:next-sentence-saccade inval))
-      [0 0 0]
-      (pos? (:next-word-saccade inval))
-      [i (inc j) 0]
-      (neg? (:next-word-saccade inval))
-      [i 0 0]
-      (pos? (:next-letter-saccade inval))
-      [i j (inc k)]
-      (neg? (:next-letter-saccade inval))
-      [i j 0])))
+  [[i j k] action]
+  (cond
+    (pos? (:next-sentence-saccade action))
+    [(inc i) 0 0]
+    (neg? (:next-sentence-saccade action))
+    [0 0 0]
+    (pos? (:next-word-saccade action))
+    [i (inc j) 0]
+    (neg? (:next-word-saccade action))
+    [i 0 0]
+    (pos? (:next-letter-saccade action))
+    [i j (inc k)]
+    (neg? (:next-letter-saccade action))
+    [i j 0]))
 
-(defn update-position
+(defn apply-action
   [inval]
-  (let [new-posn (next-position inval)
+  (let [new-posn (next-position (:position inval) (:action inval))
         new-value (get-in (:sentences inval) new-posn)]
     (assoc inval
            :position new-posn
@@ -102,89 +103,102 @@ the three little pigs.")
                          :word-motor word-motor-sensor}
                         )))
 
-(defn feed-world-c-with-actions!
-  [in-model-steps-c in-control-c out-world-c model-atom]
+(defn htm-step-with-action-selection
+  [world-c control-c]
+  (comment
+    ;; TODO: on next release of core.async, replace this go block with
+    (let [inval (if-let [xf (poll! control-c)]
+                  (xf inval)
+                  inval)
+          ]))
   (go
-    (loop [inval (assoc initial-input-val
-                        :word-bursting? false
-                        :sentence-bursting? false)]
-      (let [[x port] (alts! [in-control-c
-                             [out-world-c inval]]
-                            :priority true)]
-        (when x
-          (if (= port in-control-c)
-            ;; control channel, assume x is a function to transform input value
-            (recur (x inval))
-            (when-let [htm (<! in-model-steps-c)]
-              (let [[i j k] (:position inval)
-                    new-in* (update-position inval)
-                    [ni nj nk] (:position new-in*)
-                    ;; work out what the next action (saccade) should be
-                    ;; TODO: this should be after htm-activate and before htm-depolarise
-                    sentences (:sentences inval)
-                    sentence (get sentences ni)
-                    word (get sentence nj)
-                    end-of-word? (= nk (dec (count word)))
-                    end-of-sentence? (= nj (dec (count sentence)))
-                    end-of-passage? (= ni (dec (count sentences)))
-                    r0-lyr (get-in htm [:regions :rgn-0 :layer-3])
-                    r1-lyr (get-in htm [:regions :rgn-1 :layer-3])
-                    r0-burst-frac (/ (count (p/bursting-columns r0-lyr))
-                                     (count (p/active-columns r0-lyr)))
-                    r1-burst-frac (/ (count (p/bursting-columns r1-lyr))
-                                     (count (p/active-columns r1-lyr)))
-                    word-burst? (or (:word-bursting? inval)
-                                    (>= r0-burst-frac 0.50))
-                    sent-burst? (or (:sentence-bursting? inval)
-                                    (>= r1-burst-frac 0.50))
-                    new-in-static (assoc new-in*
-                                         :next-letter-saccade 0
-                                         :next-word-saccade 0
-                                         :next-sentence-saccade 0
-                                         :word-bursting? word-burst?
-                                         :sentence-bursting? sent-burst?)
-                    action (cond
-                             ;; not yet at end of word
-                             (not end-of-word?)
-                             {:next-letter-saccade 1}
+    (loop []
+      (if-let [xf (<! control-c)]
+        (let [inval (<! world-c)]
+          (>! world-c (xf inval))
+          (recur)))))
+  (fn [htm inval]
+    (let [;; do first part of step, but not depolarise yet (depends on action)
+          htm-a (-> htm
+                    (p/htm-sense inval :sensory)
+                    (p/htm-activate)
+                    (p/htm-learn))
+          [i j k] (:position inval)
+          ;; work out what the next action (saccade) should be
+          sentences (:sentences inval)
+          sentence (get sentences i)
+          word (get sentence j)
+          end-of-word? (= k (dec (count word)))
+          end-of-sentence? (= j (dec (count sentence)))
+          end-of-passage? (= i (dec (count sentences)))
+          r0-lyr (get-in htm-a [:regions :rgn-0 :layer-3])
+          r1-lyr (get-in htm-a [:regions :rgn-1 :layer-3])
+          r0-burst-frac (/ (count (p/bursting-columns r0-lyr))
+                           (count (p/active-columns r0-lyr)))
+          r1-burst-frac (/ (count (p/bursting-columns r1-lyr))
+                           (count (p/active-columns r1-lyr)))
+          word-burst? (or (:word-bursting? inval)
+                          (>= r0-burst-frac 0.50))
+          sent-burst? (or (:sentence-bursting? inval)
+                          (>= r1-burst-frac 0.50))
+          action* (cond
+                    ;; not yet at end of word
+                    (not end-of-word?)
+                    {:next-letter-saccade 1}
 
-                             ;; end of word.
-                             ;; word not yet learned, repeat word
-                             word-burst?
-                             {:next-letter-saccade -1
-                              :word-bursting? false}
+                    ;; end of word.
+                    ;; word not yet learned, repeat word
+                    word-burst?
+                    {:next-letter-saccade -1
+                     :word-bursting? false}
 
-                             ;; not yet at end of sentence, go to next word
-                             (not end-of-sentence?)
-                             {:next-word-saccade 1
-                              :word-bursting? false}
+                    ;; not yet at end of sentence, go to next word
+                    (not end-of-sentence?)
+                    {:next-word-saccade 1
+                     :word-bursting? false}
 
-                             ;; end of sentence.
-                             ;; sentence not yet learned, repeat sentence
-                             sent-burst?
-                             {:next-word-saccade -1
-                              :word-bursting? false
-                              :sentence-bursting? false}
+                    ;; end of sentence.
+                    ;; sentence not yet learned, repeat sentence
+                    sent-burst?
+                    {:next-word-saccade -1
+                     :word-bursting? false
+                     :sentence-bursting? false}
 
-                             ;; not yet at end of passage, go to next sentence
-                             (not end-of-passage?)
-                             {:next-sentence-saccade 1
-                              :next-word-saccade 1
-                              :word-bursting? false
-                              :sentence-bursting? false}
+                    ;; not yet at end of passage, go to next sentence
+                    (not end-of-passage?)
+                    {:next-sentence-saccade 1
+                     :next-word-saccade 1
+                     :word-bursting? false
+                     :sentence-bursting? false}
 
-                             ;; reached end of passage
-                             :else
-                             {:next-sentence-saccade -1
-                              :next-word-saccade -1
-                              :word-bursting? false
-                              :sentence-bursting? false}
-                             )]
-                ;; reset first region when going on to new word
-                (when (and end-of-word? (not word-burst?))
-                  (swap! model-atom update-in [:regions :rgn-0] p/break))
-                ;; reset second region when going on to new sentence
-                (when (and end-of-sentence? (not sent-burst?))
-                  (swap! model-atom update-in [:regions :rgn-1] p/break))
-                ;; the next input value:
-                (recur (merge new-in-static action))))))))))
+                    ;; reached end of passage
+                    :else
+                    {:next-sentence-saccade -1
+                     :next-word-saccade -1
+                     :word-bursting? false
+                     :sentence-bursting? false}
+                    )
+          action (merge {:next-letter-saccade 0
+                         :next-word-saccade 0
+                         :next-sentence-saccade 0
+                         :word-bursting? word-burst?
+                         :sentence-bursting? sent-burst?}
+                        action*)
+          inval-with-action (assoc inval :action action
+                                   :prev-action (:action inval))]
+      ;; calculate the next position
+      (let [new-inval (apply-action inval-with-action)]
+        (put! world-c new-inval))
+      ;; depolarise (predict) based on action, and update :input-value
+      (cond-> htm-a
+        true
+        (p/htm-sense inval-with-action :motor)
+        true
+        (p/htm-depolarise)
+        ;; reset first region when going on to new word
+        (and end-of-word? (not word-burst?))
+        (update-in [:regions :rgn-0] p/break)
+        ;; reset second region when going on to new sentence
+        (and end-of-sentence? (not sent-burst?))
+        (update-in [:regions :rgn-1] p/break)
+        ))))
