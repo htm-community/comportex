@@ -614,44 +614,36 @@
                                              new-syns
                                              max-syns
                                              max-segs]}]
-  (if (== 1 max-segs)
-    ;; fast path: always learn on the first and only segment
-    (into {}
-         (map (fn [cell-id]
-                (let [seg-path (conj cell-id 0)]
-                  [cell-id (syn/seg-update seg-path :learn nil nil)])))
-         lc)
-    ;; multiple segments are allowed
-    (let [lci-vec (vec lci)] ;; for faster sampling
-     (persistent!
-      (reduce
-       (fn [m cell-id]
-         (if-let [seg-path (well-matching-paths cell-id)]
-           (assoc! m cell-id (syn/seg-update seg-path :learn nil nil))
-           ;; otherwise - not well matching - check disconnected synapses
-           (let [cell-segs (p/cell-segments sg cell-id)
-                 [match-si exc seg] (best-matching-segment cell-segs aci
-                                                           min-act 0.0)
-                 new-segment? (not match-si)
-                 [seg-idx die-syns] (if match-si
-                                      [match-si nil]
-                                      (new-segment-id cell-segs pcon max-segs
-                                                      max-syns))
-                 grow-n (- new-syns exc)
-                 grow-source-ids (segment-new-synapse-source-ids seg lci-vec grow-n)
-                 die-source-ids (if new-segment?
-                                  (keys die-syns) ;; remove any existing (replaced)
-                                  (segment-excess-synapse-source-ids seg grow-n
-                                                                     max-syns))
-                 seg-path (conj cell-id seg-idx)]
-             ;; if not enough learnable sources to grow a new segment, skip it
-             (if (and new-segment?
-                      (< (count grow-source-ids) min-act))
-               m ;; skip
-               (assoc! m cell-id (syn/seg-update seg-path :learn grow-source-ids
-                                                 die-source-ids))))))
-       (transient {})
-       lc)))))
+  (let [lci-vec (vec lci)] ;; for faster sampling
+    (persistent!
+     (reduce
+      (fn [m cell-id]
+        (if-let [seg-path (well-matching-paths cell-id)]
+          (assoc! m cell-id (syn/seg-update seg-path :learn nil nil))
+          ;; otherwise - not well matching - check disconnected synapses
+          (let [cell-segs (p/cell-segments sg cell-id)
+                [match-si exc seg] (best-matching-segment cell-segs aci
+                                                          min-act 0.0)
+                new-segment? (not match-si)
+                [seg-idx die-syns] (if match-si
+                                     [match-si nil]
+                                     (new-segment-id cell-segs pcon max-segs
+                                                     max-syns))
+                grow-n (- new-syns exc)
+                grow-source-ids (segment-new-synapse-source-ids seg lci-vec grow-n)
+                die-source-ids (if new-segment?
+                                 (keys die-syns) ;; remove any existing (replaced)
+                                 (segment-excess-synapse-source-ids seg grow-n
+                                                                    max-syns))
+                seg-path (conj cell-id seg-idx)]
+            ;; if not enough learnable sources to grow a new segment, skip it
+            (if (and new-segment?
+                     (< (count grow-source-ids) min-act))
+              m ;; skip
+              (assoc! m cell-id (syn/seg-update seg-path :learn grow-source-ids
+                                                die-source-ids))))))
+      (transient {})
+      lc))))
 
 ;;; ## Orchestration
 
