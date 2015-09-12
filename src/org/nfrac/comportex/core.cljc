@@ -655,11 +655,43 @@
   (let [lyr (get rgn (first (layers rgn)))]
     (layer-predicted-bit-votes lyr)))
 
+(defn sense-base
+  [htm rgn-id sense-id]
+  (let [{:keys [senses regions]} htm]
+    (->> (get-in htm [:ff-deps rgn-id])
+         (map (fn [ff-id]
+                [ff-id
+                 (or (senses ff-id)
+                     (regions ff-id))]))
+         (take-while (fn [[ff-id _]]
+                       (not= ff-id sense-id)))
+         (map (fn [[ff-id ff]]
+                ff))
+         (map p/ff-topology)
+         (map p/size)
+         (reduce + 0))))
+
 (defn predictions
-  [htm n-predictions]
-  (let [rgn (first (region-seq htm))
-        [_ encoder] (first (vals (:sensors htm)))
-        pr-votes (predicted-bit-votes rgn)]
+  [htm sense-id n-predictions]
+  (let [sense-width (-> (get-in htm [:senses sense-id])
+                        p/ff-topology
+                        p/size)
+        pr-votes (->> (get-in htm [:fb-deps sense-id])
+                      (mapcat (fn [rgn-id]
+                                (let [rgn (get-in htm [:regions rgn-id])
+                                      start (sense-base htm rgn-id sense-id)
+                                      end (+ start sense-width)]
+                                  (->> (predicted-bit-votes rgn)
+                                       (keep (fn [[id votes]]
+                                               (when (and (<= start id)
+                                                          (< id end))
+                                                 [(- id start) votes])))))))
+                      (reduce (fn [m [id votes]]
+                                (assoc m id
+                                       (+ (get m id 0)
+                                          votes)))
+                              {}))
+        [_ encoder] (get-in htm [:sensors sense-id])]
     (p/decode encoder pr-votes n-predictions)))
 
 (defn- zap-fewer
