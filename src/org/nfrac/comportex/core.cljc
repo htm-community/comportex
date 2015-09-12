@@ -655,17 +655,19 @@
   (let [lyr (get rgn (first (layers rgn)))]
     (layer-predicted-bit-votes lyr)))
 
-(defn sense-base
-  [htm rgn-id sense-id]
+(defn ff-base
+  "Returns the first index that corresponds with `ff-id` within the
+  feedforward input to `rgn-id`."
+  [htm rgn-id ff-id]
   (let [{:keys [senses regions]} htm]
     (->> (get-in htm [:ff-deps rgn-id])
-         (map (fn [ff-id]
-                [ff-id
-                 (or (senses ff-id)
-                     (regions ff-id))]))
-         (take-while (fn [[ff-id _]]
-                       (not= ff-id sense-id)))
-         (map (fn [[ff-id ff]]
+         (map (fn [id]
+                [id
+                 (or (senses id)
+                     (regions id))]))
+         (take-while (fn [[id _]]
+                       (not= id ff-id)))
+         (map (fn [[id ff]]
                 ff))
          (map p/ff-topology)
          (map p/size)
@@ -679,7 +681,7 @@
         pr-votes (->> (get-in htm [:fb-deps sense-id])
                       (mapcat (fn [rgn-id]
                                 (let [rgn (get-in htm [:regions rgn-id])
-                                      start (sense-base htm rgn-id sense-id)
+                                      start (ff-base htm rgn-id sense-id)
                                       end (+ start sense-width)]
                                   (->> (predicted-bit-votes rgn)
                                        (keep (fn [[id votes]]
