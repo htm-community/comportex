@@ -655,11 +655,45 @@
   (let [lyr (get rgn (first (layers rgn)))]
     (layer-predicted-bit-votes lyr)))
 
+(defn ff-base
+  "Returns the first index that corresponds with `ff-id` within the
+  feedforward input to `rgn-id`."
+  [htm rgn-id ff-id]
+  (let [{:keys [senses regions]} htm]
+    (->> (get-in htm [:ff-deps rgn-id])
+         (map (fn [id]
+                [id
+                 (or (senses id)
+                     (regions id))]))
+         (take-while (fn [[id _]]
+                       (not= id ff-id)))
+         (map (fn [[id ff]]
+                ff))
+         (map p/ff-topology)
+         (map p/size)
+         (reduce + 0))))
+
 (defn predictions
-  [htm n-predictions]
-  (let [rgn (first (region-seq htm))
-        [_ encoder] (first (vals (:sensors htm)))
-        pr-votes (predicted-bit-votes rgn)]
+  [htm sense-id n-predictions]
+  (let [sense-width (-> (get-in htm [:senses sense-id])
+                        p/ff-topology
+                        p/size)
+        pr-votes (->> (get-in htm [:fb-deps sense-id])
+                      (mapcat (fn [rgn-id]
+                                (let [rgn (get-in htm [:regions rgn-id])
+                                      start (ff-base htm rgn-id sense-id)
+                                      end (+ start sense-width)]
+                                  (->> (predicted-bit-votes rgn)
+                                       (keep (fn [[id votes]]
+                                               (when (and (<= start id)
+                                                          (< id end))
+                                                 [(- id start) votes])))))))
+                      (reduce (fn [m [id votes]]
+                                (assoc m id
+                                       (+ (get m id 0)
+                                          votes)))
+                              {}))
+        [_ encoder] (get-in htm [:sensors sense-id])]
     (p/decode encoder pr-votes n-predictions)))
 
 (defn- zap-fewer
