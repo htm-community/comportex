@@ -141,11 +141,12 @@
     state prior to any learning."))
 
 (defprotocol PInterruptable
-  (break [this]
+  (break [this mode]
     "Returns this model (or model component) without its current
     sequence state, forcing the following input to be treated as a new
-    sequence. I.e. prevents learning distal connections to current
-    cells, and cancels any temporal pooling potential."))
+    sequence. If mode is :tm, cancels any predictions and prevents
+    learning distal connections to current cells. If mode is :tp,
+    cancels any temporal pooling potential."))
 
 (defprotocol PTemporal
   (timestep [this]))

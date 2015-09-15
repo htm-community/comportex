@@ -906,10 +906,10 @@
     (:pred-cells prior-distal-state))
 
   p/PInterruptable
-  (break [this]
-    (-> this
-        (assoc :distal-state empty-distal-state)
-        (update-in [:state :temporal-pooling-exc] empty)))
+  (break [this mode]
+    (case mode
+      :tm (assoc this :distal-state empty-distal-state)
+      :tp (update-in this [:state :temporal-pooling-exc] empty)))
 
   p/PTopological
   (topology [this]

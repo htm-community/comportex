@@ -66,9 +66,9 @@
   (params [_]
     (p/params layer-3))
   p/PInterruptable
-  (break [this]
+  (break [this mode]
     (assoc this
-           :layer-3 (p/break layer-3)))
+           :layer-3 (p/break layer-3 mode)))
   p/PRestartable
   (restart [this]
     (sensory-region (p/params this))))
@@ -135,9 +135,9 @@
   (params [_]
     (p/params layer-4))
   p/PInterruptable
-  (break [this]
+  (break [this mode]
     (assoc this
-           :layer-4 (p/break layer-4)))
+           :layer-4 (p/break layer-4 mode)))
   p/PRestartable
   (restart [this]
     (motor-region (p/params this))))
@@ -221,10 +221,10 @@
   (params [_]
     (p/params layer-4))
   p/PInterruptable
-  (break [this]
+  (break [this mode]
     (assoc this
-           :layer-4 (p/break layer-4)
-           :layer-3 (p/break layer-3)))
+           :layer-4 (p/break layer-4 mode)
+           :layer-3 (p/break layer-3 mode)))
   p/PRestartable
   (restart [this]
     (sensorimotor-region (p/params this))))
@@ -452,10 +452,10 @@
     (p/timestep (first (vals regions))))
 
   p/PInterruptable
-  (break [this]
+  (break [this mode]
     (assoc this
            :regions (->> (vals regions)
-                         (map p/break)
+                         (map #(p/break % mode))
                          (zipmap (keys regions)))))
 
   p/PRestartable

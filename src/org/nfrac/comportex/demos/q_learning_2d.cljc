@@ -184,7 +184,7 @@
           true
           (p/htm-depolarise)
           terminal-state?
-          (p/break)))))
+          (p/break :tm)))))
 
 (comment
   (require '[clojure.core.async :as async :refer [>!! <!!]])

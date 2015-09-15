@@ -195,10 +195,13 @@ the three little pigs.")
         (p/htm-sense inval-with-action :motor)
         true
         (p/htm-depolarise)
-        ;; reset first region when going on to new word
+        ;; reset first region's sequence when going on to new word
         (and end-of-word? (not word-burst?))
-        (update-in [:regions :rgn-0] p/break)
-        ;; reset second region when going on to new sentence
+        (update-in [:regions :rgn-0] p/break :tm)
+        ;; reset second region's pooling when going on to new word
+        (and end-of-word? (not word-burst?))
+        (update-in [:regions :rgn-1] p/break :tp)
+        ;; reset second region's sequence when going on to new sentence
         (and end-of-sentence? (not sent-burst?))
-        (update-in [:regions :rgn-1] p/break)
+        (update-in [:regions :rgn-1] p/break :tm)
         ))))
