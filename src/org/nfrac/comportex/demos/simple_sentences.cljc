@@ -17,11 +17,7 @@
    :ff-max-segments 5})
 
 (def input-text
-  ;; warmup to refine feed-forward synapse fields
-"Jane.
-Chifung.
-
-Jane has eyes.
+  "Jane has eyes.
 Jane has a head.
 Jane has a mouth.
 Jane has a brain.
