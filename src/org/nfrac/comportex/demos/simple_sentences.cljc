@@ -9,7 +9,7 @@
 (def spec
   {:column-dimensions [1000]
    :distal-punish? false
-   :distal-vs-proximal-weight 1.0
+   :distal-vs-proximal-weight 0.2
    })
 
 (def higher-level-spec-diff
