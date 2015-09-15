@@ -183,10 +183,10 @@
    :ff-seg-new-synapse-count 12
    :ff-seg-learn-threshold 7
    :ff-max-segments 1
-   :max-boost 3.0
+   :max-boost 1.5
    :duty-cycle-period 1000
    :boost-active-duty-ratio 0.001
-   :boost-active-every 1
+   :boost-active-every 1000
    :inh-radius-every 1000
    :lateral-synapses? true
    :use-feedback? false
@@ -214,6 +214,17 @@
    :temporal-pooling-amp 5.0
    :temporal-pooling-fall 10.0
    })
+
+;; TODO decide on defaults (reliability vs speed), provide alternatives?
+(def better-parameter-defaults
+  (assoc parameter-defaults
+         :column-dimensions [2048]
+         :depth 16
+         :seg-stimulus-threshold 13
+         :seg-learn-threshold 10
+         :seg-new-synapse-count 20
+         :seg-max-synapse-count 32
+         :max-segments 8))
 
 ;;; ## Synapse tracing
 
