@@ -10,12 +10,20 @@
 
 (def bit-width 600)
 (def n-on-bits 30)
-(def motor-bit-width 30)
-(def motor-n-on-bits 15)
+(def motor-bit-width 10)
+(def motor-n-on-bits 5)
 
 (def test-text
   "one two three four.
-the three little pigs.")
+the three little pigs.
+6874230
+1874235.
+6342785
+1342780.
+09785341
+29785346.
+04358796
+24358791.")
 
 (defn parse-sentences
   [text]
@@ -31,27 +39,27 @@ the three little pigs.")
    })
 
 (def spec
-  {:column-dimensions [800]
-   :depth 5
+  {:column-dimensions [1000]
+   :depth 8
    :ff-perm-stable-inc 0.15
    :ff-perm-inc 0.04
    :ff-perm-dec 0.01
    :temporal-pooling-amp 3.0
    :boost-active-duty-ratio 0 ;; disable boosting
    :lateral-synapses? true
-   :distal-vs-proximal-weight 0.5
+   :distal-vs-proximal-weight 0.0
    :use-feedback? false
    })
 
-(def initial-inval
-  (let [sentences (parse-sentences test-text)]
-    {:sentences sentences
-     :position [0 0 0] ;; [sentence word letter]
-     :value (get-in sentences [0 0 0])
-     :action {:next-letter-saccade -1
-              :next-word-saccade -1
-              :next-sentence-saccade -1}
-     }))
+(defn initial-inval
+  [sentences]
+  {:sentences sentences
+   :position [0 0 0] ;; [sentence word letter]
+   :value (get-in sentences [0 0 0])
+   :action {:next-letter-saccade -1
+            :next-word-saccade -1
+            :next-sentence-saccade -1}
+   })
 
 (defn next-position
   [[i j k] action]
@@ -135,29 +143,33 @@ the three little pigs.")
           r1-lyr (get-in htm-a [:regions :rgn-1 :layer-3])
           r0-burst-frac (/ (count (p/bursting-columns r0-lyr))
                            (count (p/active-columns r0-lyr)))
-          r1-burst-frac (/ (count (p/bursting-columns r1-lyr))
-                           (count (p/active-columns r1-lyr)))
-          word-burst? (or (:word-bursting? inval)
-                          (>= r0-burst-frac 0.50))
-          sent-burst? (or (:sentence-bursting? inval)
-                          (>= r1-burst-frac 0.50))
+          ;r1-burst-frac (/ (count (p/bursting-columns r1-lyr))
+          ;                 (count (p/active-columns r1-lyr)))
+          word-burst? (cond-> (:word-bursting? (:action inval))
+                        ;; ignore burst on first letter of word
+                        (pos? k) (or (>= r0-burst-frac 0.50)))
+          sent-burst? (cond-> (:sentence-bursting? (:action inval))
+                        ;; ignore burst on first letter of word
+                        (pos? k) (or (>= r0-burst-frac 0.50)))
           action* (cond
                     ;; not yet at end of word
                     (not end-of-word?)
                     {:next-letter-saccade 1}
 
                     ;; end of word.
+
                     ;; word not yet learned, repeat word
                     word-burst?
-                    {:next-letter-saccade -1
-                     :word-bursting? false}
+                    {:word-bursting? false}
 
-                    ;; not yet at end of sentence, go to next word
+                    ;; go to next word (not yet at end of sentence)
+                    ;; same letter-motor signal as when repeating a word
                     (not end-of-sentence?)
                     {:next-word-saccade 1
                      :word-bursting? false}
 
                     ;; end of sentence.
+
                     ;; sentence not yet learned, repeat sentence
                     sent-burst?
                     {:next-word-saccade -1
@@ -173,12 +185,13 @@ the three little pigs.")
 
                     ;; reached end of passage
                     :else
-                    {:next-sentence-saccade -1
-                     :next-word-saccade -1
+                    {:next-word-saccade -1
                      :word-bursting? false
                      :sentence-bursting? false}
                     )
-          action (merge {:next-letter-saccade 0
+          ;; next-letter-saccade represents starting a word (-1) or continuing (1)
+          ;; that is all that rgn-0 knows.
+          action (merge {:next-letter-saccade -1
                          :next-word-saccade 0
                          :next-sentence-saccade 0
                          :word-bursting? word-burst?
@@ -202,6 +215,6 @@ the three little pigs.")
         (and end-of-word? (not word-burst?))
         (update-in [:regions :rgn-1] p/break :tp)
         ;; reset second region's sequence when going on to new sentence
-        (and end-of-sentence? (not sent-burst?))
-        (update-in [:regions :rgn-1] p/break :tm)
+        ;(and end-of-sentence? (not sent-burst?))
+        ;(update-in [:regions :rgn-1] p/break :tm)
         ))))
