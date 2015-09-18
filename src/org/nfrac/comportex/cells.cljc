@@ -209,7 +209,7 @@
    :inhibition-base-distance 1
    :distal-vs-proximal-weight 0.0
    :spontaneous-activation? false
-   :dominance-margin 10.0
+   :dominance-margin 4
    :temporal-pooling-max-exc 50.0
    :temporal-pooling-amp 5.0
    :temporal-pooling-fall 10.0
@@ -407,11 +407,12 @@
 
 (defn column-active-cells
   "Returns `[winner-cell-id active-cell-ids]`.
-  The winner cell is the one with greatest excitation. The active
-  cells are those within `dominance-margin` of the winner cell. The
-  most common cases are (a) one cell is dominant in the column, or (b)
-  no cells are dominant, therefore all cells become active."
-  [col cell-exc depth dominance-margin]
+  The winner cell is the one with greatest excitation. If no cells
+  exceed the threshold, then all become
+  active (''bursting''). Otherwise, only cells above the threshold
+  become active; but if the winner exceeds all others by at least
+  `dominance-margin` then it is the only active cell."
+  [col cell-exc depth threshold dominance-margin]
   (let [cell-ids (for [ci (range depth)] [col ci])
         first-id (first cell-ids)
         first-exc (double (cell-exc first-id 0.0))]
@@ -444,11 +445,12 @@
           ;; only one cell
           (== 1 depth)
           [best-id cell-ids]
-          ;; none dominant
-          (< (- best-exc (max 0.0 worst-exc)) dominance-margin)
+          ;; stimulus threshold not reached
+          (< best-exc threshold)
           [best-id cell-ids]
           ;; one dominant
-          (>= (- best-exc second-exc) dominance-margin)
+          (or (< second-exc threshold)
+              (>= (- best-exc second-exc) dominance-margin))
           [best-id (list best-id)]
           ;; in general should scan back through...
           ;; for now just take the top 2 since we already have them.
@@ -464,6 +466,7 @@
   * `:winner-cells` - the set of winner cells, one from each active column."
   [a-cols cell-exc pred-cells spec]
   (let [depth (:depth spec)
+        threshold (:seg-stimulus-threshold spec)
         dominance-margin (:dominance-margin spec)]
     (loop [cols (seq a-cols)
            ac (transient #{})
@@ -472,7 +475,7 @@
            lc (transient #{})]
       (if-let [col (first cols)]
         (let [[win-cell col-ac] (column-active-cells col cell-exc depth
-                                                     dominance-margin)
+                                                     threshold dominance-margin)
               bursting? (not (pred-cells win-cell))
               next-ac (reduce conj! ac col-ac)
               next-sac (if bursting?
