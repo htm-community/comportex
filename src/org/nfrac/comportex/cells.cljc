@@ -817,7 +817,7 @@
                                (punish-failures distal-sg
                                                 (:pred-cells prior-distal-state)
                                                 (:pred-cells distal-state)
-                                                (:active-cells state)
+                                                (:prior-active-cells distal-state)
                                                 (:distal-bits prior-distal-state)
                                                 (:distal-perm-connected spec)
                                                 (:seg-stimulus-threshold spec))
@@ -827,7 +827,7 @@
                                 (:distal-perm-inc spec) (:distal-perm-dec spec)
                                 (:distal-perm-init spec))
                 (:distal-punish? spec)
-                (p/bulk-learn distal-punishments prior-aci
+                (p/bulk-learn distal-punishments (:distal-bits prior-distal-state)
                               (:distal-perm-inc spec) (:distal-perm-punish spec)
                               (:distal-perm-init spec)))
           a-cols (:active-cols state)
@@ -863,6 +863,7 @@
        (assoc this
               :state (assoc state
                             :distal-learning distal-learning
+                            :distal-punishments distal-punishments
                             :proximal-learning prox-learning)
               :distal-sg dsg
               :proximal-sg psg)
@@ -900,6 +901,7 @@
                         :matching-seg-paths seg-paths
                         :well-matching-seg-paths good-paths
                         :distal-exc distal-exc
+                        :prior-active-cells (:active-cells state)
                         :pred-cells pc}))))
 
   (layer-depth [_]
