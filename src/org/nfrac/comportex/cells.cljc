@@ -26,6 +26,7 @@
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util
              :refer [count-filter remap round]]
+            [clojure.test.check.random :as random]
             [clojure.set :as set]))
 
 (def parameter-defaults
@@ -213,6 +214,7 @@
    :temporal-pooling-max-exc 50.0
    :temporal-pooling-amp 5.0
    :temporal-pooling-fall 10.0
+   :random-seed 42
    })
 
 ;; TODO decide on defaults (reliability vs speed), provide alternatives?
@@ -572,10 +574,10 @@
   bits `lci-vec`. May be less than `n` if the random samples have
   duplicates or some already exist on the segment, or if there are
   fewer than `n` learnable cells."
-  [seg lci-vec n]
+  [seg lci-vec n rng]
   (when (seq lci-vec)
     (->> lci-vec
-         (util/sample n)
+         (util/sample rng n)
          (distinct)
          (remove seg))))
 
@@ -623,17 +625,21 @@
   synapse graph, where the convention is [col 0]. Everything else is
   the same since proximal synapses graphs can also have multiple
   segments [col 0 seg-idx]."
-  [lc well-matching-paths sg aci lci {:keys [pcon
-                                             min-act
-                                             new-syns
-                                             max-syns
-                                             max-segs]}]
+  [rng lc well-matching-paths sg aci lci {:keys [pcon
+                                                 min-act
+                                                 new-syns
+                                                 max-syns
+                                                 max-segs]}]
   (let [lci-vec (vec lci)] ;; for faster sampling
-    (persistent!
-     (reduce
-      (fn [m cell-id]
+    (loop [cells (seq lc)
+           m (transient {})
+           rng rng]
+      (if-let [cell-id (first cells)]
         (if-let [seg-path (well-matching-paths cell-id)]
-          (assoc! m cell-id (syn/seg-update seg-path :learn nil nil))
+          ;; choose the well matching segment
+          (recur (next cells)
+                 (assoc! m cell-id (syn/seg-update seg-path :learn nil nil))
+                 rng)
           ;; otherwise - not well matching - check disconnected synapses
           (let [cell-segs (p/cell-segments sg cell-id)
                 [match-si exc seg] (best-matching-segment cell-segs aci
@@ -644,20 +650,23 @@
                                      (new-segment-id cell-segs pcon max-segs
                                                      max-syns))
                 grow-n (- new-syns exc)
-                grow-source-ids (segment-new-synapse-source-ids seg lci-vec grow-n)
+                [rng* rng] (if (pos? grow-n) (random/split rng) [rng rng])
+                grow-source-ids (segment-new-synapse-source-ids seg lci-vec grow-n rng*)
                 die-source-ids (if new-segment?
                                  (keys die-syns) ;; remove any existing (replaced)
                                  (segment-excess-synapse-source-ids seg grow-n
                                                                     max-syns))
                 seg-path (conj cell-id seg-idx)]
-            ;; if not enough learnable sources to grow a new segment, skip it
-            (if (and new-segment?
-                     (< (count grow-source-ids) min-act))
-              m ;; skip
-              (assoc! m cell-id (syn/seg-update seg-path :learn grow-source-ids
-                                                die-source-ids))))))
-      (transient {})
-      lc))))
+            (recur (next cells)
+                   ;; if not enough learnable sources to grow a new segment, skip it
+                   (if (and new-segment?
+                            (< (count grow-source-ids) min-act))
+                     m ;; skip
+                     (assoc! m cell-id (syn/seg-update seg-path :learn grow-source-ids
+                                                       die-source-ids)))
+                   rng)))
+        ;; finished
+        (persistent! m)))))
 
 ;;; ## Orchestration
 
@@ -724,7 +733,7 @@
     :well-matching-seg-paths {}}))
 
 (defrecord LayerOfCells
-    [spec topology input-topology inh-radius boosts active-duty-cycles
+    [spec rng topology input-topology inh-radius boosts active-duty-cycles
      proximal-sg distal-sg state distal-state prior-distal-state]
   p/PLayerOfCells
   (layer-activate
@@ -806,7 +815,9 @@
           prior-lci (:distal-lc-bits distal-state)
           burst-cols (:burst-cols state)
           lc (:learn-cells state)
-          distal-learning (segment-learning-map lc (:well-matching-seg-paths distal-state)
+          [rng* rng] (random/split rng)
+          distal-learning (segment-learning-map rng* lc
+                                                (:well-matching-seg-paths distal-state)
                                                 distal-sg prior-aci prior-lci
                                                 {:pcon (:distal-perm-connected spec)
                                                  :min-act (:seg-learn-threshold spec)
@@ -832,7 +843,8 @@
                               (:distal-perm-init spec)))
           a-cols (:active-cols state)
           higher-level? (> (:ff-max-segments spec) 1)
-          prox-learning (segment-learning-map (map vector a-cols (repeat 0))
+          [rng* rng] (random/split rng)
+          prox-learning (segment-learning-map rng* (map vector a-cols (repeat 0))
                                               (:well-matching-ff-seg-paths state)
                                               proximal-sg
                                               (:in-ff-bits state)
@@ -861,6 +873,7 @@
           timestep (:timestep state)]
       (cond->
        (assoc this
+              :rng rng
               :state (assoc state
                             :distal-learning distal-learning
                             :distal-punishments distal-punishments
@@ -959,7 +972,10 @@
                       (* n-cols depth) 0)
                     (reduce * (:distal-motor-dimensions spec))
                     (reduce * (:distal-topdown-dimensions spec)))
-        col-prox-syns (columns/uniform-ff-synapses col-topo input-topo spec)
+        [rng rng*] (-> (random/make-random (:random-seed spec))
+                       (random/split))
+        col-prox-syns (columns/uniform-ff-synapses col-topo input-topo
+                                                   spec rng*)
         proximal-sg (syn/col-segs-synapse-graph col-prox-syns n-cols
                                                 (:ff-max-segments spec)
                                                 (p/size input-topo)
@@ -974,6 +990,7 @@
     (->
      (map->LayerOfCells
       {:spec spec
+       :rng rng
        :topology col-topo
        :input-topology input-topo
        :inh-radius 1

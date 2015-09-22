@@ -11,8 +11,9 @@
 (def n-on-bits 30)
 
 (def spec
-  {:column-dimensions [500]
+  {:column-dimensions [800]
    :ff-potential-radius 0.2
+   :ff-init-frac 0.3
    :ff-stimulus-threshold 3
    :global-inhibition? false
    :activation-level 0.04
@@ -33,7 +34,7 @@
                     :down (dec i))
                   (min numb-max)
                   (max 0))
-        new-dir (util/rand-nth [:up :down])]
+        new-dir (rand-nth [:up :down])] ;; mutation! impurity!
     [new-dir new-i]))
 
 (defn input-seq

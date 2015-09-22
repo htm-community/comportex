@@ -1,7 +1,8 @@
 (ns org.nfrac.comportex.demos.sensorimotor-1d
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.encoders :as enc]
-            [org.nfrac.comportex.util :as util]))
+            [org.nfrac.comportex.util :as util]
+            [clojure.test.check.random :as random]))
 
 (def bit-width 300)
 (def motor-bit-width 100)
@@ -37,15 +38,12 @@
      [k (mapv (comp keyword str) (name k))])
    (into {})))
 
-(defn make-random-field
-  [n]
-  (vec (repeatedly n #(util/rand-nth items))))
-
 (defn initial-world
-  []
-  {:field items
-   :position (quot (count items) 2)
-   :next-saccade 1})
+  [field seed]
+  (-> {:field field
+       :position (quot (count field) 2)
+       :next-saccade 1}
+      (vary-meta assoc ::rng (random/make-random seed))))
 
 (defn world-transform
   [m]
@@ -53,11 +51,14 @@
         dx (:next-saccade m)
         x (-> (+ (:position m) dx)
               (mod n))
-        sacc (util/rand-nth saccades)]
-    (assoc m
-      :position x
-      :last-saccade dx
-      :next-saccade sacc)))
+        [rng rng*] (-> (::rng (meta m))
+                       (random/split))
+        sacc (util/rand-nth rng* saccades)]
+    (-> (assoc m
+               :position x
+               :last-saccade dx
+               :next-saccade sacc)
+        (vary-meta assoc ::rng rng))))
 
 (defn attach-current-value
   [m]

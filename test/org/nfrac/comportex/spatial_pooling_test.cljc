@@ -3,6 +3,7 @@
             [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
+            [clojure.test.check.random :as random]
             [clojure.set :as set]
             #?(:clj [clojure.test :as t
                      :refer (is deftest testing run-tests)]
@@ -16,9 +17,17 @@
 (def n-in-items 5)
 (def bit-width (* numb-bits n-in-items))
 
-(defn input-gen
+(defn input-seq
   []
-  (repeatedly n-in-items #(util/rand-int 0 numb-max)))
+  (->> [[] (random/make-random 42)]
+       (iterate (fn [[_ rng]]
+                  (let [[rng1 rng2] (random/split rng)]
+                    ;; a list of n-in-items random ints
+                    [(->> (random/split-n rng1 n-in-items)
+                          (map #(util/rand-int % numb-max)))
+                     rng2])))
+       (map first)
+       (rest)))
 
 (def spec {:column-dimensions [1000]
            :ff-potential-radius 0.5
@@ -40,14 +49,13 @@
                           {:input sensor}))
 
 (deftest sp-test
-  (util/set-seed! 0)
   (let [htm-step+cols (fn [this input]
                         (let [x (p/htm-step this input)]
                           (assoc-in x [:active-columns-at (p/timestep x)]
                                     (-> (first (core/region-seq x))
                                         :layer-3
                                         p/active-columns))))
-        m1 (reduce htm-step+cols (model) (repeatedly 500 input-gen))
+        m1 (reduce htm-step+cols (model) (take 500 (input-seq)))
         rgn (first (core/region-seq m1))
         lyr (:layer-3 rgn)
         n-cols (p/size-of lyr)]

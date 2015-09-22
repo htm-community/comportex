@@ -4,7 +4,7 @@
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util]
-            [cemerick.pprng :as rng]))
+            [clojure.test.check.random :as random]))
 
 ;;; # Selectors
 ;;; Implemented as values not functions for serializability.
@@ -186,12 +186,16 @@
     (map->CategoryEncoder {:topo topo
                            :value->index (zipmap values (range))})))
 
-(defn- unique-sdr
+(defn unique-sdr
   [x n-bits n-active]
-  (let [RNG (rng/rng (hash x))]
-    (->> (repeatedly #(rng/int RNG n-bits))
-         (distinct)
-         (take n-active))))
+  (let [rngs (-> (random/make-random (hash x))
+                 (random/split-n (long (* n-active ;; allow for collisions:
+                                          1.25))))]
+    (into (list)
+          (comp (map #(util/rand-int % n-bits))
+                (distinct)
+                (take n-active))
+          rngs)))
 
 (defrecord UniqueEncoder
     [topo n-active cache]
@@ -296,19 +300,20 @@
 (defn coordinate-order
   [coord]
   ;; NOTE it is not enough to take (hash coord) as the seed here,
-  ;; due to imperfections in cljs pprng this leads to the first
+  ;; (because of hash defn for vectors in cljs?) this leads to the first
   ;; element of the coordinate vector dominating, so e.g. big shifts
   ;; in y coordinate have little effect on encoded bits.
-  (let [RNG (rng/rng (hash (str coord)))]
-    (rng/double RNG)))
+  (-> (random/make-random (hash (str coord)))
+      (random/rand-double)))
 
 (defn coordinate-bit
   [size coord]
-  (let [RNG (rng/rng (hash (str coord)))]
-    ;; take second random value to distinguish from coordinate-order
-    ;; (otherwise highest orders always have highest bits!)
-    (rng/int RNG size)
-    (rng/int RNG size)))
+  ;; take second-split random value to distinguish from coordinate-order
+  ;; (otherwise highest orders always have highest bits!)
+  (-> (random/make-random (hash (str coord)))
+      (random/split)
+      (second) ;; impl detail? this is independent from the pre-split rng
+      (util/rand-int size)))
 
 (defrecord CoordinateEncoder
     [topo n-active scale-factors radii]

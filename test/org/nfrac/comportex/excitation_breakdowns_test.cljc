@@ -43,7 +43,6 @@
                           {:input sensor}))
 
 (deftest exc-bd-test
-  (util/set-seed! 0)
   (let [[warmups continued] (split-at 50 (world-seq))
         prev-htm (reduce p/htm-step (model) warmups)
         htm (p/htm-step prev-htm (first continued))]

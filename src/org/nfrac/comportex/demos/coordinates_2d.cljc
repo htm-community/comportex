@@ -12,8 +12,7 @@
 
 (def spec
   {:column-dimensions [20 50]
-   :depth 8
-   :distal-punish? false})
+   :depth 8})
 
 (def higher-level-spec-diff
   {:column-dimensions [20 20]

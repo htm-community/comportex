@@ -41,9 +41,8 @@
               :headers {"api-key" api-key}}))
 
 (defn random-sdr
-  []
-  (distinct (repeatedly (* retina-size 0.02)
-                        #(util/rand-int (dec retina-size)))))
+  [term]
+  (enc/unique-sdr term retina-size (* retina-size 0.02)))
 
 (defn scramble-bit
   "Maps a retina fingerprint index to another index which is spatially
@@ -88,7 +87,7 @@
                    (set (get-in result [:body :positions]))
                    (do (println "cortical.io lookup of term failed:" term)
                        (println result)
-                       (random-sdr))))]
+                       (random-sdr term))))]
     #?(:clj   ;; clj - synchronous
        (let [result (request-fingerprint api-key term)]
          (swap! cache ?assoc term (handle result)))
@@ -108,7 +107,7 @@
         (get (swap! cache ?assoc term
                     (do (println "no fingerprint in cache for term:" term
                                  "- generating a random one")
-                        (random-sdr)))
+                        (random-sdr term)))
              term))))
 
 (defn elect-bits

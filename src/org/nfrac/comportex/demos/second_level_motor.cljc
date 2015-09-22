@@ -218,3 +218,14 @@ the three little pigs.
         ;(and end-of-sentence? (not sent-burst?))
         ;(update-in [:regions :rgn-1] p/break :tm)
         ))))
+
+(comment
+  (require '[clojure.core.async :refer [chan put! <!!]])
+  (def world-c (chan))
+  (def control-c (chan))
+  (def step (htm-step-with-action-selection world-c control-c))
+  (def in (initial-inval (parse-sentences test-text)))
+  (def mo (two-region-model))
+  (def mo2 (step mo in))
+  (def in2 (<!! world-c))
+  )
