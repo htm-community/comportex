@@ -47,17 +47,19 @@
             lyr (:layer-3 rgn)
             depth (p/layer-depth lyr)
             distal-sg (:distal-sg lyr)
-            nsegs-by-cell (for [col (range n-cols)
-                                ci (range depth)]
-                            (->> (p/cell-segments distal-sg [col ci])
-                                 (filter seq)
-                                 (count)))]
-        (is (>= (apply max nsegs-by-cell) 1)
+            cells-with-segs (for [col (range n-cols)
+                                  ci (range depth)
+                                  :when (->> (p/cell-segments distal-sg [col ci])
+                                             (filter seq)
+                                             (seq))]
+                              [col ci])]
+        (is (seq cells-with-segs)
             "Some cells have grown lateral dendrite segments.")
-        (is (pos? (util/quantile nsegs-by-cell 0.90))
-            "At least 10% of cells have grown lateral dendrite segments.")
-        (is (>= (apply max nsegs-by-cell) 2)
-            "Some cells have grown multiple lateral dendrite segments.")))
+        (is (>= (count (distinct (map first cells-with-segs))) (* 0.10 n-cols))
+            "At least 10% of columns have grown lateral dendrite segments.")
+        (is (>= (reduce max (vals (frequencies (map first cells-with-segs))))
+                2)
+            "Multiple cells in some columns have grown lateral dendrite segments.")))
     (testing "Column / cell activation"
       (let [sums (->> (take 100 continued)
                       (reductions p/htm-step m1)
