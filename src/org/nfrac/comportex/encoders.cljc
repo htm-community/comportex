@@ -189,8 +189,8 @@
 (defn unique-sdr
   [x n-bits n-active]
   (let [rngs (-> (random/make-random (hash x))
-                 (random/split-n (* n-active ;; allow for collisions:
-                                    1.25)))]
+                 (random/split-n (long (* n-active ;; allow for collisions:
+                                          1.25))))]
     (into (list)
           (comp (map #(util/rand-int % n-bits))
                 (distinct)
