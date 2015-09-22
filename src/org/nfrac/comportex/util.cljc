@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.util
-  (:require [cemerick.pprng :as rng])
+  (:require [clojure.test.check.random :as random])
   (:refer-clojure :exclude [rand rand-int rand-nth shuffle]))
 
 ;; copied from
@@ -39,77 +39,82 @@
   [xs]
   (/ (apply + xs) (double (count xs))))
 
-;; convenience wrappers for RNG. actually should associate RNG with models?
-
-(def RNG (rng/rng))
-
-(defn set-seed!
-  [seed]
-  #?(:cljs
-     :not-implemented
-     :clj
-     (alter-var-root (var RNG)
-                     (fn [_] (rng/rng seed)))))
-
 (defn rand
-  ([]
-     (rand 0 1))
-  ([lower upper]
-     {:pre [(< lower upper)]}
-     (+ lower (* (rng/double RNG)
-                 (- upper lower)))))
+  [rng lower upper]
+  {:pre [(< lower upper)]}
+  (-> (random/rand-double rng)
+      (* (- upper lower))
+      (+ lower)))
 
 (defn rand-int
   "Uniform integer between lower (inclusive) and upper (exclusive)."
-  ([upper]
-     (rng/int RNG upper))
-  ([lower upper]
-     (+ lower (rng/int RNG (- upper lower)))))
+  ([rng upper]
+   (-> (random/rand-double rng)
+       (* upper)
+       (Math/floor)
+       (long)))
+  ([rng lower upper]
+   (-> (random/rand-double rng)
+       (* (- upper lower))
+       (+ lower)
+       (Math/floor)
+       (long))))
 
 (defn rand-nth
-  [xs]
-  (nth xs (rand-int (count xs))))
+  [rng xs]
+  (nth xs (rand-int rng (count xs))))
 
 ;; copied from
 ;; https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53104d84ca/src/main/clojure/clojure/data/generators.clj
+;; adapted to splittable RNG
+
 (defn ^:private fisher-yates
   "http://en.wikipedia.org/wiki/Fisher–Yates_shuffle#The_modern_algorithm"
-  [coll]
+  [rng coll]
   (let [as (object-array coll)]
-    (loop [i (dec (count as))]
+    (loop [i (dec (count as))
+           r rng]
       (if (<= 1 i)
-        (let [j (rand-int (inc i))
+        (let [[r1 r2] (random/split r)
+              j (rand-int r1 (inc i))
               t (aget as i)]
           (aset as i (aget as j))
           (aset as j t)
-          (recur (dec i)))
+          (recur (dec i) r2))
         (into (empty coll) (seq as))))))
 
 (defn shuffle
-  [coll]
-  (fisher-yates coll))
+  [rng coll]
+  (fisher-yates rng coll))
 
 ;; copied from
 ;; https://github.com/clojure/data.generators/blob/bf2eb5288fb59045041aec01628a7f53104d84ca/src/main/clojure/clojure/data/generators.clj
+;; adapted to splittable RNG
+
 (defn reservoir-sample
   "Reservoir sample ct items from coll."
-  [ct coll]
+  [rng ct coll]
   (loop [result (transient (vec (take ct coll)))
          n ct
-         coll (drop ct coll)]
+         coll (drop ct coll)
+         r rng]
     (if (seq coll)
-      (let [pos (rand-int n)]
+      (let [[r1 r2] (random/split r)
+            pos (rand-int r1 n)]
         (recur (if (< pos ct)
                  (assoc! result pos (first coll))
                  result)
                (inc n)
-               (rest coll)))
+               (rest coll)
+               r2))
       (persistent! result))))
 
 (defn sample
   "Sample ct items with replacement (i.e. possibly with duplicates) from coll."
-  [ct coll]
-  (repeatedly ct #(rand-nth coll)))
+  [rng ct coll]
+  (when (pos? ct)
+    (->> (random/split-n rng ct)
+         (mapv #(rand-nth % coll)))))
 
 (defn quantile
   [xs p]

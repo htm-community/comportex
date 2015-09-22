@@ -6,7 +6,7 @@
   :dependencies [[org.clojure/clojure "1.7.0"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [org.clojure/data.int-map "0.1.0"]
-                 [com.cemerick/pprng "0.0.3"]
+                 [org.clojure/test.check "0.8.2"]
                  [clj-http "1.1.1"]
                  [cljs-http "0.1.30"]]
 

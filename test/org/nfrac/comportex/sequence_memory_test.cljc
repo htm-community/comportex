@@ -39,7 +39,6 @@
   (core/regions-in-series 1 core/sensory-region [spec] {:input sensor}))
 
 (deftest sm-test
-  (util/set-seed! 0)
   (let [[warmups continued] (split-at 500 (input-seq))
         m1 (reduce p/htm-step (model) warmups)
         rgn (first (core/region-seq m1))]

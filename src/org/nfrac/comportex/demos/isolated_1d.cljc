@@ -1,7 +1,8 @@
 (ns org.nfrac.comportex.demos.isolated-1d
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.encoders :as enc]
-            [org.nfrac.comportex.util :as util]))
+            [org.nfrac.comportex.util :as util]
+            [clojure.test.check.random :as random]))
 
 (def bit-width 300)
 (def n-on-bits 20)
@@ -45,9 +46,10 @@
   []
   (let [id (first pattern-order)
         values (patterns id)]
-    {:id id
-     :values values
-     :index 0}))
+    (-> {:id id
+         :values values
+         :index 0}
+        (vary-meta assoc ::rng (random/make-random 42)))))
 
 (defn world-transform
   [{:keys [id values index] :as input}]
@@ -57,14 +59,18 @@
     ;; reached the end of a sequence
     (if id
       ;; start gap
-      {:id nil
-       :values (repeat gap-length nil)
-       :index 0}
+      (assoc input
+             :id nil
+             :values (repeat gap-length nil)
+             :index 0)
       ;; start another pattern
-      (let [id (util/rand-nth pattern-order)]
-        {:id id
-         :values (patterns id)
-         :index 0}))))
+      (let [[rng rng*] (-> (::rng (meta input))
+                           (random/split))
+            id (util/rand-nth rng* pattern-order)]
+        (-> {:id id
+             :values (patterns id)
+             :index 0}
+            (vary-meta assoc ::rng rng))))))
 
 (defn attach-current-value
   [m]

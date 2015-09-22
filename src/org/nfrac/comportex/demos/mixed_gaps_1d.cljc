@@ -51,7 +51,7 @@
                 ;; finished
                 (dissoc m id))
               ;; pattern is not currently active
-              (if (zero? (util/rand-int gap-range))
+              (if (zero? (rand-int gap-range)) ;; mutation! impurity!
                 ;; start
                 (assoc m id 0)
                 m)))

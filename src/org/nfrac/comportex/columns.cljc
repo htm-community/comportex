@@ -5,7 +5,8 @@
             [org.nfrac.comportex.inhibition :as inh]
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util
-             :refer [abs round mean count-filter remap]]))
+             :refer [abs round mean count-filter remap]]
+            [clojure.test.check.random :as random]))
 
 (defn uniform-ff-synapses
   "Generates feed-forward synapses connecting columns to the input bit
@@ -19,7 +20,7 @@
 
    Initial permanence values are uniformly distributed between
    `ff-perm-init-lo` and `ff-perm-init-hi`."
-  [topo itopo spec]
+  [topo itopo spec rng]
   (let [p-hi (:ff-perm-init-hi spec)
         p-lo (:ff-perm-init-lo spec)
         global? (>= (:ff-potential-radius spec) 1.0)
@@ -34,14 +35,17 @@
         [cw ch] (p/dimensions topo)
         [iw ih] (p/dimensions itopo)]
     (if global?
-      (->> (range n-cols)
-           (mapv (fn [col]
-                   (let [n (round (* frac input-size))
-                         ids (repeatedly n #(util/rand-int (dec input-size))) ;; ignore dups
-                         perms (repeatedly n #(util/rand p-lo p-hi))]
-                     (zipmap ids perms)))))
-      (->> (range n-cols)
-           (mapv (fn [col]
+      (let [n-syns (round (* frac input-size))]
+        (->> (random/split-n rng n-cols)
+             (mapv (fn [col-rng]
+                     (into {}
+                           (map (fn [rng]
+                                  (let [[rng1 rng2] (random/split rng)]
+                                    [(util/rand-int rng1 input-size)
+                                     (util/rand rng2 p-lo p-hi)])))
+                           (random/split-n col-rng n-syns))))))
+      (->> (random/split-n rng n-cols)
+           (mapv (fn [col col-rng]
                    (let [focus-i (if one-d?
                                    (round (* input-size (/ col n-cols)))
                                    (let [[cx cy] (p/coordinates-of-index topo col)]
@@ -49,11 +53,20 @@
                                                                     (round (* ih (/ cy ch)))])))
                          all-ids (vec (p/neighbours-indices itopo focus-i radius))
                          n (round (* frac (count all-ids)))
-                         ids (if (< frac 0.4) ;; for performance:
-                               (util/sample n all-ids)
-                               (util/reservoir-sample n all-ids))
-                         perms (repeatedly n #(util/rand p-lo p-hi))]
-                     (zipmap ids perms))))))))
+                         [rng1 rng2] (random/split col-rng)
+                         ids (cond
+                               (< frac 0.4) ;; for performance:
+                               (util/sample rng1 n all-ids)
+                               (< frac 1.0)
+                               (util/reservoir-sample rng1 n all-ids)
+                               :else
+                               all-ids)]
+                     (into {}
+                           (map (fn [id rng]
+                                  [id (util/rand rng p-lo p-hi)])
+                                ids
+                                (random/split-n rng2 (count ids))))))
+                 (range))))))
 
 ;;; ## Overlaps
 
@@ -72,9 +85,9 @@
 ;;; ## Learning
 
 (defn ff-new-synapse-ids
-  [ff-bits curr-ids-set col itopo focus-coord radius n-grow]
+  [rng ff-bits curr-ids-set col itopo focus-coord radius n-grow]
   (loop [ids ()
-         on-bits (util/shuffle ff-bits)]
+         on-bits (util/shuffle rng ff-bits)]
     (if (or (empty? on-bits)
             (>= (count ids) n-grow))
       ids
@@ -93,11 +106,11 @@
               (recur ids (next on-bits)))))))))
 
 (defn grow-new-synapses
-  [ff-sg col ff-bits itopo radius n-cols n-grow pinit]
+  [rng ff-sg col ff-bits itopo radius n-cols n-grow pinit]
   (let [input-size (p/size itopo)
         focus-i (round (* input-size (/ col n-cols)))
         focus-coord (p/coordinates-of-index itopo focus-i)
-        new-ids (ff-new-synapse-ids ff-bits
+        new-ids (ff-new-synapse-ids rng ff-bits
                                     (p/in-synapses ff-sg col)
                                     col itopo
                                     focus-coord
