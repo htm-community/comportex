@@ -83,7 +83,9 @@
     "The collection of temporal pooling cells, i.e. those having some
     non-zero level of continuing temporal pooling excitation.")
   (predictive-cells [this]
-    "The set of predictive cell ids.")
+    "The set of predictive cell ids derived from the current active
+    cells. If the depolarise phase has not been applied yet, returns
+    nil.")
   (prior-predictive-cells [this]
     "The set of predictive cell ids from the previous timestep,
     i.e. their prediction can be compared to the current active

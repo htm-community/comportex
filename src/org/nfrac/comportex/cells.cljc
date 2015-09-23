@@ -714,8 +714,8 @@
      active-cols burst-cols active-cells learn-cells timestep])
 
 (defrecord LayerDistalState
-    [distal-bits distal-lc-bits distal-exc pred-cells
-     matching-seg-paths well-matching-seg-paths])
+    [distal-bits distal-lc-bits distal-exc pred-cells prior-active-cells
+     matching-seg-paths well-matching-seg-paths timestep])
 
 (def empty-active-state
   (map->LayerActiveState
@@ -915,7 +915,8 @@
                         :well-matching-seg-paths good-paths
                         :distal-exc distal-exc
                         :prior-active-cells (:active-cells state)
-                        :pred-cells pc}))))
+                        :pred-cells pc
+                        :timestep (:timestep state)}))))
 
   (layer-depth [_]
     (:depth spec))
@@ -930,14 +931,20 @@
   (temporal-pooling-cells [_]
     (keys (:temporal-pooling-exc state)))
   (predictive-cells [_]
-    (:pred-cells distal-state))
+    (when (== (:timestep state)
+              (:timestep distal-state))
+      (:pred-cells distal-state)))
   (prior-predictive-cells [_]
-    (:pred-cells prior-distal-state))
+    (let [t-1 (dec (:timestep state))]
+      (cond
+        (== t-1 (:timestep prior-distal-state)) (:pred-cells prior-distal-state)
+        (== t-1 (:timestep distal-state)) (:pred-cells distal-state))))
 
   p/PInterruptable
   (break [this mode]
     (case mode
-      :tm (assoc this :distal-state empty-distal-state)
+      :tm (assoc this :distal-state
+                 (assoc empty-distal-state :timestep (:timestep state)))
       :tp (update-in this [:state :temporal-pooling-exc] empty)))
 
   p/PTopological
@@ -986,7 +993,8 @@
                                                n-distal
                                                (:distal-perm-connected spec)
                                                true)
-        state (assoc empty-active-state :timestep 0)]
+        state (assoc empty-active-state :timestep 0)
+        distal-state (assoc empty-distal-state :timestep 0)]
     (->
      (map->LayerOfCells
       {:spec spec
@@ -997,8 +1005,8 @@
        :proximal-sg proximal-sg
        :distal-sg distal-sg
        :state state
-       :distal-state empty-distal-state
-       :prior-distal-state empty-distal-state
+       :distal-state distal-state
+       :prior-distal-state distal-state
        :boosts (vec (repeat n-cols 1.0))
        :active-duty-cycles (vec (repeat n-cols 0.0))
        })
