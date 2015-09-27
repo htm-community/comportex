@@ -409,55 +409,45 @@
 
 (defn column-active-cells
   "Returns `[winner-cell-id active-cell-ids]`.
-  The winner cell is the one with greatest excitation. If no cells
-  exceed the threshold, then all become
+  The winner cell is one with greatest excitation, with ties broken
+  randomly. If no cells exceed the threshold, then all become
   active (''bursting''). Otherwise, only cells above the threshold
   become active; but if the winner exceeds all others by at least
   `dominance-margin` then it is the only active cell."
-  [col cell-exc depth threshold dominance-margin]
-  (let [cell-ids (for [ci (range depth)] [col ci])
-        first-id (first cell-ids)
-        first-exc (double (cell-exc first-id 0.0))]
-    (loop [ids (next cell-ids)
-           best-id first-id
-           best-exc first-exc
-           second-id nil
-           second-exc -99999.0
-           worst-id first-id
-           worst-exc first-exc]
+  [col cell-exc depth threshold dominance-margin rng]
+  (let [cell-ids (for [ci (range depth)] [col ci])]
+    (loop [ids cell-ids
+           best-ids ()
+           best-exc 0.0
+           good-ids () ;; over threshold
+           min-good-exc (double (* (inc threshold) 1000))]
       (if-let [id (first ids)]
         (let [exc (double (cell-exc id 0))
-              best? (> exc best-exc)
-              worst? (< exc worst-exc)
-              sec? (and (not best?) (> exc second-exc))]
+              equal-best? (== exc best-exc)
+              new-best? (> exc best-exc)
+              good? (>= exc threshold)]
           (recur (next ids)
-                 (if best? id best-id)
-                 (if best? exc best-exc)
-                 (cond sec? id
-                       best? best-id
-                       :else second-id)
-                 (double
-                  (cond sec? exc
-                        best? best-exc
-                        :else second-exc))
-                 (if worst? id worst-id)
-                 (if worst? exc worst-exc)))
+                 (cond equal-best? (conj best-ids id)
+                       new-best? (list id)
+                       :else best-ids)
+                 (if new-best? exc best-exc)
+                 (if good? (conj good-ids id) good-ids)
+                 (if (and good? (< exc min-good-exc)) exc min-good-exc)))
         ;; finished
-        (cond
-          ;; only one cell
-          (== 1 depth)
-          [best-id cell-ids]
-          ;; stimulus threshold not reached
-          (< best-exc threshold)
-          [best-id cell-ids]
-          ;; one dominant
-          (or (< second-exc threshold)
-              (>= (- best-exc second-exc) dominance-margin))
-          [best-id (list best-id)]
-          ;; in general should scan back through...
-          ;; for now just take the top 2 since we already have them.
-          :else
-          [best-id (list best-id second-id)])))))
+        (let [winner (if (<= (count best-ids) 1)
+                       (first best-ids)
+                       (util/rand-nth rng best-ids))
+              actives (cond
+                        ;; stimulus threshold not reached
+                        (< best-exc threshold)
+                        cell-ids
+                        ;; of cells over threshold, spread within dominance-margin
+                        (< (- best-exc min-good-exc) dominance-margin)
+                        good-ids
+                        ;; otherwise best cell(s) exceed others by dominance-margin
+                        :else
+                        best-ids)]
+          [winner actives])))))
 
 (defn select-active-cells
   "Determines active cells in the given columns and whether they are bursting.
@@ -466,7 +456,7 @@
   * `:stable-active-cells` - the set of non-bursting active cells.
   * `:burst-cols` - the set of bursting column ids.
   * `:winner-cells` - the set of winner cells, one from each active column."
-  [a-cols cell-exc pred-cells spec]
+  [a-cols cell-exc pred-cells spec rng]
   (let [depth (:depth spec)
         threshold (:seg-stimulus-threshold spec)
         dominance-margin (:dominance-margin spec)]
@@ -474,10 +464,13 @@
            ac (transient #{})
            sac (transient #{}) ;; stable active cells
            b-cols (transient #{})
-           lc (transient #{})]
+           lc (transient #{})
+           rng rng]
       (if-let [col (first cols)]
-        (let [[win-cell col-ac] (column-active-cells col cell-exc depth
-                                                     threshold dominance-margin)
+        (let [[rng rng*] (random/split rng)
+              [win-cell col-ac] (column-active-cells col cell-exc depth
+                                                     threshold dominance-margin
+                                                     rng*)
               bursting? (not (pred-cells win-cell))
               next-ac (reduce conj! ac col-ac)
               next-sac (if bursting?
@@ -487,7 +480,8 @@
                  next-ac
                  next-sac
                  (if bursting? (conj! b-cols col) b-cols)
-                 (conj! lc win-cell)))
+                 (conj! lc win-cell)
+                 rng))
         ;; finished
         {:active-cells (persistent! ac)
          :stable-active-cells (persistent! sac)
@@ -774,11 +768,12 @@
                                                     (:depth spec))
                             (merge-with + tp-exc))
           ;; find active and winner cells in the columns
+          [rng* rng] (random/split rng)
           {ac :active-cells
            lc :winner-cells
            b-cols :burst-cols
            stable-ac :stable-active-cells}
-          (select-active-cells a-cols rel-cell-exc (:pred-cells distal-state) spec)
+          (select-active-cells a-cols rel-cell-exc (:pred-cells distal-state) spec rng*)
           ;; update continuing TP activation
           lc-stable-exc (for [cell-id lc
                               :let [[col ci] cell-id
@@ -793,6 +788,7 @@
                           (select-keys lc))
           depth (:depth spec)]
       (assoc this
+             :rng rng
              :state (map->LayerActiveState
                      {:in-ff-bits ff-bits
                       :in-stable-ff-bits stable-ff-bits
