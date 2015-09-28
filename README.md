@@ -3,21 +3,27 @@
 <img src="https://raw.githubusercontent.com/nupic-community/comportex/master/comportex-logo.png"
  alt="Comportex logo" align="right" />
 
-Functionally composable cortex, an implementation of Hierarchical
-Temporal Memory as a Clojure library.
+Functionally composable cortex, an implementation of
+[Hierarchical Temporal Memory](http://numenta.org/#theory) as a
+Clojure library.
 
 Comportex is not yet stable. Our aims are to:
 
 1. understand the theory deeply by implementing it and experimenting with it;
-2. help others to understand the theory via interactive visual demonstrations; and
+2. help others to understand the theory via visual explanations; and
 3. further develop the theory by attempting to apply it to new problem types.
+
+
+For an applied exploration of HTM using Comportex, try the essay
+[Predicting power consumptions with HTM](http://mrcslws.com/gorilla/?path=hotgym.clj)
+by Marcus Lewis.
 
 
 ## Documentation
 
 For now there is the
 [annotated source code](http://nupic-community.github.com/comportex/docs/).
-The main API is in the namespaces `core` and `protocols`, while the
+The main API is in the namespaces `core`, `protocols` and `encoders`, while the
 algorithms are mainly in `cells`, `synapses` and `inhibition`.
 
 Parameter descriptions can be found on [`org.nfrac.comportex.cells/parameter-defaults`](https://github.com/nupic-community/comportex/blob/master/src/org/nfrac/comportex/cells.cljc#L31).
