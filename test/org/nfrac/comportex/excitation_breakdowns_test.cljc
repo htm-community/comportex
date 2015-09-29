@@ -48,12 +48,12 @@
         htm (p/htm-step prev-htm (first continued))]
     (testing "Cell excitation breakdowns"
       (let [lyr (get-in htm [:regions :rgn-0 :layer-3])
-            lc (p/learnable-cells lyr)
+            wc (p/winner-cells lyr)
             bd (core/cell-excitation-breakdowns htm prev-htm :rgn-0 :layer-3
-                                                (conj lc [0 0]))]
-        (is (every? (comp pos? :total) (map bd lc))
+                                                (conj wc [0 0]))]
+        (is (every? (comp pos? :total) (map bd wc))
             "All total excitation in range.")
-        (is (every? (comp pos? first vals :proximal-unstable) (map bd lc))
+        (is (every? (comp pos? first vals :proximal-unstable) (map bd wc))
             "Some proximal excitation on each active column")
         (is (every? (comp zero? :temporal-pooling) (vals bd))
             "Zero TP excitation in first layer.")
