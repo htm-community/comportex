@@ -779,10 +779,8 @@
           ;; * include distal excitation on predicted cells.
           ;; * matching segments below connected threshold get a bonus.
           ;; * cells with inactive segments get a penalty.
-          carry-forward? (not newly-engaged?)
           rel-cell-exc (->> (within-column-cell-exc a-cols
-                                                    (when carry-forward?
-                                                      (:winners-by-col state))
+                                                    (:winners-by-col state)
                                                     distal-sg
                                                     (:distal-bits distal-state)
                                                     (:distal-exc distal-state)
@@ -796,8 +794,7 @@
            b-cols :burst-cols
            stable-ac :stable-active-cells}
           (select-active-cells a-cols rel-cell-exc
-                               (when carry-forward? ;; keep winners stable
-                                 (:winners-by-col state))
+                               (:winners-by-col state) ;; keep winners stable
                                spec rng*)
           ;; learning cells are the winners in newly active columns
           learning (vals (apply dissoc wbc (:active-cols state)))
