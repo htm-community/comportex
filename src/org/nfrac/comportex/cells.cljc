@@ -799,11 +799,8 @@
                                (when carry-forward? ;; keep winners stable
                                  (:winners-by-col state))
                                spec rng*)
-          ;; learning cells are the new winners, excluding any continuing
-          old-winners (vals (:winners-by-col state))
-          new-winners (vals wbc)
-          learning (->> new-winners
-                        (remove (set old-winners)))
+          ;; learning cells are the winners in newly active columns
+          learning (vals (apply dissoc wbc (:active-cols state)))
           ;; update continuing TP activation
           next-tp-exc (if higher-level?
                         (let [new-ac (set/difference ac (:active-cells state))]
