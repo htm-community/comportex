@@ -448,7 +448,9 @@
                  (if (and good? (< exc min-good-exc)) exc min-good-exc)))
         ;; finished
         (let [winner (cond
-                       (<= (count best-ids) 1)
+                       (empty? best-ids)
+                       (first cell-ids)
+                       (== (count best-ids) 1)
                        (first best-ids)
                        (and prior-winner (some #(= % prior-winner) best-ids))
                        prior-winner
@@ -472,7 +474,7 @@
   * `:active-cells` - the set of active cell ids.
   * `:stable-active-cells` - the set of non-bursting active cells.
   * `:burst-cols` - the set of bursting column ids.
-  * `:winner-cells` - the set of winner cells, one from each active column."
+  * `:winners-by-col` - the map of column id to winner cell id."
   [a-cols cell-exc prior-wbc spec rng]
   (let [depth (:depth spec)
         threshold (:seg-stimulus-threshold spec)
@@ -537,6 +539,7 @@
   [a-cols prev-wbc distal-sg aci distal-exc min-act depth]
   (let [adj-base-amount (quot min-act 2)]
     (->> (for [col a-cols
+               :let [prev-wc (get prev-wbc col)]
                ci (range depth)
                :let [cell-id [col ci]
                      cell-segs (->> (p/cell-segments distal-sg cell-id)
@@ -549,7 +552,7 @@
                d-exc
                [cell-id d-exc]
                ;; continuing learning cell
-               (get prev-wbc cell-id)
+               (= prev-wc cell-id)
                [cell-id adj-base-amount]
                ;; some segment matches the input even if synapses disconnected
                (first (best-matching-segment cell-segs aci min-act 0.0))
@@ -767,15 +770,17 @@
           ;; filter inputs depending on stability
           ;; also check for clear matches, these override pooling
           higher-level? (> (:ff-max-segments spec) 1)
-          curr-stable? (> (count stable-ff-bits)
-                          (* (count ff-bits) (:stable-inbit-frac-threshold spec)))
-          newly-stable? (and curr-stable? (not (:effectively-stable? state)))
+          engaged? (or (not higher-level?)
+                       (> (count stable-ff-bits)
+                          (* (count ff-bits) (:stable-inbit-frac-threshold spec))))
+          newly-engaged? (or (not higher-level?)
+                             (and engaged? (not (:engaged? state))))
           [eff-col-exc
            eff-tp-exc] (cond
                          (not higher-level?)
                          [col-exc
                           (:temporal-pooling-exc state)]
-                         newly-stable?
+                         newly-engaged?
                          [(merge stable-col-exc
                                  (select-keys col-exc (keys ff-good-paths)))
                           {}]
@@ -794,7 +799,7 @@
           ;; * include distal excitation on predicted cells.
           ;; * matching segments below connected threshold get a bonus.
           ;; * cells with inactive segments get a penalty.
-          carry-forward? (and higher-level? (not newly-stable?))
+          carry-forward? (not newly-engaged?)
           rel-cell-exc (->> (within-column-cell-exc a-cols
                                                     (when carry-forward?
                                                       (:winners-by-col state))
@@ -839,8 +844,8 @@
                       :in-stable-ff-bits stable-ff-bits
                       :out-ff-bits (set (cells->bits depth ac))
                       :out-stable-ff-bits (set (cells->bits depth stable-ac))
-                      :effectively-stable? curr-stable?
-                      :newly-stable? newly-stable?
+                      :engaged? engaged?
+                      :newly-engaged? newly-engaged?
                       :col-overlaps col-exc
                       :matching-ff-seg-paths ff-seg-paths
                       :well-matching-ff-seg-paths ff-good-paths
@@ -890,8 +895,7 @@
           higher-level? (> (:ff-max-segments spec) 1)
           a-cols (:active-cols state)
           [rng* rng] (random/split rng)
-          prox-learning (when (or (not higher-level?)
-                                  (:effectively-stable? state))
+          prox-learning (when (:engaged? state)
                           (segment-learning-map rng* (map vector a-cols (repeat 0))
                                                 (:well-matching-ff-seg-paths state)
                                                 proximal-sg
@@ -975,7 +979,8 @@
   (winner-cells [_]
     (set (vals (:winners-by-col state))))
   (temporal-pooling-cells [_]
-    (keys (:temporal-pooling-exc state)))
+    (when (:engaged? state)
+      (keys (:temporal-pooling-exc state))))
   (predictive-cells [_]
     (when (== (:timestep state)
               (:timestep distal-state))
