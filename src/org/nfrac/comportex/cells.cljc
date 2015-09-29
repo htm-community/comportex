@@ -166,13 +166,9 @@
    * `temporal-pooling-max-exc` - maximum continuing temporal pooling
      excitation level.
 
-   * `temporal-pooling-amp` - multiplier on the initial excitation
-     score of temporal pooling cells; this increases the probability
-     that TP cells will remain active.
-
-   * `temporal-pooling-fall` - amount by which a cell's continuing
+  * `temporal-pooling-fall` - amount by which a cell's continuing
      temporal pooling excitation falls each time step in the absence of
-     further input.
+     stable input.
 "
   {:input-dimensions [:define-me!]
    :column-dimensions [1000]
@@ -218,8 +214,7 @@
    :dominance-margin 4
    :stable-inbit-frac-threshold 0.5
    :temporal-pooling-max-exc 50.0
-   :temporal-pooling-amp 5.0
-   :temporal-pooling-fall 10.0
+   :temporal-pooling-fall 5.0
    :random-seed 42
    })
 
@@ -695,32 +690,14 @@
          (inh/inhibition-radius (:proximal-sg layer) (:topology layer)
                                 (:input-topology layer))))
 
-(defn apply-excitation
-  [continuing-exc immed-exc max-exc amp]
-  (if (or (zero? max-exc) (zero? amp))
-    continuing-exc
-    ;; continuing excitation is enabled
-    (persistent!
-     (reduce (fn [m [id exc]]
-               (assoc! m id (-> (get m id 0.0)
-                                (+ (* exc amp))
-                                (min max-exc))))
-             (transient continuing-exc)
-             immed-exc))))
-
 (defn decay-tp
-  [tp-exc fall burst-exc]
+  [tp-exc fall]
   (persistent!
    (reduce-kv (fn [m id exc]
                 ;; constant fall amount
                 (let [e (- exc fall)]
                   (if (pos? e)
-                    ;; additional fall by bursting amount
-                    (let [[col _] id
-                          eb (- e (burst-exc [col 0] 0))]
-                      (if (pos? eb)
-                       (assoc! m id eb)
-                       m))
+                    (assoc! m id e)
                     m)))
               (transient {})
               tp-exc)))
@@ -775,18 +752,21 @@
                           (* (count ff-bits) (:stable-inbit-frac-threshold spec))))
           newly-engaged? (or (not higher-level?)
                              (and engaged? (not (:engaged? state))))
+          tp-exc (cond-> (:temporal-pooling-exc state)
+                   (not (:engaged? state))
+                   (decay-tp (:temporal-pooling-fall spec)))
           [eff-col-exc
            eff-tp-exc] (cond
                          (not higher-level?)
                          [col-exc
-                          (:temporal-pooling-exc state)]
+                          tp-exc]
                          newly-engaged?
                          [(merge stable-col-exc
                                  (select-keys col-exc (keys ff-good-paths)))
                           {}]
                          :else
                          [(select-keys col-exc (keys ff-good-paths))
-                          (:temporal-pooling-exc state)])
+                          tp-exc])
           ;; combine excitation values for selecting columns
           abs-cell-exc (total-excitations eff-col-exc eff-tp-exc
                                           (:distal-exc distal-state)
@@ -819,10 +799,6 @@
                                (when carry-forward? ;; keep winners stable
                                  (:winners-by-col state))
                                spec rng*)
-          ;; update continuing TP activation
-          next-tp-exc (if higher-level?
-                        (zipmap ac (repeat (:temporal-pooling-max-exc spec)))
-                        {})
           ;; learning cells are the new winners, excluding any continuing.
           ;; learnable cells are the old winners, excluding any continuing.
           old-winners (vals (:winners-by-col state))
@@ -836,7 +812,14 @@
                      (cells->bits depth learnable)
                      [])
                    (into (set/difference (:distal-bits distal-state)
-                                         (:out-ff-bits state))))]
+                                         (:out-ff-bits state))))
+          ;; update continuing TP activation
+          next-tp-exc (if higher-level?
+                        (let [new-ac (set/difference ac (:active-cells state))]
+                          (into eff-tp-exc
+                               (map vector new-ac
+                                    (repeat (:temporal-pooling-max-exc spec)))))
+                        {})]
       (assoc this
              :rng rng
              :state (map->LayerActiveState
