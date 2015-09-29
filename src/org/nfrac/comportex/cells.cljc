@@ -799,27 +799,19 @@
                                (when carry-forward? ;; keep winners stable
                                  (:winners-by-col state))
                                spec rng*)
-          ;; learning cells are the new winners, excluding any continuing.
-          ;; learnable cells are the old winners, excluding any continuing.
+          ;; learning cells are the new winners, excluding any continuing
           old-winners (vals (:winners-by-col state))
           new-winners (vals wbc)
           learning (->> new-winners
                         (remove (set old-winners)))
-          learnable (->> old-winners
-                         (remove (set new-winners)))
-          depth (:depth spec)
-          lci (->> (if (:lateral-synapses? spec)
-                     (cells->bits depth learnable)
-                     [])
-                   (into (set/difference (:distal-bits distal-state)
-                                         (:out-ff-bits state))))
           ;; update continuing TP activation
           next-tp-exc (if higher-level?
                         (let [new-ac (set/difference ac (:active-cells state))]
                           (into eff-tp-exc
                                (map vector new-ac
                                     (repeat (:temporal-pooling-max-exc spec)))))
-                        {})]
+                        {})
+          depth (:depth spec)]
       (assoc this
              :rng rng
              :state (map->LayerActiveState
@@ -839,9 +831,7 @@
                       :winners-by-col wbc
                       :learning-cells learning
                       :timestep (inc (:timestep state))
-                      })
-             :distal-state (assoc distal-state
-                                  :distal-lc-bits lci))))
+                      }))))
 
   (layer-learn
     [this]
@@ -926,10 +916,17 @@
     [this distal-ff-bits distal-fb-bits]
     (let [depth (:depth spec)
           widths (distal-sources-widths spec)
-          ;; possibly should pass in separate learnable bit sets as arguments
           aci (util/align-indices widths
                                   [(if (:lateral-synapses? spec)
                                      (:out-ff-bits state)
+                                     [])
+                                   distal-ff-bits
+                                   (if (:use-feedback? spec) distal-fb-bits [])])
+          wc (vals (:winners-by-col state))
+          ;; possibly should pass in separate learnable bit sets as arguments
+          lci (util/align-indices widths
+                                  [(if (:lateral-synapses? spec)
+                                     (cells->bits depth wc)
                                      [])
                                    distal-ff-bits
                                    (if (:use-feedback? spec) distal-fb-bits [])])
@@ -941,9 +938,7 @@
         :prior-distal-state distal-state
         :distal-state (map->LayerDistalState
                        {:distal-bits (set aci)
-                        ;; defer distal-lc-bits until next activate
-                        ;; because we should exclude any continuing cells.
-                        ;; do not learn - they do not give sequence information
+                        :distal-lc-bits (set lci)
                         :matching-seg-paths seg-paths
                         :well-matching-seg-paths good-paths
                         :distal-exc distal-exc
