@@ -796,8 +796,13 @@
           (select-active-cells a-cols rel-cell-exc
                                (:winners-by-col state) ;; keep winners stable
                                spec rng*)
-          ;; learning cells are the winners in newly active columns
-          learning (vals (apply dissoc wbc (:active-cols state)))
+          ;; learning cells are the winning cells, but excluding any
+          ;; continuing winners when temporal pooling
+          old-winners (vals (:winners-by-col state))
+          new-winners (vals wbc)
+          learning (if newly-engaged? ;; always true at first level
+                     new-winners
+                     (remove (set old-winners) new-winners))
           ;; update continuing TP activation
           next-tp-exc (if higher-level?
                         (let [new-ac (set/difference ac (:active-cells state))]
