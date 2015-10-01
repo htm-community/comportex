@@ -71,14 +71,14 @@
 ;;; ## Overlaps
 
 (defn apply-overlap-boosting
-  "Given a map `exc` of the column overlap counts, filters it down
-  to those meeting parameter `ff-stimulus-threshold`, and
-  multiplies the excitation value by the column boosting factor."
+  "Given a map `exc` of the column overlap counts, multiplies the
+  excitation value by the corresponding column boosting factor."
   [exc boosts]
   (->> exc
-       (reduce-kv (fn [m [col _] x]
-                    (let [b (get boosts col)]
-                      (assoc! m col (* x b))))
+       (reduce-kv (fn [m id x]
+                    (let [[col _] id
+                          b (get boosts col)]
+                      (assoc! m id (* x b))))
                   (transient {}))
        (persistent!)))
 

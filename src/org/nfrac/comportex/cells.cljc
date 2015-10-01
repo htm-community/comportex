@@ -737,6 +737,7 @@
     (let [;; proximal excitation in number of active synapses, keyed by [col 0 seg-idx]
           col-seg-overlaps (p/excitations proximal-sg ff-bits
                                           (:ff-stimulus-threshold spec))
+          ;; these all keyed by [col 0]
           [col-exc ff-seg-paths ff-good-paths]
           (best-segment-excitations-and-paths col-seg-overlaps
                                               (:ff-seg-new-synapse-count spec))
@@ -755,7 +756,7 @@
           tp-exc (cond-> (:temporal-pooling-exc state)
                    (not (:engaged? state))
                    (decay-tp (:temporal-pooling-fall spec)))
-          [eff-col-exc
+          [eff-col-exc*
            eff-tp-exc] (cond
                          (not higher-level?)
                          [col-exc
@@ -767,6 +768,7 @@
                          :else
                          [(select-keys col-exc (keys ff-good-paths))
                           tp-exc])
+          eff-col-exc (columns/apply-overlap-boosting eff-col-exc* boosts)
           ;; combine excitation values for selecting columns
           abs-cell-exc (total-excitations eff-col-exc eff-tp-exc
                                           (:distal-exc distal-state)
