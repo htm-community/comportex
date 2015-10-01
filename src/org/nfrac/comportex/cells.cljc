@@ -805,7 +805,9 @@
                      (remove (set old-winners) new-winners))
           ;; update continuing TP activation
           next-tp-exc (if higher-level?
-                        (let [new-ac (set/difference ac (:active-cells state))]
+                        (let [new-ac (if newly-engaged?
+                                       ac
+                                       (set/difference ac (:active-cells state)))]
                           (into eff-tp-exc
                                (map vector new-ac
                                     (repeat (:temporal-pooling-max-exc spec)))))
