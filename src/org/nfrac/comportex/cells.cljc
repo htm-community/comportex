@@ -207,6 +207,7 @@
    :distal-perm-init 0.16
    :distal-punish? true
    :activation-level 0.02
+   :activation-level-max 0.10
    :global-inhibition? true
    :inhibition-base-distance 1
    :distal-vs-proximal-weight 0.0
@@ -405,8 +406,8 @@
 
 (defn select-active-columns
   "Returns a set of column ids to become active after lateral inhibition."
-  [col-exc topo inh-radius spec]
-  (let [level (:activation-level spec)
+  [col-exc topo activation-level inh-radius spec]
+  (let [level activation-level
         n-on (max 1 (round (* level (p/size topo))))]
     (set
      (if (:global-inhibition? spec)
@@ -738,7 +739,7 @@
           col-seg-overlaps (p/excitations proximal-sg ff-bits
                                           (:ff-stimulus-threshold spec))
           ;; these all keyed by [col 0]
-          [col-exc ff-seg-paths ff-good-paths]
+          [raw-col-exc ff-seg-paths ff-good-paths]
           (best-segment-excitations-and-paths col-seg-overlaps
                                               (:ff-seg-new-synapse-count spec))
           ;; stable inputs (from predicted source cells)
@@ -753,30 +754,32 @@
                           (* (count ff-bits) (:stable-inbit-frac-threshold spec))))
           newly-engaged? (or (not higher-level?)
                              (and engaged? (not (:engaged? state))))
-          tp-exc (cond-> (:temporal-pooling-exc state)
-                   (not (:engaged? state))
+          tp-exc (cond-> (if newly-engaged?
+                           {}
+                           (:temporal-pooling-exc state))
+                   true ;(not engaged?)
                    (decay-tp (:temporal-pooling-fall spec)))
-          [eff-col-exc*
-           eff-tp-exc] (cond
-                         (not higher-level?)
-                         [col-exc
-                          tp-exc]
-                         newly-engaged?
-                         [(merge stable-col-exc
-                                 (select-keys col-exc (keys ff-good-paths)))
-                          {}]
-                         :else
-                         [(select-keys col-exc (keys ff-good-paths))
-                          tp-exc])
-          eff-col-exc (columns/apply-overlap-boosting eff-col-exc* boosts)
+          col-exc (cond-> raw-col-exc
+                         (not engaged?)
+                         (select-keys (keys ff-good-paths))
+                         true
+                         (columns/apply-overlap-boosting boosts))
           ;; combine excitation values for selecting columns
-          abs-cell-exc (total-excitations eff-col-exc eff-tp-exc
+          abs-cell-exc (total-excitations col-exc tp-exc
                                           (:distal-exc distal-state)
                                           (:distal-vs-proximal-weight spec)
                                           (:spontaneous-activation? spec)
                                           (:depth spec))
+          activation-level (let [base-level (:activation-level spec)
+                                 prev-level (/ (count (:active-cols state))
+                                               (p/size-of this))]
+                             (if (or newly-engaged? (not engaged?))
+                               base-level
+                               (min (:activation-level-max spec)
+                                    (+ prev-level (* 0.5 base-level)))))
           a-cols (select-active-columns (best-by-column abs-cell-exc)
-                                        topology inh-radius spec)
+                                        topology activation-level
+                                        inh-radius spec)
           ;; calculate relative excitations for cells within each active column:
           ;; * include distal excitation on predicted cells.
           ;; * matching segments below connected threshold get a bonus.
@@ -788,7 +791,7 @@
                                                     (:distal-exc distal-state)
                                                     (:seg-learn-threshold spec)
                                                     (:depth spec))
-                            (merge-with + eff-tp-exc))
+                            (merge-with + tp-exc))
           ;; find active and winner cells in the columns
           [rng* rng] (random/split rng)
           {ac :active-cells
@@ -810,7 +813,7 @@
                         (let [new-ac (if newly-engaged?
                                        ac
                                        (set/difference ac (:active-cells state)))]
-                          (into eff-tp-exc
+                          (into tp-exc
                                (map vector new-ac
                                     (repeat (:temporal-pooling-max-exc spec)))))
                         {})
@@ -824,7 +827,7 @@
                       :out-stable-ff-bits (set (cells->bits depth stable-ac))
                       :engaged? engaged?
                       :newly-engaged? newly-engaged?
-                      :col-overlaps col-exc
+                      :col-overlaps raw-col-exc
                       :matching-ff-seg-paths ff-seg-paths
                       :well-matching-ff-seg-paths ff-good-paths
                       :temporal-pooling-exc next-tp-exc
