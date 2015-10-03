@@ -471,7 +471,7 @@
   * `:stable-active-cells` - the set of non-bursting active cells.
   * `:burst-cols` - the set of bursting column ids.
   * `:winners-by-col` - the map of column id to winner cell id."
-  [a-cols cell-exc prior-wbc spec rng]
+  [a-cols cell-exc bursting? prior-wbc spec rng]
   (let [depth (:depth spec)
         threshold (:seg-stimulus-threshold spec)
         dominance-margin (:dominance-margin spec)]
@@ -488,15 +488,15 @@
               [win-cell col-ac] (column-active-cells col cell-exc prior-winner
                                                      depth threshold dominance-margin
                                                      rng*)
-              bursting? (== (count col-ac) depth)
+              b-col? (bursting? col win-cell col-ac)
               next-ac (reduce conj! ac col-ac)
-              next-sac (if bursting?
+              next-sac (if b-col?
                          sac
                          (reduce conj! sac col-ac))]
           (recur (next cols)
                  next-ac
                  next-sac
-                 (if bursting? (conj! b-cols col) b-cols)
+                 (if b-col? (conj! b-cols col) b-cols)
                  (assoc! wbc col win-cell)
                  rng))
         ;; finished
@@ -793,12 +793,23 @@
                                                     (:depth spec))
                             (merge-with + tp-exc))
           ;; find active and winner cells in the columns
+          pc (:pred-cells distal-state)
+          depth (:depth spec)
+          prev-col-winners (:winners-by-col state)
           [rng* rng] (random/split rng)
           {ac :active-cells
            wbc :winners-by-col
            b-cols :burst-cols
            stable-ac :stable-active-cells}
           (select-active-cells a-cols rel-cell-exc
+                               ;; definition of bursting for a column
+                               (fn [col win-cell col-ac]
+                                 (if (and (not newly-engaged?)
+                                          (= win-cell (prev-col-winners col)))
+                                   ;; for continuing temporal pooling
+                                   (== depth (count col-ac))
+                                   ;; otherwise: for discrete transitions
+                                   (not (or (pc win-cell) (tp-exc win-cell)))))
                                (:winners-by-col state) ;; keep winners stable
                                spec rng*)
           ;; learning cells are the winning cells, but excluding any
@@ -816,8 +827,7 @@
                           (into tp-exc
                                (map vector new-ac
                                     (repeat (:temporal-pooling-max-exc spec)))))
-                        {})
-          depth (:depth spec)]
+                        {})]
       (assoc this
              :rng rng
              :state (map->LayerActiveState
