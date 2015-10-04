@@ -4,16 +4,18 @@
             [org.nfrac.comportex.util :as util]
             [clojure.string :as str]))
 
-(def bits-per-word 35)
+(def bit-width 500)
+(def n-on-bits 25)
 
 (def spec
   {:column-dimensions [1000]
-   :distal-punish? false
+   :depth 8
+   :distal-perm-init 0.21
    :distal-vs-proximal-weight 0.2
    })
 
 (def higher-level-spec-diff
-  {:column-dimensions [400]
+  {:column-dimensions [800]
    :ff-max-segments 5})
 
 (def input-text
@@ -86,10 +88,11 @@ Chifung has no tail.
 ")
 
 (defn split-sentences
-  [text]
-  (->> (str/split (str/trim text) #"[^\w]*\.+[^\w]*")
-       (mapv #(str/split % #"[^\w']+"))
-       (mapv #(vec (concat % ["."])))))
+  [text*]
+  (let [text (str/lower-case (str/trim text*))]
+    (->> (str/split text #"[^\w]*\.+[^\w]*")
+         (mapv #(str/split % #"[^\w']+"))
+         (mapv #(vec (concat % ["."]))))))
 
 (defn word-item-seq
   "An input sequence consisting of words from the given text, with
@@ -102,26 +105,14 @@ Chifung has no tail.
         [j word] (map-indexed vector sen)]
     {:word word :index [i j]}))
 
-(defn make-block-sensor
-  [text]
-  (let [split-sens (split-sentences text)
-        uniq-words (distinct (apply concat split-sens))
-        bit-width (* bits-per-word (count uniq-words))]
-    [:word
-     (enc/category-encoder [bit-width] uniq-words)]))
-
 (def random-sensor
-  (let [bit-width 500]
-    [:word
-     (enc/unique-encoder [bit-width] bits-per-word)]))
+  [:word
+   (enc/unique-encoder [bit-width] n-on-bits)])
 
 (defn n-region-model
   ([n]
    (n-region-model n spec))
   ([n spec]
-   (let [sensor random-sensor]
-     (n-region-model n spec sensor)))
-  ([n spec sensor]
    (core/regions-in-series n core/sensory-region
                            (list* spec (repeat (merge spec higher-level-spec-diff)))
-                           {:input sensor})))
+                           {:input random-sensor})))
