@@ -26,10 +26,11 @@ the three little pigs.
 24358791.")
 
 (defn parse-sentences
-  [text]
-  (->> (str/split (str/trim text) #"[^\w]*\.+[^\w]*")
-       (mapv #(str/split % #"[^\w']+"))
-       (mapv #(mapv vec %))))
+  [text*]
+  (let [text (str/lower-case (str/trim text*))]
+    (->> (str/split text #"[^\w]*\.+[^\w]*")
+         (mapv #(str/split % #"[^\w']+"))
+         (mapv #(mapv vec %)))))
 
 (def higher-level-spec-diff
   {:column-dimensions [800]
@@ -44,8 +45,6 @@ the three little pigs.
    :ff-perm-stable-inc 0.15
    :ff-perm-inc 0.04
    :ff-perm-dec 0.01
-   :temporal-pooling-amp 3.0
-   :boost-active-duty-ratio 0 ;; disable boosting
    :lateral-synapses? true
    :distal-vs-proximal-weight 0.0
    :use-feedback? false
@@ -141,10 +140,9 @@ the three little pigs.
           end-of-passage? (= i (dec (count sentences)))
           r0-lyr (get-in htm-a [:regions :rgn-0 :layer-3])
           r1-lyr (get-in htm-a [:regions :rgn-1 :layer-3])
-          r0-burst-frac (/ (count (p/bursting-columns r0-lyr))
-                           (count (p/active-columns r0-lyr)))
-          ;r1-burst-frac (/ (count (p/bursting-columns r1-lyr))
-          ;                 (count (p/active-columns r1-lyr)))
+          r0-burst-frac (/ (* (p/layer-depth r0-lyr) ;; number of cells
+                              (count (p/bursting-columns r0-lyr)))
+                           (max 1 (count (p/active-cells r0-lyr))))
           word-burst? (cond-> (:word-bursting? (:action inval))
                         ;; ignore burst on first letter of word
                         (pos? k) (or (>= r0-burst-frac 0.50)))
@@ -211,12 +209,6 @@ the three little pigs.
         ;; reset first region's sequence when going on to new word
         (and end-of-word? (not word-burst?))
         (update-in [:regions :rgn-0] p/break :tm)
-        ;; reset second region's pooling when going on to new word
-        (and end-of-word? (not word-burst?))
-        (update-in [:regions :rgn-1] p/break :tp)
-        ;; reset second region's sequence when going on to new sentence
-        ;(and end-of-sentence? (not sent-burst?))
-        ;(update-in [:regions :rgn-1] p/break :tm)
         ))))
 
 (comment
