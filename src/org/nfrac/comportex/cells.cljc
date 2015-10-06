@@ -11,11 +11,11 @@
 
    * `ff-bits` -- the set of indices of active bits/cells on proximal dendrites.
    * `aci` -- the set of indices of active bits/cells on distal dendrites.
-   * `lci` -- the set of indices of learnable (winner) bits/cells on distal dendrites.
+   * `lci` -- the set of indices of learnable bits/cells on distal dendrites.
    * `ac` -- the set of ids of active cells.
    * `pc` -- the set of ids of predictive cells.
    * `tpc` -- the set of ids of temporal pooling cells.
-   * `lc` -- the set of ids of learnable cells (winner cells).
+   * `lc` -- the set of ids of learning cells.
    * `a-cols` -- the set of ids of active columns.
    * `seg` or `syns` -- incoming synapses as a map from source id to permanence.
 "
@@ -133,7 +133,12 @@
 
    * `activation-level` - fraction of columns that can be
      active (either locally or globally); inhibition kicks in to
-     reduce it to this level.
+     reduce it to this level. Does not apply to temporal pooling.
+
+   * `activation-level-max` - maximum fraction of columns that can be
+     active as temporal pooling progresses. Each step of continued
+     pooling allocates an extra 50% of `activation-level` until this
+     maximum is reached.
 
    * `global-inhibition?` - whether to use the faster global algorithm
      for column inhibition (just keep those with highest overlap
@@ -158,16 +163,16 @@
       others in the column to be considered dominant. And therefore to
       inhibit all other cells in the column.
 
+   * `stable-inbit-frac-threshold` - fraction of proximal input bits
+     to a layer which must be from stable cells in order to start
+     temporal pooling.
+
    * `temporal-pooling-max-exc` - maximum continuing temporal pooling
      excitation level.
 
-   * `temporal-pooling-amp` - multiplier on the initial excitation
-     score of temporal pooling cells; this increases the probability
-     that TP cells will remain active.
-
    * `temporal-pooling-fall` - amount by which a cell's continuing
      temporal pooling excitation falls each time step in the absence of
-     further input.
+     stable input.
 "
   {:input-dimensions [:define-me!]
    :column-dimensions [1000]
@@ -206,14 +211,15 @@
    :distal-perm-init 0.16
    :distal-punish? true
    :activation-level 0.02
+   :activation-level-max 0.10
    :global-inhibition? true
    :inhibition-base-distance 1
    :distal-vs-proximal-weight 0.0
    :spontaneous-activation? false
    :dominance-margin 4
+   :stable-inbit-frac-threshold 0.5
    :temporal-pooling-max-exc 50.0
-   :temporal-pooling-amp 5.0
-   :temporal-pooling-fall 10.0
+   :temporal-pooling-fall 5.0
    :random-seed 42
    })
 
@@ -370,22 +376,29 @@
   the proximal excitation but is given keyed by cell rather than by
   column. Normally only cells with some proximal input are included,
   but if `spontaneous-activation?` is true, this is relaxed
-  (i.e. prediction alone could cause activation)."
+  (i.e. prediction alone could cause activation).
+
+  * col-exc is keyed by column as [col 0].
+  * tp-exc is keyed by cell as [col ci]."
   [col-exc tp-exc distal-exc distal-weight spontaneous-activation? depth]
-  (let [;; add TP columns to list of columns to consider (may have no proximal)
-        basic-col-exc (merge-with + col-exc
-                                  (into {} (map (fn [[col _]] [col 0])) (keys tp-exc)))
+  (let [has-tp? (seq tp-exc)
+        ;; add TP columns to list of columns to consider (may have no proximal)
+        basic-col-exc (if has-tp?
+                        (merge-with + col-exc
+                                    (into {} (map (fn [[col _]] [[col 0] 0]))
+                                          (keys tp-exc)))
+                        col-exc)
         ;; expand to all cells within columns, add TP values
-        basic-exc (for [[col exc] basic-col-exc
+        basic-exc (for [[[col _] exc] basic-col-exc
                         ci (range depth)
                         :let [cell-id [col ci]
-                              tp (get tp-exc cell-id 0.0)]]
+                              tp (if has-tp? (get tp-exc cell-id 0.0) 0.0)]]
                     [cell-id (+ exc tp)])]
     (if (zero? distal-weight)
       (into {} basic-exc)
       (let [basic-exc (if spontaneous-activation?
-                        (merge (zipmap (keys distal-exc) (repeat 0.0))
-                               (into {} basic-exc))
+                        (into (zipmap (keys distal-exc) (repeat 0.0))
+                              basic-exc)
                         basic-exc)]
         ;; add distal values
         (persistent!
@@ -397,8 +410,8 @@
 
 (defn select-active-columns
   "Returns a set of column ids to become active after lateral inhibition."
-  [col-exc topo inh-radius spec]
-  (let [level (:activation-level spec)
+  [col-exc topo activation-level inh-radius spec]
+  (let [level activation-level
         n-on (max 1 (round (* level (p/size topo))))]
     (set
      (if (:global-inhibition? spec)
@@ -414,13 +427,13 @@
   active (''bursting''). Otherwise, only cells above the threshold
   become active; but if the winner exceeds all others by at least
   `dominance-margin` then it is the only active cell."
-  [col cell-exc depth threshold dominance-margin rng]
+  [col cell-exc prior-winner depth threshold dominance-margin rng]
   (let [cell-ids (for [ci (range depth)] [col ci])]
     (loop [ids cell-ids
            best-ids ()
            best-exc 0.0
            good-ids () ;; over threshold
-           min-good-exc (double (* (inc threshold) 1000))]
+           second-exc (double threshold)]
       (if-let [id (first ids)]
         (let [exc (double (cell-exc id 0))
               equal-best? (== exc best-exc)
@@ -432,21 +445,31 @@
                        :else best-ids)
                  (if new-best? exc best-exc)
                  (if good? (conj good-ids id) good-ids)
-                 (if (and good? (< exc min-good-exc)) exc min-good-exc)))
+                 (if new-best?
+                   best-exc
+                   (if (< second-exc exc best-exc)
+                     exc
+                     second-exc))))
         ;; finished
-        (let [winner (if (<= (count best-ids) 1)
+        (let [winner (cond
+                       (empty? best-ids)
+                       (first cell-ids)
+                       (== (count best-ids) 1)
                        (first best-ids)
+                       (and prior-winner (some #(= % prior-winner) best-ids))
+                       prior-winner
+                       :else
                        (util/rand-nth rng best-ids))
               actives (cond
                         ;; stimulus threshold not reached
                         (< best-exc threshold)
                         cell-ids
-                        ;; of cells over threshold, spread within dominance-margin
-                        (< (- best-exc min-good-exc) dominance-margin)
-                        good-ids
-                        ;; otherwise best cell(s) exceed others by dominance-margin
+                        ;; best cells exceed all others by dominance-margin
+                        (>= (- best-exc second-exc) dominance-margin)
+                        best-ids
+                        ;; otherwise, all cells over threshold become active
                         :else
-                        best-ids)]
+                        good-ids)]
           [winner actives])))))
 
 (defn select-active-cells
@@ -455,38 +478,40 @@
   * `:active-cells` - the set of active cell ids.
   * `:stable-active-cells` - the set of non-bursting active cells.
   * `:burst-cols` - the set of bursting column ids.
-  * `:winner-cells` - the set of winner cells, one from each active column."
-  [a-cols cell-exc pred-cells spec rng]
+  * `:col-winners` - the map of column id to winner cell id."
+  [a-cols cell-exc bursting? prior-col-winners spec rng]
   (let [depth (:depth spec)
         threshold (:seg-stimulus-threshold spec)
         dominance-margin (:dominance-margin spec)]
     (loop [cols (seq a-cols)
-           ac (transient #{})
+           ac (transient #{}) ;; active cells
            sac (transient #{}) ;; stable active cells
-           b-cols (transient #{})
-           lc (transient #{})
+           b-cols (transient #{}) ;; bursting columns
+           col-winners (transient {})
            rng rng]
       (if-let [col (first cols)]
         (let [[rng rng*] (random/split rng)
-              [win-cell col-ac] (column-active-cells col cell-exc depth
-                                                     threshold dominance-margin
+              ;; carry forward learning cells for higher level sequences
+              prior-winner (get prior-col-winners col)
+              [win-cell col-ac] (column-active-cells col cell-exc prior-winner
+                                                     depth threshold dominance-margin
                                                      rng*)
-              bursting? (not (pred-cells win-cell))
+              b-col? (bursting? col win-cell col-ac)
               next-ac (reduce conj! ac col-ac)
-              next-sac (if bursting?
+              next-sac (if b-col?
                          sac
                          (reduce conj! sac col-ac))]
           (recur (next cols)
                  next-ac
                  next-sac
-                 (if bursting? (conj! b-cols col) b-cols)
-                 (conj! lc win-cell)
+                 (if b-col? (conj! b-cols col) b-cols)
+                 (assoc! col-winners col win-cell)
                  rng))
         ;; finished
         {:active-cells (persistent! ac)
          :stable-active-cells (persistent! sac)
          :burst-cols (persistent! b-cols)
-         :winner-cells (persistent! lc)}
+         :col-winners (persistent! col-winners)}
         ))))
 
 (defn within-column-cell-exc
@@ -515,9 +540,10 @@
   again the unit amount is half the `:seg-learn-threshold`.
 
   Returns a map of cell ids to these relative excitation values."
-  [a-cols distal-sg aci distal-exc min-act depth]
+  [a-cols prior-col-winners distal-sg aci distal-exc min-act depth]
   (let [adj-base-amount (quot min-act 2)]
     (->> (for [col a-cols
+               :let [prior-wc (get prior-col-winners col)]
                ci (range depth)
                :let [cell-id [col ci]
                      cell-segs (->> (p/cell-segments distal-sg cell-id)
@@ -529,6 +555,9 @@
                ;; predicted cell, use distal excitation
                d-exc
                [cell-id d-exc]
+               ;; continuing learning cell
+               (= prior-wc cell-id)
+               [cell-id adj-base-amount]
                ;; some segment matches the input even if synapses disconnected
                (first (best-matching-segment cell-segs aci min-act 0.0))
                [cell-id adj-base-amount]
@@ -670,32 +699,14 @@
          (inh/inhibition-radius (:proximal-sg layer) (:topology layer)
                                 (:input-topology layer))))
 
-(defn apply-excitation
-  [continuing-exc immed-exc max-exc amp]
-  (if (or (zero? max-exc) (zero? amp))
-    continuing-exc
-    ;; continuing excitation is enabled
-    (persistent!
-     (reduce (fn [m [id exc]]
-               (assoc! m id (-> (get m id 0.0)
-                                (+ (* exc amp))
-                                (min max-exc))))
-             (transient continuing-exc)
-             immed-exc))))
-
 (defn decay-tp
-  [tp-exc fall burst-exc]
+  [tp-exc fall]
   (persistent!
    (reduce-kv (fn [m id exc]
                 ;; constant fall amount
                 (let [e (- exc fall)]
                   (if (pos? e)
-                    ;; additional fall by bursting amount
-                    (let [[col _] id
-                          eb (- e (burst-exc [col 0] 0))]
-                      (if (pos? eb)
-                       (assoc! m id eb)
-                       m))
+                    (assoc! m id e)
                     m)))
               (transient {})
               tp-exc)))
@@ -705,7 +716,7 @@
      out-ff-bits out-stable-ff-bits
      col-overlaps matching-ff-seg-paths well-matching-ff-seg-paths
      temporal-pooling-exc
-     active-cols burst-cols active-cells learn-cells timestep])
+     active-cols burst-cols active-cells col-winners timestep])
 
 (defrecord LayerDistalState
     [distal-bits distal-lc-bits distal-exc pred-cells prior-active-cells
@@ -713,7 +724,7 @@
 
 (def empty-active-state
   (map->LayerActiveState
-   {:learn-cells #{}
+   {:col-winners {}
     :active-cells #{}
     :active-cols #{}
     :temporal-pooling-exc {}
@@ -735,58 +746,93 @@
     (let [;; proximal excitation in number of active synapses, keyed by [col 0 seg-idx]
           col-seg-overlaps (p/excitations proximal-sg ff-bits
                                           (:ff-stimulus-threshold spec))
-          [col-exc ff-seg-paths ff-good-paths]
+          ;; these all keyed by [col 0]
+          [raw-col-exc ff-seg-paths ff-good-paths]
           (best-segment-excitations-and-paths col-seg-overlaps
                                               (:ff-seg-new-synapse-count spec))
-          ;; temporal pooling:
-          ;; stable inputs (from predicted cells) add to ongoing "tp" activation
-          stable-col-seg-overlaps (p/excitations proximal-sg stable-ff-bits
-                                                 (:ff-stimulus-threshold spec))
-          stable-col-exc (best-segment-excitations stable-col-seg-overlaps)
-          ;; bursting inputs reduce it. also it decays over time.
-          burst-col-exc (merge-with - col-exc stable-col-exc)
-          tp-exc (decay-tp (:temporal-pooling-exc state)
-                           (:temporal-pooling-fall spec)
-                           burst-col-exc)
+          ;; temporal pooling, depending on stability of input bits.
+          ;; also check for clear matches, these override pooling
+          higher-level? (> (:ff-max-segments spec) 1)
+          engaged? (or (not higher-level?)
+                       (> (count stable-ff-bits)
+                          (* (count ff-bits) (:stable-inbit-frac-threshold spec))))
+          newly-engaged? (or (not higher-level?)
+                             (and engaged? (not (:engaged? state))))
+          tp-exc (cond-> (if newly-engaged?
+                           {}
+                           (:temporal-pooling-exc state))
+                   true ;(not engaged?)
+                   (decay-tp (:temporal-pooling-fall spec)))
+          col-exc (cond-> raw-col-exc
+                         (not engaged?)
+                         (select-keys (keys ff-good-paths))
+                         true
+                         (columns/apply-overlap-boosting boosts))
           ;; combine excitation values for selecting columns
-          prox-exc (columns/apply-overlap-boosting col-exc boosts) ;; now keyed by col
-          abs-cell-exc (total-excitations prox-exc tp-exc
+          abs-cell-exc (total-excitations col-exc tp-exc
                                           (:distal-exc distal-state)
                                           (:distal-vs-proximal-weight spec)
                                           (:spontaneous-activation? spec)
                                           (:depth spec))
+          ;; union temporal pooling: accrete more columns as pooling continues
+          activation-level (let [base-level (:activation-level spec)
+                                 prev-level (/ (count (:active-cols state))
+                                               (p/size-of this))]
+                             (if (or newly-engaged? (not engaged?))
+                               base-level
+                               (min (:activation-level-max spec)
+                                    (+ prev-level (* 0.5 base-level)))))
           a-cols (select-active-columns (best-by-column abs-cell-exc)
-                                        topology inh-radius spec)
+                                        topology activation-level
+                                        inh-radius spec)
           ;; calculate relative excitations for cells within each active column:
           ;; * include distal excitation on predicted cells.
           ;; * matching segments below connected threshold get a bonus.
           ;; * cells with inactive segments get a penalty.
-          rel-cell-exc (->> (within-column-cell-exc a-cols distal-sg
+          rel-cell-exc (->> (within-column-cell-exc a-cols
+                                                    (:col-winners state)
+                                                    distal-sg
                                                     (:distal-bits distal-state)
                                                     (:distal-exc distal-state)
                                                     (:seg-learn-threshold spec)
                                                     (:depth spec))
                             (merge-with + tp-exc))
           ;; find active and winner cells in the columns
+          pc (:pred-cells distal-state)
+          depth (:depth spec)
+          prior-col-winners (:col-winners state)
           [rng* rng] (random/split rng)
           {ac :active-cells
-           lc :winner-cells
-           b-cols :burst-cols
+           col-winners :col-winners
+           burst-cols :burst-cols
            stable-ac :stable-active-cells}
-          (select-active-cells a-cols rel-cell-exc (:pred-cells distal-state) spec rng*)
+          (select-active-cells a-cols rel-cell-exc
+                               ;; definition of bursting for a column
+                               (fn [col win-cell col-ac]
+                                 (if (and (not newly-engaged?)
+                                          (= win-cell (prior-col-winners col)))
+                                   ;; for continuing temporal pooling
+                                   (== depth (count col-ac))
+                                   ;; otherwise: for discrete transitions
+                                   (not (or (pc win-cell) (tp-exc win-cell)))))
+                               (:col-winners state) ;; keep winners stable
+                               spec rng*)
+          ;; learning cells are the winning cells, but excluding any
+          ;; continuing winners when temporal pooling
+          old-winners (vals (:col-winners state))
+          new-winners (vals col-winners)
+          learning (if newly-engaged? ;; always true at first level
+                     new-winners
+                     (remove (set old-winners) new-winners))
           ;; update continuing TP activation
-          lc-stable-exc (for [cell-id lc
-                              :let [[col ci] cell-id
-                                    exc (stable-col-exc [col 0])]
-                              :when exc]
-                          [cell-id exc])
-          next-tp-exc (-> (apply-excitation tp-exc
-                                            lc-stable-exc
-                                            (:temporal-pooling-max-exc spec)
-                                            (:temporal-pooling-amp spec))
-                          ;; clear TP excitation for inhibited cells
-                          (select-keys lc))
-          depth (:depth spec)]
+          next-tp-exc (if higher-level?
+                        (let [new-ac (if newly-engaged?
+                                       ac
+                                       (set/difference ac (:active-cells state)))]
+                          (into tp-exc
+                               (map vector new-ac
+                                    (repeat (:temporal-pooling-max-exc spec)))))
+                        {})]
       (assoc this
              :rng rng
              :state (map->LayerActiveState
@@ -794,14 +840,17 @@
                       :in-stable-ff-bits stable-ff-bits
                       :out-ff-bits (set (cells->bits depth ac))
                       :out-stable-ff-bits (set (cells->bits depth stable-ac))
-                      :col-overlaps col-exc
+                      :engaged? engaged?
+                      :newly-engaged? newly-engaged?
+                      :col-overlaps raw-col-exc
                       :matching-ff-seg-paths ff-seg-paths
                       :well-matching-ff-seg-paths ff-good-paths
                       :temporal-pooling-exc next-tp-exc
                       :active-cells ac
                       :active-cols a-cols
-                      :burst-cols b-cols
-                      :learn-cells lc
+                      :burst-cols burst-cols
+                      :col-winners col-winners
+                      :learning-cells learning
                       :timestep (inc (:timestep state))
                       }))))
 
@@ -809,8 +858,7 @@
     [this]
     (let [prior-aci (:distal-bits distal-state)
           prior-lci (:distal-lc-bits distal-state)
-          burst-cols (:burst-cols state)
-          lc (:learn-cells state)
+          lc (:learning-cells state)
           [rng* rng] (random/split rng)
           distal-learning (segment-learning-map rng* lc
                                                 (:well-matching-seg-paths distal-state)
@@ -829,36 +877,40 @@
                                                 (:distal-perm-connected spec)
                                                 (:seg-stimulus-threshold spec))
                                nil)
-          dsg (cond->
-                  (p/bulk-learn distal-sg (vals distal-learning) prior-lci
+          dsg (cond-> distal-sg
+                (seq distal-learning)
+                (p/bulk-learn (vals distal-learning) prior-lci
                                 (:distal-perm-inc spec) (:distal-perm-dec spec)
                                 (:distal-perm-init spec))
-                (:distal-punish? spec)
+                distal-punishments
                 (p/bulk-learn distal-punishments (:distal-bits prior-distal-state)
                               (:distal-perm-inc spec) (:distal-perm-punish spec)
                               (:distal-perm-init spec)))
-          a-cols (:active-cols state)
           higher-level? (> (:ff-max-segments spec) 1)
+          a-cols (:active-cols state)
           [rng* rng] (random/split rng)
-          prox-learning (segment-learning-map rng* (map vector a-cols (repeat 0))
-                                              (:well-matching-ff-seg-paths state)
-                                              proximal-sg
-                                              (:in-ff-bits state)
-                                              (if higher-level?
-                                                (:in-stable-ff-bits state)
-                                                (:in-ff-bits state))
-                                              {:pcon (:ff-perm-connected spec)
-                                               :min-act (:ff-seg-learn-threshold spec)
-                                               :new-syns (:ff-seg-new-synapse-count spec)
-                                               :max-syns (:ff-seg-max-synapse-count spec)
-                                               :max-segs (:ff-max-segments spec)})
-          psg (cond->
-                  (p/bulk-learn proximal-sg (vals prox-learning)
+          prox-learning (when (:engaged? state)
+                          (segment-learning-map rng* (map vector a-cols (repeat 0))
+                                                (:well-matching-ff-seg-paths state)
+                                                proximal-sg
+                                                (:in-ff-bits state)
+                                                (if higher-level?
+                                                  (:in-stable-ff-bits state)
+                                                  (:in-ff-bits state))
+                                                {:pcon (:ff-perm-connected spec)
+                                                 :min-act (:ff-seg-learn-threshold spec)
+                                                 :new-syns (:ff-seg-new-synapse-count spec)
+                                                 :max-syns (:ff-seg-max-synapse-count spec)
+                                                 :max-segs (:ff-max-segments spec)}))
+          psg (cond-> proximal-sg
+                prox-learning
+                (p/bulk-learn (vals prox-learning)
                                 (:in-ff-bits state)
                                 (:ff-perm-inc spec) (:ff-perm-dec spec)
                                 (:ff-perm-init-hi spec))
                 ;; positive learning rate is higher for stable (predicted) inputs
-                (and (seq (:in-stable-ff-bits state))
+                (and prox-learning
+                     (seq (:in-stable-ff-bits state))
                      (> (:ff-perm-stable-inc spec) (:ff-perm-inc spec)))
                 (p/bulk-learn (map #(syn/seg-update (:target-id %) :reinforce nil nil)
                                    (vals prox-learning))
@@ -891,10 +943,11 @@
                                      [])
                                    distal-ff-bits
                                    (if (:use-feedback? spec) distal-fb-bits [])])
-          ;; possibly should pass in separate lc sets as arguments
+          wc (vals (:col-winners state))
+          ;; possibly should pass in separate learnable bit sets as arguments
           lci (util/align-indices widths
                                   [(if (:lateral-synapses? spec)
-                                     (cells->bits depth (:learn-cells state))
+                                     (cells->bits depth wc)
                                      [])
                                    distal-ff-bits
                                    (if (:use-feedback? spec) distal-fb-bits [])])
@@ -922,10 +975,11 @@
     (:active-cols state))
   (active-cells [_]
     (:active-cells state))
-  (learnable-cells [_]
-    (:learn-cells state))
+  (winner-cells [_]
+    (set (vals (:col-winners state))))
   (temporal-pooling-cells [_]
-    (keys (:temporal-pooling-exc state)))
+    (when (:engaged? state)
+      (keys (:temporal-pooling-exc state))))
   (predictive-cells [_]
     (when (== (:timestep state)
               (:timestep distal-state))

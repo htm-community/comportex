@@ -75,10 +75,11 @@
     "The set of active column ids.")
   (active-cells [this]
     "The set of active cell ids.")
-  (learnable-cells [this]
-    "The set of active, learnable cell ids. These are the winning
-    cells in each active column, and could be thought of as having
-    more prolonged activation than other active cells.")
+  (winner-cells [this]
+    "The set of winning cell ids, one in each active column. These are
+    _learning_ cells when they turn on, and _learnable_ cells when
+    they turn off. They could be thought of as having more prolonged
+    activation than other active cells.")
   (temporal-pooling-cells [this]
     "The collection of temporal pooling cells, i.e. those having some
     non-zero level of continuing temporal pooling excitation.")
