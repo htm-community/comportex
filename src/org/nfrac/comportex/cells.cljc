@@ -428,7 +428,7 @@
            best-ids ()
            best-exc 0.0
            good-ids () ;; over threshold
-           min-good-exc (double (* (inc threshold) 1000))]
+           second-exc (double threshold)]
       (if-let [id (first ids)]
         (let [exc (double (cell-exc id 0))
               equal-best? (== exc best-exc)
@@ -440,7 +440,11 @@
                        :else best-ids)
                  (if new-best? exc best-exc)
                  (if good? (conj good-ids id) good-ids)
-                 (if (and good? (< exc min-good-exc)) exc min-good-exc)))
+                 (if new-best?
+                   best-exc
+                   (if (< second-exc exc best-exc)
+                     exc
+                     second-exc))))
         ;; finished
         (let [winner (cond
                        (empty? best-ids)
@@ -455,12 +459,12 @@
                         ;; stimulus threshold not reached
                         (< best-exc threshold)
                         cell-ids
-                        ;; of cells over threshold, spread within dominance-margin
-                        (< (- best-exc min-good-exc) dominance-margin)
-                        good-ids
-                        ;; otherwise best cell(s) exceed others by dominance-margin
+                        ;; best cells exceed all others by dominance-margin
+                        (>= (- best-exc second-exc) dominance-margin)
+                        best-ids
+                        ;; otherwise, all cells over threshold become active
                         :else
-                        best-ids)]
+                        good-ids)]
           [winner actives])))))
 
 (defn select-active-cells
