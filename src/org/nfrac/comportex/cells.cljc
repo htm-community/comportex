@@ -750,10 +750,6 @@
           [raw-col-exc ff-seg-paths ff-good-paths]
           (best-segment-excitations-and-paths col-seg-overlaps
                                               (:ff-seg-new-synapse-count spec))
-          ;; stable inputs (from predicted source cells)
-          stable-col-seg-overlaps (p/excitations proximal-sg stable-ff-bits
-                                                 (:ff-stimulus-threshold spec))
-          stable-col-exc (best-segment-excitations stable-col-seg-overlaps)
           ;; temporal pooling, depending on stability of input bits.
           ;; also check for clear matches, these override pooling
           higher-level? (> (:ff-max-segments spec) 1)
