@@ -133,7 +133,12 @@
 
    * `activation-level` - fraction of columns that can be
      active (either locally or globally); inhibition kicks in to
-     reduce it to this level.
+     reduce it to this level. Does not apply to temporal pooling.
+
+   * `activation-level-max` - maximum fraction of columns that can be
+     active as temporal pooling progresses. Each step of continued
+     pooling allocates an extra 50% of `activation-level` until this
+     maximum is reached.
 
    * `global-inhibition?` - whether to use the faster global algorithm
      for column inhibition (just keep those with highest overlap
@@ -165,7 +170,7 @@
    * `temporal-pooling-max-exc` - maximum continuing temporal pooling
      excitation level.
 
-  * `temporal-pooling-fall` - amount by which a cell's continuing
+   * `temporal-pooling-fall` - amount by which a cell's continuing
      temporal pooling excitation falls each time step in the absence of
      stable input.
 "
