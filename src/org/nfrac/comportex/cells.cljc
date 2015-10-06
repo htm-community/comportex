@@ -397,8 +397,8 @@
     (if (zero? distal-weight)
       (into {} basic-exc)
       (let [basic-exc (if spontaneous-activation?
-                        (merge (zipmap (keys distal-exc) (repeat 0.0))
-                               (into {} basic-exc))
+                        (into (zipmap (keys distal-exc) (repeat 0.0))
+                              basic-exc)
                         basic-exc)]
         ;; add distal values
         (persistent!
