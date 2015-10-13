@@ -77,9 +77,8 @@
     "The set of active cell ids.")
   (winner-cells [this]
     "The set of winning cell ids, one in each active column. These are
-    _learning_ cells when they turn on, and _learnable_ cells when
-    they turn off. They could be thought of as having more prolonged
-    activation than other active cells.")
+    only _learning_ cells when they turn on, but are always
+    _learnable_.")
   (temporal-pooling-cells [this]
     "The collection of temporal pooling cells, i.e. those having some
     non-zero level of continuing temporal pooling excitation.")

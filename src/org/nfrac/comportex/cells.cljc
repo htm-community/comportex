@@ -555,7 +555,7 @@
                ;; predicted cell, use distal excitation
                d-exc
                [cell-id d-exc]
-               ;; continuing learning cell
+               ;; continuing winner cell
                (= prior-wc cell-id)
                [cell-id adj-base-amount]
                ;; some segment matches the input even if synapses disconnected
