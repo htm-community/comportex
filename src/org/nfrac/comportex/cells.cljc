@@ -895,7 +895,7 @@
                         (let [new-ac (if newly-engaged?
                                        ac
                                        (set/difference ac (:active-cells state)))]
-                          (into tp-exc
+                          (into (select-keys tp-exc ac) ;; only keep TP for active cells
                                (map vector new-ac
                                     (repeat (:temporal-pooling-max-exc spec)))))
                         {})]
