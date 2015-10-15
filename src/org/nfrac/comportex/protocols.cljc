@@ -34,16 +34,16 @@
    PFeedForward, PTemporal, PParameterised."
   (region-activate [this ff-bits stable-ff-bits])
   (region-learn [this])
-  (region-depolarise [this distal-ff-bits apical-fb-bits]))
+  (region-depolarise [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]))
 
 (defn region-step
   ([this ff-bits]
      (region-step this ff-bits #{} #{} #{}))
-  ([this ff-bits stable-ff-bits distal-ff-bits apical-fb-bits]
+  ([this ff-bits stable-ff-bits distal-ff-bits apical-fb-bits apical-fb-wc-bits]
      (-> this
          (region-activate ff-bits stable-ff-bits)
          (region-learn)
-         (region-depolarise distal-ff-bits apical-fb-bits))))
+         (region-depolarise distal-ff-bits distal-fb-bits distal-fb-wc-bits))))
 
 (defprotocol PFeedForward
   "A feed-forward input source with a bit set representation. Could be
@@ -59,6 +59,10 @@
     corresponding local cell id as [col ci] where col is the column
     index. If the source is a sense, returns [i]."))
 
+(defprotocol PFeedBack
+  (wc-bits-value [this]
+    "The set of indices of all winner cells."))
+
 (defprotocol PFeedForwardMotor
   (ff-motor-topology [this])
   (motor-bits-value [this]))
@@ -66,7 +70,7 @@
 (defprotocol PLayerOfCells
   (layer-activate [this ff-bits stable-ff-bits])
   (layer-learn [this])
-  (layer-depolarise [this distal-ff-bits apical-fb-bits])
+  (layer-depolarise [this distal-ff-bits apical-fb-bits apical-fb-wc-bits])
   (layer-depth [this]
     "Number of cells per column.")
   (bursting-columns [this]

@@ -37,9 +37,9 @@
         :layer-3 (p/layer-learn layer-3))))
 
   (region-depolarise
-    [this distal-ff-bits apical-fb-bits]
+    [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]
     (assoc this
-      :layer-3 (p/layer-depolarise layer-3 distal-ff-bits apical-fb-bits)))
+        :layer-3 (p/layer-depolarise layer-3 distal-ff-bits apical-fb-bits apical-fb-wc-bits)))
 
   p/PTopological
   (topology [_]
@@ -53,6 +53,9 @@
     (p/stable-bits-value layer-3))
   (source-of-bit [_ i]
     (p/source-of-bit layer-3 i))
+  p/PFeedBack
+  (wc-bits-value [_]
+    (p/wc-bits-value layer-3))
   p/PFeedForwardMotor
   (ff-motor-topology [_]
     topology/empty-topology)
@@ -87,80 +90,6 @@
   (map->SensoryRegion
    {:layer-3 (cells/layer-of-cells spec)}))
 
-;;; # Motor = L4
-
-(declare motor-region)
-
-(defrecord MotorRegion
-    [layer-4]
-  p/PRegion
-  (region-activate
-    [this ff-bits stable-ff-bits]
-    (assoc this
-        :layer-4 (p/layer-activate layer-4 ff-bits stable-ff-bits)))
-
-  (region-learn
-    [this]
-    (if (:freeze? (p/params this))
-      this
-      (assoc this
-        :layer-4 (p/layer-learn layer-4))))
-
-  (region-depolarise
-    [this distal-ff-bits apical-fb-bits]
-    (assoc this
-        :layer-4 (p/layer-depolarise layer-4 distal-ff-bits apical-fb-bits)))
-
-  p/PTopological
-  (topology [_]
-    (p/topology layer-4))
-  p/PFeedForward
-  (ff-topology [_]
-    (p/ff-topology layer-4))
-  (bits-value [_]
-    (p/bits-value layer-4))
-  (stable-bits-value [_]
-    (p/stable-bits-value layer-4))
-  (source-of-bit [_ i]
-    (p/source-of-bit layer-4 i))
-  p/PFeedForwardMotor
-  (ff-motor-topology [_]
-    (p/ff-topology layer-4))
-  (motor-bits-value [_]
-    (p/bits-value layer-4))
-  p/PTemporal
-  (timestep [_]
-    (p/timestep layer-4))
-  p/PParameterised
-  (params [_]
-    (p/params layer-4))
-  p/PInterruptable
-  (break [this mode]
-    (assoc this
-           :layer-4 (p/break layer-4 mode)))
-  p/PRestartable
-  (restart [this]
-    (motor-region (p/params this))))
-
-(defn motor-region
-  "Constructs a cortical region with one layer. It exposes its active
-  cells directly as feedforward output, and also indirectly as
-  motor feedforward output.
-
-  `spec` is the parameter specification map. See documentation on
-  `cells/parameter-defaults` for possible keys. Any keys given here
-  will override those default values.
-
-  This does not set `:lateral-synapses? false` but you would normally
-  set that in spec."
-  [spec]
-  (let [unk (set/difference (set (keys spec))
-                            (set (keys cells/parameter-defaults)))]
-    (when (seq unk)
-      (println "Warning: unknown keys in spec:" unk)))
-  (map->MotorRegion
-   {:layer-4 (cells/layer-of-cells spec)}))
-
 ;;; # Sensorimotor = L3 + L4
 
 (declare sensorimotor-region)
@@ -187,10 +116,10 @@
         :layer-3 (p/layer-learn layer-3))))
 
   (region-depolarise
-    [this distal-ff-bits apical-fb-bits]
+    [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]
     ;; TODO feedback from L3 to L4?
-    (let [l4 (p/layer-depolarise layer-4 distal-ff-bits #{})
-          l3 (p/layer-depolarise layer-3 #{} apical-fb-bits)]
+    (let [l4 (p/layer-depolarise layer-4 distal-ff-bits #{} #{})
+          l3 (p/layer-depolarise layer-3 #{} apical-fb-bits apical-fb-wc-bits)]
      (assoc this
        :layer-4 l4
        :layer-3 l3)))
@@ -207,6 +136,9 @@
     (p/stable-bits-value layer-3))
   (source-of-bit [_ i]
     (p/source-of-bit layer-3 i))
+  p/PFeedBack
+  (wc-bits-value [_]
+    (p/wc-bits-value layer-3))
   p/PFeedForwardMotor
   (ff-motor-topology [_]
     ;; TODO
@@ -308,11 +240,13 @@
   [ffs flavour]
   (let [topo-fn (case flavour
                   (:standard
-                   :stable) p/ff-topology
+                   :stable
+                   :wc) p/ff-topology
                    :motor p/ff-motor-topology)
         bits-fn (case flavour
                   :standard p/bits-value
                   :stable p/stable-bits-value
+                  :wc p/wc-bits-value
                   :motor p/motor-bits-value)
         widths (map (comp p/size topo-fn) ffs)]
     (->> (map bits-fn ffs)
@@ -457,7 +391,8 @@
                             (p/region-depolarise
                              region
                              (combined-bits-value ffs :motor)
-                             (combined-bits-value fbs :standard)))))
+                             (combined-bits-value fbs :standard)
+                             (combined-bits-value fbs :wc)))))
                   (zipmap (keys regions)))]
       (assoc this :regions rm)))
 

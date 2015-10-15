@@ -906,6 +906,7 @@
                       :in-stable-ff-bits stable-ff-bits
                       :out-ff-bits (set (cells->bits depth ac))
                       :out-stable-ff-bits (set (cells->bits depth stable-ac))
+                      :out-wc-bits (set (cells->bits depth (vals col-winners)))
                       :engaged? engaged?
                       :newly-engaged? newly-engaged?
                       :col-overlaps raw-col-exc
@@ -985,7 +986,7 @@
         (zero? (mod timestep (:inh-radius-every spec))) (update-inhibition-radius))))
 
   (layer-depolarise
-    [this distal-ff-bits apical-fb-bits]
+    [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]
     (let [depth (:depth spec)
           widths (distal-sources-widths spec)
           distal-aci (util/align-indices widths
@@ -993,14 +994,14 @@
                                      (:out-ff-bits state)
                                      [])
                                    distal-ff-bits])
-          apical-aci (if (:use-feedback? spec) apical-fb-bits [])
           wc (vals (:col-winners state))
-          ;; possibly should pass in separate learnable bit sets as arguments
           distal-lci (util/align-indices widths
                                   [(if (:lateral-synapses? spec)
                                      (cells->bits depth wc)
                                      [])
-                                   distal-ff-bits])]
+                                   distal-ff-bits])
+          apical-aci (if (:use-feedback? spec) apical-fb-bits [])
+          apical-lci (if (:use-feedback? spec) apical-fb-wc-bits [])]
       (assoc this
         :prior-distal-state distal-state
         :prior-apical-state apical-state
@@ -1009,7 +1010,7 @@
                                              (:distal spec) (:timestep state))
                        (assoc :prior-active-cells (:active-cells state)))
         :apical-state (->
-                       (compute-distal-state apical-sg apical-aci apical-aci
+                       (compute-distal-state apical-sg apical-aci apical-lci
                                              (:apical spec) (:timestep state))
                        (assoc :prior-active-cells (:active-cells state))))))
 
@@ -1066,6 +1067,9 @@
   (source-of-bit
     [_ i]
     (id->cell (:depth spec) i))
+  p/PFeedBack
+  (wc-bits-value [_]
+    (:out-wc-bits state))
   p/PTemporal
   (timestep [_]
     (:timestep state))
