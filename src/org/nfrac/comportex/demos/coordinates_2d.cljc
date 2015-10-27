@@ -14,9 +14,9 @@
   {:column-dimensions [20 50]
    :depth 8})
 
-(def higher-level-spec-diff
+(def higher-level-spec
   {:column-dimensions [20 20]
-   :ff-max-segments 5})
+   :proximal {:max-segments 5}})
 
 (def initial-input-val
   {:x -10 :y -20 :vx 1 :vy 1 :ax 1 :ay 1})
@@ -68,5 +68,5 @@
    (n-region-model n spec))
   ([n spec]
    (core/regions-in-series n core/sensory-region
-                           (list* spec (repeat (merge spec higher-level-spec-diff)))
+                           (list* spec (repeat higher-level-spec))
                            {:input sensor})))

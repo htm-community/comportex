@@ -27,7 +27,7 @@
 (def spec
   {:column-dimensions [1000]
    :depth 4
-   :distal-punish? true
+   :distal {:punish? true}
    :duty-cycle-period 300
    :boost-active-duty-ratio 0.01
    :ff-potential-radius 0.15
@@ -38,9 +38,9 @@
    :activation-level 0.20
    :ff-potential-radius 1.0
    :ff-init-frac 0.5
-   :ff-perm-inc 0.05
-   :ff-perm-dec 0.05
-   :ff-perm-connected 0.10
+   :proximal {:perm-inc 0.05
+              :perm-dec 0.05
+              :perm-connected 0.10}
    :ff-perm-init-lo 0.35
    :ff-perm-init-hi 0.45
    ;; chosen for exploration - fresh connections fully boosted > 1.0:

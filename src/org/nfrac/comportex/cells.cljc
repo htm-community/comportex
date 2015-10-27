@@ -29,187 +29,187 @@
             [clojure.test.check.random :as random]
             [clojure.set :as set]))
 
+(def dendrite-parameter-defaults
+  "Default parameters for distal dendrite segments. The
+  same parameters are also used for proximal segments, but with
+  different default values.
+
+  * `max-segments` - maximum number of dendrites segments per cell (or
+  column for proximal dendrites).
+
+  * `max-synapse-count` - maximum number of synapses per segment.
+
+  * `new-synapse-count` - number of synapses on a new dendrite
+  segment.
+
+  * `stimulus-threshold` - minimum number of active synapses on a
+  segment for it to become active.
+
+  * `learn-threshold` - minimum number of active synapses on a segment
+  for it to be reinforced and extended if it is the best matching.
+
+  * `perm-inc` - amount by which to increase synapse permanence to
+  active sources when reinforcing a segment.
+
+  * `perm-stable-inc` - amount by which to increase a synapse
+  permanence to stable (predicted) sources.
+
+  * `perm-dec` - amount by which to decrease synapse permanence to
+  inactive sources when reinforcing a segment.
+
+  * `perm-punish` - amount by which to decrease synapse permanence
+  when punishing segments in case of failed prediction.
+
+  * `perm-connected` - permanence value at which a synapse is
+  functionally connected. Permanence values are defined to be between
+  0 and 1.
+
+  * `perm-init` - permanence value for new synapses on segments.
+
+  * `punish?` - whether to reduce synapse permanence on segments
+  incorrectly predicting activation.
+"
+  {:max-segments 5
+   :max-synapse-count 22
+   :new-synapse-count 12
+   :stimulus-threshold 9
+   :learn-threshold 7
+   :perm-inc 0.05
+   :perm-stable-inc 0.05
+   :perm-dec 0.01
+   :perm-punish 0.002
+   :perm-connected 0.20
+   :perm-init 0.16
+   :punish? true
+   })
+
 (def parameter-defaults
   "Default parameter specification map.
 
-   * `input-dimensions` - size of input bit grid as a vector, one
-     dimensional `[size]`, two dimensional `[width height]`, etc.
+  * `input-dimensions` - size of input bit grid as a vector, one
+  dimensional `[size]`, two dimensional `[width height]`, etc.
 
-   * `column-dimensions` - size of column field as a vector, one
-     dimensional `[size]` or two dimensional `[width height]`.
+  * `column-dimensions` - size of column field as a vector, one
+  dimensional `[size]` or two dimensional `[width height]`.
 
-   * `ff-potential-radius` - range of potential feed-forward synapse
-     connections, as a fraction of the longest single dimension in the
-     input space.
+  * `ff-potential-radius` - range of potential feed-forward synapse
+  connections, as a fraction of the longest single dimension in the
+  input space.
 
-   * `ff-init-frac` - fraction of inputs within radius that will be
-     part of the initially connected set.
+  * `ff-init-frac` - fraction of inputs within radius that will be
+  part of the initially connected set.
 
-   * `ff-perm-inc` - amount to increase a synapse's permanence value
-     by when it is reinforced.
+  * `ff-perm-init-hi` - highest initial permanence value on new synapses.
 
-   * `ff-perm-dec` - amount to decrease a synapse's permanence value
-     by when it is not reinforced.
+  * `ff-perm-init-lo` - lowest initial permanence value on new synapses.
 
-   * `ff-perm-stable-inc` - amount to increase a synapse's permanence
-     value by when it is reinforced by a stable (predicted) input.
+  * `proximal` - map of parameters for proximal dendrite segments,
+  see `dendrite-parameter-defaults`.
 
-   * `ff-perm-connected` - permanence value at which a synapse is
-     functionally connected. Permanence values are defined to be
-     between 0 and 1.
+  * `distal` - map of parameters for distal dendrite segments,
+  see `dendrite-parameter-defaults`.
 
-   * `ff-perm-init-hi` - highest initial permanence value on new synapses.
+  * `max-boost` - ceiling on the column boosting factor used to
+  increase activation frequency.
 
-   * `ff-perm-init-lo` - lowest initial permanence value on new synapses.
+  * `duty-cycle-period` - number of time steps to average over when
+  updating duty cycles and (thereby) column boosting measures.
 
-   * `ff-stimulus-threshold` - minimum number of active input
-     connections for a column to be _overlapping_ the input (i.e.
-     active prior to inhibition).
+  * `boost-active-duty-ratio` - when a column's activation frequency
+  is below this proportion of the _highest_ of its neighbours, its
+  boost factor is increased.
 
-   * `ff-max-synapse-count` - maximum number of synapses on the column.
+  * `boost-active-every` - number of time steps between recalculating
+  column boosting factors.
 
-   * `max-boost` - ceiling on the column boosting factor used to
-     increase activation frequency.
+  * `inh-radius-every` - number of time steps between recalculating
+  the effective inhibition radius.
 
-   * `duty-cycle-period` - number of time steps to average over when
-     updating duty cycles and (thereby) column boosting measures.
+  * `lateral-synapses?` - whether distal synapses can connect
+  laterally to other cells in this layer.
 
-   * `boost-active-duty-ratio` - when a column's activation frequency is
-     below this proportion of the _highest_ of its neighbours, its
-     boost factor is increased.
+  * `use-feedback?` - whether distal synapses can connect to top-down
+  feedback cells.
 
-   * `boost-active-every` - number of time steps between recalculating
-     column boosting factors.
+  * `distal-motor-dimensions` - defines bit field available for
+  feed-forward motor input to distal synapses.
 
-   * `inh-radius-every` - number of time steps between recalculating
-     the effective inhibition radius.
+  * `distal-topdown-dimensions` - defines bit field available for
+  top-down feedback to distal synapses.
 
-   * `lateral-synapses?` - whether distal synapses can connect
-     laterally to other cells in this layer.
+  * `depth` - number of cells per column.
 
-   * `use-feedback?` - whether distal synapses can connect to top-down
-     feedback cells.
+  * `activation-level` - fraction of columns that can be
+  active (either locally or globally); inhibition kicks in to reduce
+  it to this level. Does not apply to temporal pooling.
 
-   * `distal-motor-dimensions` - defines bit field available for
-     feed-forward motor input to distal synapses.
+  * `activation-level-max` - maximum fraction of columns that can be
+  active as temporal pooling progresses. Each step of continued
+  pooling allocates an extra 50% of `activation-level` until this
+  maximum is reached.
 
-   * `distal-topdown-dimensions` - defines bit field available for
-     top-down feedback to distal synapses.
+  * `global-inhibition?` - whether to use the faster global algorithm
+  for column inhibition (just keep those with highest overlap scores),
+  or to apply local inhibition (only within a column's neighbours).
 
-   * `depth` - number of cells per column.
+  * `inhibition-base-distance` - the distance in columns within which
+  a cell *will always* inhibit neighbouring cells with lower
+  excitation. Ignored if `global-inhibition?` is true.
 
-   * `max-segments` - maximum number of segments per cell.
+  * `distal-vs-proximal-weight` - scaling to apply to the number of
+  active distal synapses (on the winning segment) before adding to the
+  number of active proximal synapses, when selecting active
+  columns. Set to zero to disable ``prediction-assisted'' activation.
 
-   * `seg-max-synapse-count` - maximum number of synapses per segment.
+  * `spontaneous-activation?` - if true, cells may become active with
+  sufficient distal synapse excitation, even in the absence of any
+  proximal synapse excitation.
 
-   * `seg-new-synapse-count` - number of synapses on a new dendrite
-     segment.
+  * `dominance-margin` - an amount of excitation (generally measured
+  in number of active synapses) by which one cell must exceed all
+  others in the column to be considered dominant. And therefore to
+  inhibit all other cells in the column.
 
-   * `seg-stimulus-threshold` - number of active synapses on a
-     dendrite segment required for it to become active.
+  * `stable-inbit-frac-threshold` - fraction of proximal input bits
+  to a layer which must be from stable cells in order to start
+  temporal pooling.
 
-   * `seg-learn-threshold` - number of active synapses on a dendrite
-     segment required for it to be reinforced and extended on a
-     bursting column.
+  * `temporal-pooling-max-exc` - maximum continuing temporal pooling
+  excitation level.
 
-   * `distal-perm-inc` - amount by which to increase synapse
-     permanence when reinforcing distal dendrite segments.
+  * `temporal-pooling-fall` - amount by which a cell's continuing
+  temporal pooling excitation falls each time step.
 
-   * `distal-perm-dec` - amount by which to decrease synapse permanence
-     when reinforcing distal dendrite segments.
-
-   * `distal-perm-punish` - amount by which to decrease synapse permanence
-     when punishing distal dendrite segments in case of failed prediction.
-
-   * `distal-perm-connected` - permanence value at which a synapse is
-     functionally connected. Permanence values are defined to be
-     between 0 and 1.
-
-   * `distal-perm-init` - permanence value for new synapses on
-     dendrite segments.
-
-   * `distal-punish?` - whether to reduce synapse permanence on
-     distal segments incorrectly predicting activation.
-
-   * `activation-level` - fraction of columns that can be
-     active (either locally or globally); inhibition kicks in to
-     reduce it to this level. Does not apply to temporal pooling.
-
-   * `activation-level-max` - maximum fraction of columns that can be
-     active as temporal pooling progresses. Each step of continued
-     pooling allocates an extra 50% of `activation-level` until this
-     maximum is reached.
-
-   * `global-inhibition?` - whether to use the faster global algorithm
-     for column inhibition (just keep those with highest overlap
-     scores), or to apply local inhibition (only within a column's
-     neighbours).
-
-   * `inhibition-base-distance` - the distance in columns within which
-     a cell *will always* inhibit neighbouring cells with lower
-     excitation. Ignored if `global-inhibition?` is true.
-
-   * `distal-vs-proximal-weight` - scaling to apply to the number of
-     active distal synapses (on the winning segment) before adding to
-     the number of active proximal synapses, when selecting active
-     columns. Set to zero to disable ``prediction-assisted'' activation.
-
-   * `spontaneous-activation?` - if true, cells may become active with
-     sufficient distal synapse excitation, even in the absence of any
-     proximal synapse excitation.
-
-   * `dominance-margin` - an amount of excitation (generally measured
-      in number of active synapses) by which one cell must exceed all
-      others in the column to be considered dominant. And therefore to
-      inhibit all other cells in the column.
-
-   * `stable-inbit-frac-threshold` - fraction of proximal input bits
-     to a layer which must be from stable cells in order to start
-     temporal pooling.
-
-   * `temporal-pooling-max-exc` - maximum continuing temporal pooling
-     excitation level.
-
-   * `temporal-pooling-fall` - amount by which a cell's continuing
-     temporal pooling excitation falls each time step in the absence of
-     stable input.
+  * `random-seed` - the random seed (for reproducible results).
 "
   {:input-dimensions [:define-me!]
    :column-dimensions [1000]
+   :depth 5
    :ff-potential-radius 1.0
    :ff-init-frac 0.25
-   :ff-perm-inc 0.04
-   :ff-perm-dec 0.01
-   :ff-perm-stable-inc 0.15
-   :ff-perm-connected 0.20
    :ff-perm-init-hi 0.25
    :ff-perm-init-lo 0.10
-   :ff-stimulus-threshold 2
-   :ff-seg-max-synapse-count 300
-   :ff-seg-new-synapse-count 12
-   :ff-seg-learn-threshold 7
-   :ff-max-segments 1
+   :proximal {:max-segments 1
+              :max-synapse-count 300
+              :new-synapse-count 12
+              :stimulus-threshold 2
+              :learn-threshold 7
+              :perm-inc 0.04
+              :perm-stable-inc 0.15
+              :perm-dec 0.01
+              :perm-connected 0.20
+              :perm-init 0.16
+              }
+   :distal dendrite-parameter-defaults
    :max-boost 1.5
    :duty-cycle-period 1000
    :boost-active-duty-ratio 0.001
    :boost-active-every 1000
    :inh-radius-every 1000
    :lateral-synapses? true
-   :use-feedback? false
    :distal-motor-dimensions [0]
    :distal-topdown-dimensions [0]
-   :depth 5
-   :max-segments 5
-   :seg-max-synapse-count 22
-   :seg-new-synapse-count 12
-   :seg-stimulus-threshold 9
-   :seg-learn-threshold 7
-   :distal-perm-inc 0.05
-   :distal-perm-dec 0.01
-   :distal-perm-punish 0.002
-   :distal-perm-connected 0.20
-   :distal-perm-init 0.16
-   :distal-punish? true
+   :use-feedback? false
    :activation-level 0.02
    :activation-level-max 0.10
    :global-inhibition? true
@@ -228,11 +228,13 @@
   (assoc parameter-defaults
          :column-dimensions [2048]
          :depth 16
-         :seg-stimulus-threshold 13
-         :seg-learn-threshold 10
-         :seg-new-synapse-count 20
-         :seg-max-synapse-count 32
-         :max-segments 8))
+         :distal (assoc dendrite-parameter-defaults
+                        :max-segments 8
+                        :max-synapse-count 32
+                        :new-synapse-count 20
+                        :stimulus-threshold 13
+                        :learn-threshold 10
+                        )))
 
 ;;; ## Synapse tracing
 
@@ -479,40 +481,38 @@
   * `:stable-active-cells` - the set of non-bursting active cells.
   * `:burst-cols` - the set of bursting column ids.
   * `:col-winners` - the map of column id to winner cell id."
-  [a-cols cell-exc bursting? prior-col-winners spec rng]
-  (let [depth (:depth spec)
-        threshold (:seg-stimulus-threshold spec)
-        dominance-margin (:dominance-margin spec)]
-    (loop [cols (seq a-cols)
-           ac (transient #{}) ;; active cells
-           sac (transient #{}) ;; stable active cells
-           b-cols (transient #{}) ;; bursting columns
-           col-winners (transient {})
-           rng rng]
-      (if-let [col (first cols)]
-        (let [[rng rng*] (random/split rng)
-              ;; carry forward learning cells for higher level sequences
-              prior-winner (get prior-col-winners col)
-              [win-cell col-ac] (column-active-cells col cell-exc prior-winner
-                                                     depth threshold dominance-margin
-                                                     rng*)
-              b-col? (bursting? col win-cell col-ac)
-              next-ac (reduce conj! ac col-ac)
-              next-sac (if b-col?
-                         sac
-                         (reduce conj! sac col-ac))]
-          (recur (next cols)
-                 next-ac
-                 next-sac
-                 (if b-col? (conj! b-cols col) b-cols)
-                 (assoc! col-winners col win-cell)
-                 rng))
-        ;; finished
-        {:active-cells (persistent! ac)
-         :stable-active-cells (persistent! sac)
-         :burst-cols (persistent! b-cols)
-         :col-winners (persistent! col-winners)}
-        ))))
+  [a-cols cell-exc bursting? prior-col-winners
+   depth threshold dominance-margin rng]
+  (loop [cols (seq a-cols)
+         ac (transient #{}) ;; active cells
+         sac (transient #{}) ;; stable active cells
+         b-cols (transient #{}) ;; bursting columns
+         col-winners (transient {})
+         rng rng]
+    (if-let [col (first cols)]
+      (let [[rng rng*] (random/split rng)
+            ;; carry forward learning cells for higher level sequences
+            prior-winner (get prior-col-winners col)
+            [win-cell col-ac] (column-active-cells col cell-exc prior-winner
+                                                   depth threshold dominance-margin
+                                                   rng*)
+            b-col? (bursting? col win-cell col-ac)
+            next-ac (reduce conj! ac col-ac)
+            next-sac (if b-col?
+                       sac
+                       (reduce conj! sac col-ac))]
+        (recur (next cols)
+               next-ac
+               next-sac
+               (if b-col? (conj! b-cols col) b-cols)
+               (assoc! col-winners col win-cell)
+               rng))
+      ;; finished
+      {:active-cells (persistent! ac)
+       :stable-active-cells (persistent! sac)
+       :burst-cols (persistent! b-cols)
+       :col-winners (persistent! col-winners)}
+      )))
 
 (defn within-column-cell-exc
   "Calculates cell excitation values to be used to select cells within
@@ -648,11 +648,11 @@
   synapse graph, where the convention is [col 0]. Everything else is
   the same since proximal synapses graphs can also have multiple
   segments [col 0 seg-idx]."
-  [rng lc well-matching-paths sg aci lci {:keys [pcon
-                                                 min-act
-                                                 new-syns
-                                                 max-syns
-                                                 max-segs]}]
+  [rng lc well-matching-paths sg aci lci {pcon :perm-connected
+                                          min-act :learn-threshold
+                                          new-syns :new-synapse-count
+                                          max-syns :max-synapse-count
+                                          max-segs :max-segments}]
   (let [lci-vec (vec lci)] ;; for faster sampling
     (loop [cells (seq lc)
            m (transient {})
@@ -719,8 +719,9 @@
      active-cols burst-cols active-cells col-winners timestep])
 
 (defrecord LayerDistalState
-    [distal-bits distal-lc-bits distal-exc pred-cells prior-active-cells
-     matching-seg-paths well-matching-seg-paths timestep])
+    [on-bits on-lc-bits cell-exc pred-cells
+     matching-seg-paths well-matching-seg-paths
+     prior-active-cells timestep])
 
 (def empty-active-state
   (map->LayerActiveState
@@ -732,9 +733,9 @@
 
 (def empty-distal-state
   (map->LayerDistalState
-   {:distal-bits #{}
+   {:on-bits #{}
+    :cell-exc {}
     :pred-cells #{}
-    :distal-exc {}
     :well-matching-seg-paths {}}))
 
 (defrecord LayerOfCells
@@ -743,16 +744,17 @@
   p/PLayerOfCells
   (layer-activate
     [this ff-bits stable-ff-bits]
-    (let [;; proximal excitation in number of active synapses, keyed by [col 0 seg-idx]
+    (let [pspec (:proximal spec)
+          ;; proximal excitation in number of active synapses, keyed by [col 0 seg-idx]
           col-seg-overlaps (p/excitations proximal-sg ff-bits
-                                          (:ff-stimulus-threshold spec))
+                                          (:stimulus-threshold pspec))
           ;; these all keyed by [col 0]
           [raw-col-exc ff-seg-paths ff-good-paths]
           (best-segment-excitations-and-paths col-seg-overlaps
-                                              (:ff-seg-new-synapse-count spec))
+                                              (:new-synapse-count pspec))
           ;; temporal pooling, depending on stability of input bits.
           ;; also check for clear matches, these override pooling
-          higher-level? (> (:ff-max-segments spec) 1)
+          higher-level? (> (:max-segments pspec) 1)
           engaged? (or (not higher-level?)
                        (> (count stable-ff-bits)
                           (* (count ff-bits) (:stable-inbit-frac-threshold spec))))
@@ -770,7 +772,7 @@
                          (columns/apply-overlap-boosting boosts))
           ;; combine excitation values for selecting columns
           abs-cell-exc (total-excitations col-exc tp-exc
-                                          (:distal-exc distal-state)
+                                          (:cell-exc distal-state)
                                           (:distal-vs-proximal-weight spec)
                                           (:spontaneous-activation? spec)
                                           (:depth spec))
@@ -792,9 +794,9 @@
           rel-cell-exc (->> (within-column-cell-exc a-cols
                                                     (:col-winners state)
                                                     distal-sg
-                                                    (:distal-bits distal-state)
-                                                    (:distal-exc distal-state)
-                                                    (:seg-learn-threshold spec)
+                                                    (:on-bits distal-state)
+                                                    (:cell-exc distal-state)
+                                                    (:learn-threshold (:distal spec))
                                                     (:depth spec))
                             (merge-with + tp-exc))
           ;; find active and winner cells in the columns
@@ -816,7 +818,8 @@
                                    ;; otherwise: for discrete transitions
                                    (not (or (pc win-cell) (tp-exc win-cell)))))
                                (:col-winners state) ;; keep winners stable
-                               spec rng*)
+                               depth (:stimulus-threshold (:distal spec))
+                               (:dominance-margin spec) rng*)
           ;; learning cells are the winning cells, but excluding any
           ;; continuing winners when temporal pooling
           old-winners (vals (:col-winners state))
@@ -856,37 +859,35 @@
 
   (layer-learn
     [this]
-    (let [prior-aci (:distal-bits distal-state)
-          prior-lci (:distal-lc-bits distal-state)
+    (let [prior-aci (:on-bits distal-state)
+          prior-lci (:on-lc-bits distal-state)
           lc (:learning-cells state)
+          dspec (:distal spec)
           [rng* rng] (random/split rng)
           distal-learning (segment-learning-map rng* lc
                                                 (:well-matching-seg-paths distal-state)
                                                 distal-sg prior-aci prior-lci
-                                                {:pcon (:distal-perm-connected spec)
-                                                 :min-act (:seg-learn-threshold spec)
-                                                 :new-syns (:seg-new-synapse-count spec)
-                                                 :max-syns (:seg-max-synapse-count spec)
-                                                 :max-segs (:max-segments spec)})
-          distal-punishments (if (:distal-punish? spec)
+                                                dspec)
+          distal-punishments (if (:punish? dspec)
                                (punish-failures distal-sg
                                                 (:pred-cells prior-distal-state)
                                                 (:pred-cells distal-state)
                                                 (:prior-active-cells distal-state)
-                                                (:distal-bits prior-distal-state)
-                                                (:distal-perm-connected spec)
-                                                (:seg-stimulus-threshold spec))
+                                                (:on-bits prior-distal-state)
+                                                (:perm-connected dspec)
+                                                (:stimulus-threshold dspec))
                                nil)
           dsg (cond-> distal-sg
                 (seq distal-learning)
                 (p/bulk-learn (vals distal-learning) prior-lci
-                                (:distal-perm-inc spec) (:distal-perm-dec spec)
-                                (:distal-perm-init spec))
+                              (:perm-inc dspec) (:perm-dec dspec)
+                              (:perm-init dspec))
                 distal-punishments
-                (p/bulk-learn distal-punishments (:distal-bits prior-distal-state)
-                              (:distal-perm-inc spec) (:distal-perm-punish spec)
-                              (:distal-perm-init spec)))
-          higher-level? (> (:ff-max-segments spec) 1)
+                (p/bulk-learn distal-punishments (:on-bits prior-distal-state)
+                              (:perm-inc dspec) (:perm-punish dspec)
+                              (:perm-init dspec)))
+          pspec (:proximal spec)
+          higher-level? (> (:max-segments pspec) 1)
           a-cols (:active-cols state)
           [rng* rng] (random/split rng)
           prox-learning (when (:engaged? state)
@@ -897,27 +898,22 @@
                                                 (if higher-level?
                                                   (:in-stable-ff-bits state)
                                                   (:in-ff-bits state))
-                                                {:pcon (:ff-perm-connected spec)
-                                                 :min-act (:ff-seg-learn-threshold spec)
-                                                 :new-syns (:ff-seg-new-synapse-count spec)
-                                                 :max-syns (:ff-seg-max-synapse-count spec)
-                                                 :max-segs (:ff-max-segments spec)}))
+                                                pspec))
           psg (cond-> proximal-sg
                 prox-learning
-                (p/bulk-learn (vals prox-learning)
-                                (:in-ff-bits state)
-                                (:ff-perm-inc spec) (:ff-perm-dec spec)
-                                (:ff-perm-init-hi spec))
+                (p/bulk-learn (vals prox-learning) (:in-ff-bits state)
+                              (:perm-inc pspec) (:perm-dec pspec)
+                              (:perm-init pspec))
                 ;; positive learning rate is higher for stable (predicted) inputs
                 (and prox-learning
                      (seq (:in-stable-ff-bits state))
-                     (> (:ff-perm-stable-inc spec) (:ff-perm-inc spec)))
+                     (> (:perm-stable-inc pspec) (:perm-inc pspec)))
                 (p/bulk-learn (map #(syn/seg-update (:target-id %) :reinforce nil nil)
                                    (vals prox-learning))
                               (:in-stable-ff-bits state)
-                              (- (:ff-perm-stable-inc spec) (:ff-perm-inc spec))
-                              (:ff-perm-dec spec)
-                              (:ff-perm-init-hi spec)))
+                              (- (:perm-stable-inc pspec) (:perm-inc pspec))
+                              (:perm-dec pspec)
+                              (:perm-init pspec)))
           timestep (:timestep state)]
       (cond->
        (assoc this
@@ -951,18 +947,18 @@
                                      [])
                                    distal-ff-bits
                                    (if (:use-feedback? spec) distal-fb-bits [])])
-          seg-exc (p/excitations distal-sg aci (:seg-stimulus-threshold spec))
+          seg-exc (p/excitations distal-sg aci (:stimulus-threshold (:distal spec)))
           [distal-exc seg-paths good-paths] (best-segment-excitations-and-paths
-                                             seg-exc (:seg-new-synapse-count spec))
+                                             seg-exc (:new-synapse-count (:distal spec)))
           pc (set (keys distal-exc))]
       (assoc this
         :prior-distal-state distal-state
         :distal-state (map->LayerDistalState
-                       {:distal-bits (set aci)
-                        :distal-lc-bits (set lci)
+                       {:on-bits (set aci)
+                        :on-lc-bits (set lci)
+                        :cell-exc distal-exc
                         :matching-seg-paths seg-paths
                         :well-matching-seg-paths good-paths
-                        :distal-exc distal-exc
                         :prior-active-cells (:active-cells state)
                         :pred-cells pc
                         :timestep (:timestep state)}))))
@@ -1020,7 +1016,7 @@
 
 (defn layer-of-cells
   [spec]
-  (let [spec (merge parameter-defaults spec)
+  (let [spec (util/deep-merge parameter-defaults spec)
         input-topo (topology/make-topology (:input-dimensions spec))
         col-topo (topology/make-topology (:column-dimensions spec))
         n-cols (p/size col-topo)
@@ -1034,14 +1030,14 @@
         col-prox-syns (columns/uniform-ff-synapses col-topo input-topo
                                                    spec rng*)
         proximal-sg (syn/col-segs-synapse-graph col-prox-syns n-cols
-                                                (:ff-max-segments spec)
+                                                (:max-segments (:proximal spec))
                                                 (p/size input-topo)
-                                                (:ff-perm-connected spec)
+                                                (:perm-connected (:proximal spec))
                                                 false)
         distal-sg (syn/cell-segs-synapse-graph n-cols depth
-                                               (:max-segments spec)
+                                               (:max-segments (:distal spec))
                                                n-distal
-                                               (:distal-perm-connected spec)
+                                               (:perm-connected (:distal spec))
                                                true)
         state (assoc empty-active-state :timestep 0)
         distal-state (assoc empty-distal-state :timestep 0)]

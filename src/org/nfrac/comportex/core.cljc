@@ -244,14 +244,14 @@
       (println "Warning: unknown keys in spec:" unk)))
   (let [l4-spec (-> (assoc spec
                       :lateral-synapses? false)
-                    (merge (:layer-4 spec))
+                    (util/deep-merge (:layer-4 spec))
                     (dissoc :layer-3 :layer-4))
         l4 (cells/layer-of-cells l4-spec)
         l3-spec (-> (assoc spec
                       :input-dimensions (p/dimensions (p/ff-topology l4))
                       :distal-motor-dimensions [0]
                       :lateral-synapses? true)
-                    (merge (:layer-3 spec))
+                    (util/deep-merge (:layer-3 spec))
                     (dissoc :layer-3 :layer-4))
         l3 (cells/layer-of-cells l3-spec)]
     (map->SensoriMotorRegion
@@ -375,7 +375,7 @@
 ;; TODO - better way to do this
 (defn fb-dim-from-spec
   [spec]
-  (let [spec (merge cells/parameter-defaults spec)]
+  (let [spec (util/deep-merge cells/parameter-defaults spec)]
     (topology/make-topology (conj (:column-dimensions spec)
                                   (:depth spec)))))
 
@@ -717,8 +717,8 @@
         lyr (get-in htm [:regions rgn-id lyr-id])
         prior-lyr (get-in prior-htm [:regions rgn-id lyr-id])
         spec (:spec lyr)
-        ff-stim-thresh (:ff-stimulus-threshold spec)
-        d-stim-thresh (:seg-stimulus-threshold spec)
+        ff-stim-thresh (:stimulus-threshold (:proximal spec))
+        d-stim-thresh (:stimulus-threshold (:distal spec))
         distal-weight (:distal-vs-proximal-weight spec)
         tp-fall (:temporal-pooling-fall spec)
         state (:state lyr)
@@ -728,7 +728,7 @@
         ff-bits (:in-ff-bits state)
         ff-s-bits (:in-stable-ff-bits state)
         ff-b-bits (set/difference ff-bits ff-s-bits)
-        distal-bits (:distal-bits distal-state)
+        distal-bits (:on-bits distal-state)
         is-input-layer? (= lyr-id (first (layers rgn)))
         ff-bits-srcs (if is-input-layer?
                        (into {}

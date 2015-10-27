@@ -34,7 +34,7 @@
            :global-inhibition? true
            :duty-cycle-period 600
            :depth 1
-           :max-segments 1
+           :distal {:max-segments 1}
            :lateral-synapses? false
            })
 
@@ -60,6 +60,8 @@
         lyr (:layer-3 rgn)
         n-cols (p/size-of lyr)]
     (testing "Column activation is distributed and moderated."
+      (is (pos? (count (p/active-columns lyr)))
+          "Some columns are active.")
       (is (pos? (util/quantile (:active-duty-cycles lyr) 0.9))
           "At least 10% of columns have been active.")
       (let [nactive-ts (for [t (range 400 500)]

@@ -57,7 +57,7 @@
             "Some cells have grown lateral dendrite segments.")
         (is (>= (count (distinct (map first cells-with-segs))) (* 0.10 n-cols))
             "At least 10% of columns have grown lateral dendrite segments.")
-        (is (>= (reduce max (vals (frequencies (map first cells-with-segs))))
+        (is (>= (apply max 0 (vals (frequencies (map first cells-with-segs))))
                 2)
             "Multiple cells in some columns have grown lateral dendrite segments.")))
     (testing "Column / cell activation"
@@ -66,6 +66,8 @@
                       (map (comp first core/region-seq))
                       (map core/column-state-freqs)
                       (apply merge-with +))]
+        (is (> (+ (:active sums) (:active-predicted sums)) 0)
+            "Some columns were active.")
         (is (> (:active-predicted sums) 0)
             "Some column activations are predicted.")
         (is (> (:active-predicted sums) (:active sums))

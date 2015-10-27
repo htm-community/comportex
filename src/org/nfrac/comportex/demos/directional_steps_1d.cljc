@@ -14,16 +14,17 @@
   {:column-dimensions [800]
    :ff-potential-radius 0.2
    :ff-init-frac 0.3
-   :ff-stimulus-threshold 3
    :global-inhibition? false
    :activation-level 0.04
    :boost-active-every 10000
    :depth 4
    })
 
-(def higher-level-spec-diff
-  {:column-dimensions [500]
-   :ff-max-segments 5})
+(def higher-level-spec
+  (util/deep-merge
+   spec
+   {:column-dimensions [500]
+    :proximal {:max-segments 5}}))
 
 (def initial-input-val [:up 0])
 
@@ -52,5 +53,5 @@
    (n-region-model n spec))
   ([n spec]
    (core/regions-in-series n core/sensory-region
-                           (list* spec (repeat (merge spec higher-level-spec-diff)))
+                           (list* spec (repeat higher-level-spec))
                            {:input sensor})))
