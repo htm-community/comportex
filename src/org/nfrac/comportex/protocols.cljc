@@ -43,7 +43,7 @@
      (-> this
          (region-activate ff-bits stable-ff-bits)
          (region-learn)
-         (region-depolarise distal-ff-bits distal-fb-bits distal-fb-wc-bits))))
+         (region-depolarise distal-ff-bits apical-fb-bits apical-fb-wc-bits))))
 
 (defprotocol PFeedForward
   "A feed-forward input source with a bit set representation. Could be
