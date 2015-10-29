@@ -38,7 +38,7 @@
                        :out-ff-bits :out-stable-ff-bits
                        :active-cells]
                       LayerDistalState
-                      [:distal-bits :distal-lc-bits :distal-exc :pred-cells
+                      [:on-bits :on-lc-bits :cell-exc :pred-cells
                        :matching-seg-paths]})
 
 (defrecord TruncateOnPrint [v])

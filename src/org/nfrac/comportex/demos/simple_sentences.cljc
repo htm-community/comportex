@@ -10,13 +10,15 @@
 (def spec
   {:column-dimensions [1000]
    :depth 8
-   :distal-perm-init 0.21
+   :distal {:perm-init 0.21}
    :distal-vs-proximal-weight 0.2
    })
 
-(def higher-level-spec-diff
-  {:column-dimensions [800]
-   :ff-max-segments 5})
+(def higher-level-spec
+  (util/deep-merge
+   spec
+   {:column-dimensions [800]
+    :proximal {:max-segments 5}}))
 
 (def input-text
   "Jane has eyes.
@@ -114,5 +116,5 @@ Chifung has no tail.
    (n-region-model n spec))
   ([n spec]
    (core/regions-in-series n core/sensory-region
-                           (list* spec (repeat (merge spec higher-level-spec-diff)))
+                           (list* spec (repeat higher-level-spec))
                            {:input random-sensor})))

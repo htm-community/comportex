@@ -13,18 +13,20 @@
 
 (def higher-level-spec-diff
   {:column-dimensions [800]
-   :ff-max-segments 5
-   :ff-seg-new-synapse-count 12
-   :ff-seg-learn-threshold 6
-   })
+   :proximal {:max-segments 5
+              :new-synapse-count 12
+              :learn-threshold 6}})
 
 (def spec
   {:column-dimensions [800]
    :depth 5
-   :ff-perm-inc 0.10
-   :ff-perm-dec 0.01
-   :distal-punish? false
+   :proximal {:perm-inc 0.10
+              :perm-dec 0.01}
+   :distal {:punish? false}
    :layer-3 higher-level-spec-diff})
+
+(def higher-level-spec
+  (util/deep-merge spec higher-level-spec-diff))
 
 (def fields
   (->>
@@ -84,6 +86,6 @@
    (n-region-model n spec))
   ([n spec]
    (core/regions-in-series n core/sensorimotor-region
-                           (list* spec (repeat (merge spec higher-level-spec-diff)))
+                           (list* spec (repeat higher-level-spec))
                            {:input block-sensor}
                            {:motor block-motor-sensor})))

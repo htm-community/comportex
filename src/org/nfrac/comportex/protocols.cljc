@@ -34,16 +34,16 @@
    PFeedForward, PTemporal, PParameterised."
   (region-activate [this ff-bits stable-ff-bits])
   (region-learn [this])
-  (region-depolarise [this distal-ff-bits distal-fb-bits]))
+  (region-depolarise [this distal-ff-bits apical-fb-bits]))
 
 (defn region-step
   ([this ff-bits]
      (region-step this ff-bits #{} #{} #{}))
-  ([this ff-bits stable-ff-bits distal-ff-bits distal-fb-bits]
+  ([this ff-bits stable-ff-bits distal-ff-bits apical-fb-bits]
      (-> this
          (region-activate ff-bits stable-ff-bits)
          (region-learn)
-         (region-depolarise distal-ff-bits distal-fb-bits))))
+         (region-depolarise distal-ff-bits apical-fb-bits))))
 
 (defprotocol PFeedForward
   "A feed-forward input source with a bit set representation. Could be
@@ -66,7 +66,7 @@
 (defprotocol PLayerOfCells
   (layer-activate [this ff-bits stable-ff-bits])
   (layer-learn [this])
-  (layer-depolarise [this distal-ff-bits distal-fb-bits])
+  (layer-depolarise [this distal-ff-bits apical-fb-bits])
   (layer-depth [this]
     "Number of cells per column.")
   (bursting-columns [this]
@@ -146,9 +146,11 @@
   (break [this mode]
     "Returns this model (or model component) without its current
     sequence state, forcing the following input to be treated as a new
-    sequence. If mode is :tm, cancels any predictions and prevents
-    learning distal connections to current cells. If mode is :tp,
-    cancels any temporal pooling potential."))
+    sequence. If mode is :tm, cancels any distal predictions and
+    prevents learning lateral/distal connections. If mode is :fb,
+    cancels any feedback predictions and prevents learning connections
+    on apical dendrites. If mode is :tp, cancels any temporal pooling
+    potential."))
 
 (defprotocol PTemporal
   (timestep [this]))

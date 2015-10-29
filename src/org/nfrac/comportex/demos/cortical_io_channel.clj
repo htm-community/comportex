@@ -11,18 +11,16 @@
   {:column-dimensions [40 40]
    :ff-init-frac 0.15
    :ff-potential-radius 1.0
-   :ff-perm-inc 0.05
-   :ff-perm-dec 0.005
-   :ff-perm-connected 0.20
-   :ff-stimulus-threshold 3
+   :proximal {:stimulus-threshold 3}
    :global-inhibition? false
    :activation-level 0.015
    :distal-vs-proximal-weight 1.0
    })
 
-(def higher-level-spec-diff
-  {:column-dimensions [20 20]
-   :ff-max-segments 5})
+(def higher-level-spec
+  (merge spec
+         {:column-dimensions [20 20]
+          :proximal {:max-segments 5}}))
 
 (defn split-sentences
   [text]
@@ -34,7 +32,7 @@
 (defn n-region-model
   [api-key cache n]
   (core/regions-in-series n core/sensory-region
-                          (list* spec (repeat (merge spec higher-level-spec-diff)))
+                          (list* spec (repeat higher-level-spec))
                           {:input (cortical-io-encoder api-key cache)}))
 
 (comment

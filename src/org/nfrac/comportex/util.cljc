@@ -199,6 +199,13 @@
        (apply f maps)))
    maps))
 
+(defn deep-merge
+  "Like merge, but merges maps recursively."
+  [& maps]
+  (if (every? map? maps)
+    (apply merge-with deep-merge maps)
+    (last maps)))
+
 (defn remap
   "Transforms a map `m` applying function `f` to each value."
   [f m]

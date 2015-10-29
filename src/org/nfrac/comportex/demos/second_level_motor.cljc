@@ -32,23 +32,24 @@ the three little pigs.
          (mapv #(str/split % #"[^\w']+"))
          (mapv #(mapv vec %)))))
 
-(def higher-level-spec-diff
-  {:column-dimensions [800]
-   :ff-max-segments 5
-   :ff-seg-new-synapse-count 12
-   :ff-seg-learn-threshold 6
-   })
-
 (def spec
   {:column-dimensions [1000]
    :depth 8
-   :ff-perm-stable-inc 0.15
-   :ff-perm-inc 0.04
-   :ff-perm-dec 0.01
+   :proximal {:perm-stable-inc 0.15
+              :perm-inc 0.04
+              :perm-dec 0.01}
    :lateral-synapses? true
    :distal-vs-proximal-weight 0.0
    :use-feedback? false
    })
+
+(def higher-level-spec
+  (util/deep-merge
+   spec
+   {:column-dimensions [800]
+    :proximal {:max-segments 5
+               :new-synapse-count 12
+               :learn-threshold 6}}))
 
 (defn initial-inval
   [sentences]
@@ -104,7 +105,7 @@ the three little pigs.
                          :rgn-1 [:rgn-0 :word-motor]}
                         (constantly core/sensory-region)
                         {:rgn-0 spec
-                         :rgn-1 (merge spec higher-level-spec-diff)}
+                         :rgn-1 higher-level-spec}
                         {:input letter-sensor}
                         {:letter-motor letter-motor-sensor
                          :word-motor word-motor-sensor}

@@ -37,9 +37,9 @@
         :layer-3 (p/layer-learn layer-3))))
 
   (region-depolarise
-    [this distal-ff-bits distal-fb-bits]
+    [this distal-ff-bits apical-fb-bits]
     (assoc this
-      :layer-3 (p/layer-depolarise layer-3 distal-ff-bits distal-fb-bits)))
+      :layer-3 (p/layer-depolarise layer-3 distal-ff-bits apical-fb-bits)))
 
   p/PTopological
   (topology [_]
@@ -107,9 +107,9 @@
         :layer-4 (p/layer-learn layer-4))))
 
   (region-depolarise
-    [this distal-ff-bits distal-fb-bits]
+    [this distal-ff-bits apical-fb-bits]
     (assoc this
-      :layer-4 (p/layer-depolarise layer-4 distal-ff-bits distal-fb-bits)))
+        :layer-4 (p/layer-depolarise layer-4 distal-ff-bits apical-fb-bits)))
 
   p/PTopological
   (topology [_]
@@ -187,10 +187,10 @@
         :layer-3 (p/layer-learn layer-3))))
 
   (region-depolarise
-    [this distal-ff-bits distal-fb-bits]
+    [this distal-ff-bits apical-fb-bits]
     ;; TODO feedback from L3 to L4?
     (let [l4 (p/layer-depolarise layer-4 distal-ff-bits #{})
-          l3 (p/layer-depolarise layer-3 #{} distal-fb-bits)]
+          l3 (p/layer-depolarise layer-3 #{} apical-fb-bits)]
      (assoc this
        :layer-4 l4
        :layer-3 l3)))
@@ -244,14 +244,14 @@
       (println "Warning: unknown keys in spec:" unk)))
   (let [l4-spec (-> (assoc spec
                       :lateral-synapses? false)
-                    (merge (:layer-4 spec))
+                    (util/deep-merge (:layer-4 spec))
                     (dissoc :layer-3 :layer-4))
         l4 (cells/layer-of-cells l4-spec)
         l3-spec (-> (assoc spec
                       :input-dimensions (p/dimensions (p/ff-topology l4))
                       :distal-motor-dimensions [0]
                       :lateral-synapses? true)
-                    (merge (:layer-3 spec))
+                    (util/deep-merge (:layer-3 spec))
                     (dissoc :layer-3 :layer-4))
         l3 (cells/layer-of-cells l3-spec)]
     (map->SensoriMotorRegion
@@ -323,22 +323,25 @@
   "Taking the index of an input bit as received by the given region,
   return its source element as [k id] where k is the key of the source
   region or sense, and id is the index adjusted to refer to the output
-  of that source."
-  ([htm rgn-id i]
-     (source-of-incoming-bit htm rgn-id i p/ff-topology))
-  ([htm rgn-id i topology-fn]
+  of that source.
+
+  If i is an index into the feed-forward field, type is :ff-deps, if i
+  is an index into the feed-back field, type is :fb-deps."
+  ([htm rgn-id i type]
+     (source-of-incoming-bit htm rgn-id i type p/ff-topology))
+  ([htm rgn-id i type topology-fn]
      (let [senses (:senses htm)
            regions (:regions htm)
-           ff-ids (get-in htm [:ff-deps rgn-id])]
-       (loop [ff-ids ff-ids
+           node-ids (get-in htm [type rgn-id])]
+       (loop [node-ids node-ids
               offset 0]
-         (when-let [ff-id (first ff-ids)]
-           (let [ff (or (senses ff-id)
-                        (regions ff-id))
-                 width (long (p/size (topology-fn ff)))]
+         (when-let [node-id (first node-ids)]
+           (let [node (or (senses node-id)
+                          (regions node-id))
+                 width (long (p/size (topology-fn node)))]
              (if (< i (+ offset width))
-               [ff-id (- i offset)]
-               (recur (next ff-ids)
+               [node-id (- i offset)]
+               (recur (next node-ids)
                       (+ offset width)))))))))
 
 (defn source-of-distal-bit
@@ -353,19 +356,30 @@
     (case src-type
       :this [rgn-id lyr-id i]
       :ff (if (= lyr-id (first (layers rgn)))
-            (let [[src-id j] (source-of-incoming-bit htm rgn-id adj-i
+            (let [[src-id j] (source-of-incoming-bit htm rgn-id adj-i :ff-deps
                                                      p/ff-motor-topology)
                   src-rgn (get-in htm [:regions src-id])]
               [src-id
                (when src-rgn (last (layers src-rgn))) ;; nil for senses
                j])
-            ;; this is not the input layer; source may be within region?
-            [])
-      :fb (let [fb-ids (get-in htm [:fb-deps rgn-id])
-                ;; TODO trace multiple
-                src-rgn-id (first fb-ids)
-                src-rgn (get-in htm [:regions src-rgn-id])]
-            [src-rgn-id (last (layers src-rgn)) adj-i]))))
+            ;; this is not the input layer; source must be within region
+            [rgn-id (first (layers rgn)) i]))))
+
+(defn source-of-apical-bit
+  "Returns [src-id src-lyr-id j] where src-id is a region key, and j
+  is the index into the output of the region."
+  [htm rgn-id lyr-id i]
+  (let [rgn (get-in htm [:regions rgn-id])
+        lyr (get rgn lyr-id)
+        spec (p/params lyr)]
+    (if (= lyr-id (last (layers rgn)))
+      (let [[src-id j] (source-of-incoming-bit htm rgn-id i :fb-deps)
+            src-rgn (get-in htm [:regions src-id])]
+        [src-id
+         (last (layers src-rgn))
+         j])
+      ;; this is not the top layer; source must be within region
+      [rgn-id (last (layers rgn)) i])))
 
 (defn topo-union
   [topos]
@@ -375,7 +389,7 @@
 ;; TODO - better way to do this
 (defn fb-dim-from-spec
   [spec]
-  (let [spec (merge cells/parameter-defaults spec)]
+  (let [spec (util/deep-merge cells/parameter-defaults spec)]
     (topology/make-topology (conj (:column-dimensions spec)
                                   (:depth spec)))))
 
@@ -717,24 +731,27 @@
         lyr (get-in htm [:regions rgn-id lyr-id])
         prior-lyr (get-in prior-htm [:regions rgn-id lyr-id])
         spec (:spec lyr)
-        ff-stim-thresh (:ff-stimulus-threshold spec)
-        d-stim-thresh (:seg-stimulus-threshold spec)
+        ff-stim-thresh (:stimulus-threshold (:proximal spec))
+        d-stim-thresh (:stimulus-threshold (:distal spec))
+        a-stim-thresh (:stimulus-threshold (:apical spec))
         distal-weight (:distal-vs-proximal-weight spec)
         tp-fall (:temporal-pooling-fall spec)
         state (:state lyr)
         prior-state (:state prior-lyr)
         distal-state (:distal-state prior-lyr)
+        apical-state (:apical-state prior-lyr)
         ;; inputs to layer
         ff-bits (:in-ff-bits state)
         ff-s-bits (:in-stable-ff-bits state)
         ff-b-bits (set/difference ff-bits ff-s-bits)
-        distal-bits (:distal-bits distal-state)
+        distal-bits (:on-bits distal-state)
+        apical-bits (:on-bits apical-state)
         is-input-layer? (= lyr-id (first (layers rgn)))
         ff-bits-srcs (if is-input-layer?
                        (into {}
                              (map (fn [i]
                                     (let [[k _] (source-of-incoming-bit
-                                                 htm rgn-id i)]
+                                                 htm rgn-id i :ff-bits)]
                                       [i k])))
                              ff-bits)
                        (constantly rgn-id))
@@ -744,9 +761,16 @@
                                                    htm rgn-id lyr-id i)]
                                         [i k])))
                                distal-bits)
+        apical-bits-srcs (into {}
+                               (map (fn [i]
+                                      (let [[k _] (source-of-apical-bit
+                                                   htm rgn-id lyr-id i)]
+                                        [i k])))
+                               apical-bits)
         ;; synapse graphs - pre-learning state so from prior time step
         psg (:proximal-sg prior-lyr)
         dsg (:distal-sg prior-lyr)
+        asg (:apical-sg prior-lyr)
         ;; internal sources
         boosts (:boosts prior-lyr)
         p-tp-exc (:temporal-pooling-exc prior-state)]
@@ -771,11 +795,19 @@
                                      (zap-fewer d-stim-thresh))
                        d-by-src (->> (frequencies (map distal-bits-srcs active-d))
                                      (util/remap #(* % distal-weight)))
+                       ;; same for apical
+                       a-seg-path (get (:matching-seg-paths apical-state) cell-id)
+                       a-conn-sources (when a-seg-path
+                                        (p/sources-connected-to asg a-seg-path))
+                       active-a (->> (filter apical-bits a-conn-sources)
+                                     (zap-fewer a-stim-thresh))
+                       a-by-src (->> (frequencies (map apical-bits-srcs active-a))
+                                     (util/remap #(* % distal-weight)))
                        ;; excitation levels
                        b-overlap (count active-ff-b)
                        s-overlap (count active-ff-s)
-                       distal-exc (->> (count active-d)
-                                       (* distal-weight))
+                       d-a-exc (->> (+ (count active-d) (count active-a))
+                                    (* distal-weight))
                        ;; effect of boosting
                        overlap (+ b-overlap s-overlap)
                        boost-amt (* overlap (- (get boosts col) 1.0))
@@ -784,13 +816,13 @@
                                           tp-fall
                                           b-overlap))
                        ;; total excitation
-                       total (+ b-overlap s-overlap boost-amt prior-tp distal-exc)]
+                       total (+ b-overlap s-overlap boost-amt prior-tp d-a-exc)]
                    [cell-id {:total total
                              :proximal-unstable ff-b-by-src
                              :proximal-stable ff-s-by-src
                              :boost boost-amt
                              :temporal-pooling prior-tp
-                             :distal d-by-src}])))
+                             :distal (merge d-by-src a-by-src)}])))
           cell-ids)))
 
 (defn update-excitation-breakdown

@@ -14,14 +14,16 @@
   {:column-dimensions [1000]
    :ff-init-frac 0.2
    :ff-potential-radius 1.0
-   :ff-perm-inc 0.10
-   :ff-perm-dec 0.01
+   :proximal {:perm-inc 0.10
+              :perm-dec 0.01}
    :duty-cycle-period 100000
    })
 
-(def higher-level-spec-diff
-  {:column-dimensions [400]
-   :ff-max-segments 5})
+(def higher-level-spec
+  (util/deep-merge
+   spec
+   {:column-dimensions [400]
+    :proximal {:max-segments 5}}))
 
 (def patterns
   {:run-0-5 [0 1 2 3 4 5]
@@ -80,5 +82,5 @@
    (n-region-model n spec))
   ([n spec]
    (core/regions-in-series n core/sensory-region
-                           (list* spec (repeat (merge spec higher-level-spec-diff)))
+                           (list* spec (repeat higher-level-spec))
                            {:input block-sensor})))
