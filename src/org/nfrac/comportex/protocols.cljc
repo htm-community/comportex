@@ -38,7 +38,7 @@
 
 (defn region-step
   ([this ff-bits]
-     (region-step this ff-bits #{} #{} #{}))
+     (region-step this ff-bits #{} #{} #{} #{}))
   ([this ff-bits stable-ff-bits distal-ff-bits apical-fb-bits apical-fb-wc-bits]
      (-> this
          (region-activate ff-bits stable-ff-bits)
