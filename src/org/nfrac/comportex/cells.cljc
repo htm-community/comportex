@@ -844,12 +844,14 @@
           a-cols (select-active-columns (best-by-column abs-cell-exc)
                                         topology activation-level
                                         inh-radius spec)
+          ;; keep winners stable only at higher levels (first level needs to see repeats)
+          prior-col-winners (if higher-level? (:col-winners state))
           ;; calculate relative excitations for cells within each active column:
           ;; * include distal excitation on predicted cells.
           ;; * matching segments below connected threshold get a bonus.
           ;; * cells with inactive segments get a penalty.
           rel-cell-exc (->> (within-column-cell-exc a-cols
-                                                    (:col-winners state)
+                                                    prior-col-winners
                                                     distal-sg apical-sg
                                                     (:on-bits distal-state)
                                                     (:on-bits apical-state)
@@ -861,7 +863,6 @@
           ;; find active and winner cells in the columns
           pc (set/union (:pred-cells distal-state) (:pred-cells apical-state))
           depth (:depth spec)
-          prior-col-winners (:col-winners state)
           [rng* rng] (random/split rng)
           {ac :active-cells
            col-winners :col-winners
@@ -871,12 +872,12 @@
                                ;; definition of bursting for a column
                                (fn [col win-cell col-ac]
                                  (if (and (not newly-engaged?)
-                                          (= win-cell (prior-col-winners col)))
+                                          (= win-cell (get prior-col-winners col)))
                                    ;; for continuing temporal pooling
                                    (== depth (count col-ac))
                                    ;; otherwise: for discrete transitions
                                    (not (or (pc win-cell) (tp-exc win-cell)))))
-                               (:col-winners state) ;; keep winners stable
+                               prior-col-winners
                                depth (:stimulus-threshold (:distal spec))
                                (:dominance-margin spec) rng*)
           ;; learning cells are the winning cells, but excluding any
