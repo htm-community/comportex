@@ -432,7 +432,7 @@
   active (''bursting''). Otherwise, only cells above the threshold
   become active; but if the winner exceeds all others by at least
   `dominance-margin` then it is the only active cell."
-  [col cell-exc prior-winner depth threshold dominance-margin rng]
+  [col cell-exc prior-winner depth threshold dominance-margin rng reset?]
   (let [cell-ids (for [ci (range depth)] [col ci])]
     (loop [ids cell-ids
            best-ids ()
@@ -463,6 +463,8 @@
                        (first best-ids)
                        (and prior-winner (some #(= % prior-winner) best-ids))
                        prior-winner
+                       reset?
+                       (first cell-ids)
                        :else
                        (util/rand-nth rng best-ids))
               actives (cond
@@ -484,7 +486,7 @@
   * `:stable-active-cells` - the set of non-bursting active cells.
   * `:burst-cols` - the set of bursting column ids.
   * `:col-winners` - the map of column id to winner cell id."
-  [a-cols cell-exc bursting? prior-col-winners
+  [a-cols cell-exc bursting? prior-col-winners reset?
    depth threshold dominance-margin rng]
   (loop [cols (seq a-cols)
          ac (transient #{}) ;; active cells
@@ -498,7 +500,7 @@
             prior-winner (get prior-col-winners col)
             [win-cell col-ac] (column-active-cells col cell-exc prior-winner
                                                    depth threshold dominance-margin
-                                                   rng*)
+                                                   rng* reset?)
             b-col? (bursting? col win-cell col-ac)
             next-ac (reduce conj! ac col-ac)
             next-sac (if b-col?
@@ -878,6 +880,7 @@
                                    ;; otherwise: for discrete transitions
                                    (not (or (pc win-cell) (tp-exc win-cell)))))
                                prior-col-winners
+                               (empty? (:on-bits distal-state)) ;; reset?
                                depth (:stimulus-threshold (:distal spec))
                                (:dominance-margin spec) rng*)
           ;; learning cells are the winning cells, but excluding any
