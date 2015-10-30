@@ -3,9 +3,18 @@
 <img src="https://raw.githubusercontent.com/nupic-community/comportex/master/comportex-logo.png"
  alt="Comportex logo" align="right" />
 
-Functionally composable cortex, an implementation of
+Comportex is an implementation of
 [Hierarchical Temporal Memory](http://numenta.org/#theory) as a
-Clojure library.
+Clojure library. It is not a port of
+[NuPIC](https://github.com/numenta/nupic/), it is a separate
+implementation based initially on the Numenta CLA white paper but
+significantly evolved.
+
+In the spirit of Clojure, Comportex is more a library than a
+framework. The user controls simulations, and decides what to do with
+them. If you want to take the set of active cells and use them to
+generate predictions or anomaly scores, that is up to you. It's not
+going to do it for you.
 
 Comportex is not yet stable. Our aims are to:
 
@@ -46,14 +55,13 @@ lein repl
 See [A sample workflow with the
 REPL](https://github.com/nupic-community/comportex/wiki/A-sample-workflow-with-the-REPL).
 Or check out the Notebook (browser-based REPL with super powers) in
-[ComportexViz](http://github.com/nupic-community/comportexviz/).
+[ComportexViz](https://github.com/nupic-community/comportexviz/).
 
 
 ## Related projects
 
-* [ComportexViz](http://github.com/nupic-community/comportexviz/)
-* [Clortex](https://github.com/nupic-community/clortex/)
-* [NuPIC](http://www.numenta.org/)
+* [ComportexViz](https://github.com/nupic-community/comportexviz/)
+* [NuPIC](https://github.com/numenta/nupic/)
 
 
 ## YourKit
@@ -67,7 +75,7 @@ Java and .NET applications. Take a look at YourKit's leading software products:
 
 ## License
 
-Copyright © 2014-2015 Felix Andrews and contributors
+Copyright © 2014-2015 Felix Andrews and Marcus Lewis
 
 Distributed under your choice of
 * the Eclipse Public License, the same as Clojure.
