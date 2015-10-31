@@ -583,13 +583,13 @@
 
 ;;; ## Tracing columns back to senses
 
-(defn layer-predicted-bit-votes
-  "Returns a map from sense bit index to the number of connections to
-  it from cells in the predictive state."
-  [lyr]
+(defn cells-proximal-bit-votes
+  "For decoding. Given a set of cells in the layer, returns a map from
+  incoming bit index to the number of connections to that bit from the
+  cells' columns."
+  [lyr cells]
   (let [psg (:proximal-sg lyr)]
-    (->> (p/predictive-cells lyr)
-         (map first)
+    (->> (map first cells)
          (reduce (fn [m col]
                    ;; TODO: other proximal segments
                    (let [ids (p/sources-connected-to psg [col 0 0])]
@@ -601,8 +601,9 @@
 
 (defn predicted-bit-votes
   [rgn]
-  (let [lyr (get rgn (first (layers rgn)))]
-    (layer-predicted-bit-votes lyr)))
+  (let [lyr (get rgn (first (layers rgn)))
+        pc (p/predictive-cells lyr)]
+    (cells-proximal-bit-votes lyr pc)))
 
 (defn ff-base
   "Returns the first index that corresponds with `ff-id` within the
@@ -623,27 +624,32 @@
          (reduce + 0))))
 
 (defn predictions
-  [htm sense-id n-predictions]
-  (let [sense-width (-> (get-in htm [:senses sense-id])
-                        p/ff-topology
-                        p/size)
-        pr-votes (->> (get-in htm [:fb-deps sense-id])
-                      (mapcat (fn [rgn-id]
-                                (let [rgn (get-in htm [:regions rgn-id])
-                                      start (ff-base htm rgn-id sense-id)
-                                      end (+ start sense-width)]
-                                  (->> (predicted-bit-votes rgn)
-                                       (keep (fn [[id votes]]
-                                               (when (and (<= start id)
-                                                          (< id end))
-                                                 [(- id start) votes])))))))
-                      (reduce (fn [m [id votes]]
-                                (assoc m id
-                                       (+ (get m id 0)
-                                          votes)))
-                              {}))
-        [_ encoder] (get-in htm [:sensors sense-id])]
-    (p/decode encoder pr-votes n-predictions)))
+  ([htm sense-id n-predictions]
+   (predictions
+    htm sense-id n-predictions p/predictive-cells))
+  ([htm sense-id n-predictions cells-fn]
+   (let [sense-width (-> (get-in htm [:senses sense-id])
+                         p/ff-topology
+                         p/size)
+         pr-votes (->> (get-in htm [:fb-deps sense-id])
+                       (mapcat (fn [rgn-id]
+                                 (let [rgn (get-in htm [:regions rgn-id])
+                                       start (ff-base htm rgn-id sense-id)
+                                       end (+ start sense-width)
+                                       lyr (get rgn (first (layers rgn)))
+                                       cells (cells-fn lyr)]
+                                   (->> (cells-proximal-bit-votes lyr cells)
+                                        (keep (fn [[id votes]]
+                                                (when (and (<= start id)
+                                                           (< id end))
+                                                  [(- id start) votes])))))))
+                       (reduce (fn [m [id votes]]
+                                 (assoc m id
+                                        (+ (get m id 0)
+                                           votes)))
+                               {}))
+         [_ encoder] (get-in htm [:sensors sense-id])]
+     (p/decode encoder pr-votes n-predictions))))
 
 (defn- zap-fewer
   [n xs]
