@@ -781,7 +781,7 @@
                       nil)
         new-sg (cond-> sg
                  (seq learning)
-                 (p/bulk-learn (vals learning) (:on-lc-bits distal-state)
+                 (p/bulk-learn (vals learning) (:on-bits distal-state)
                                (:perm-inc dspec) (:perm-dec dspec)
                                (:perm-init dspec))
                  punishments
