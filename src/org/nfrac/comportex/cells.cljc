@@ -436,7 +436,7 @@
   (let [cell-ids (for [ci (range depth)] [col ci])]
     (loop [ids cell-ids
            best-ids ()
-           best-exc 0.0
+           best-exc -99999.9
            good-ids () ;; over threshold
            second-exc (double threshold)]
       (if-let [id (first ids)]
@@ -451,14 +451,12 @@
                  (if new-best? exc best-exc)
                  (if good? (conj good-ids id) good-ids)
                  (if new-best?
-                   best-exc
-                   (if (< second-exc exc best-exc)
+                   (max best-exc second-exc) ;; think best-exc (second-exc just for init)
+                   (if (< second-exc exc best-exc) ;; between second & best
                      exc
                      second-exc))))
         ;; finished
         (let [winner (cond
-                       (empty? best-ids)
-                       (first cell-ids)
                        (== (count best-ids) 1)
                        (first best-ids)
                        (and prior-winner (some #(= % prior-winner) best-ids))
