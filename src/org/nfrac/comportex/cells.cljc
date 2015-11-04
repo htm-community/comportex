@@ -201,7 +201,7 @@
               :perm-stable-inc 0.15
               :perm-dec 0.01
               :perm-connected 0.20
-              :perm-init 0.16
+              :perm-init 0.25
               }
    :distal dendrite-parameter-defaults
    :apical dendrite-parameter-defaults
