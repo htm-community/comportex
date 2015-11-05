@@ -1017,11 +1017,11 @@
           timestep (:timestep state)]
       (cond->
           (update this :state assoc
-                  :distal-learning ()
-                  :apical-learning ()
+                  :proximal-learning {}
+                  :distal-learning {}
+                  :apical-learning {}
                   :distal-punishments ()
-                  :apical-punishments ()
-                  :proximal-learning ())
+                  :apical-punishments ())
         (:learn? (:distal spec)) (layer-learn-lateral lc)
         (:learn? (:apical spec)) (layer-learn-apical lc)
         (:punish? (:distal spec)) (layer-punish-lateral)
