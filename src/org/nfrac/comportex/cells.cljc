@@ -68,6 +68,8 @@
 
   * `punish?` - whether to reduce synapse permanence on segments
   incorrectly predicting activation.
+
+  * `learn?` - whether to reinforce and grow synapses.
 "
   {:max-segments 5
    :max-synapse-count 22
@@ -81,6 +83,7 @@
    :perm-connected 0.20
    :perm-init 0.16
    :punish? true
+   :learn? true
    })
 
 (def parameter-defaults
@@ -202,9 +205,12 @@
               :perm-dec 0.01
               :perm-connected 0.20
               :perm-init 0.25
+              :learn? true
               }
-   :distal dendrite-parameter-defaults
-   :apical dendrite-parameter-defaults
+   :distal (assoc dendrite-parameter-defaults
+                  :learn? true)
+   :apical (assoc dendrite-parameter-defaults
+                  :learn? false)
    :max-boost 1.5
    :duty-cycle-period 1000
    :boost-active-duty-ratio 0.001
@@ -626,7 +632,7 @@
            (map first))
       nil)))
 
-(defn punish-failures
+(defn segment-punishments
   "To punish segments which predicted activation on cells which did
   not become active. Ignores any which are still predictive.  Returns
   a sequence of SegUpdate records."
@@ -699,6 +705,120 @@
         ;; finished
         (persistent! m)))))
 
+(defn learn-distal
+  [sg distal-state lc dspec rng]
+  (let [learning (segment-learning-map rng lc
+                                       (:well-matching-seg-paths distal-state)
+                                       sg (:on-bits distal-state)
+                                       (:on-lc-bits distal-state)
+                                       dspec)
+        new-sg (if (seq learning)
+                 (p/bulk-learn sg (vals learning) (:on-bits distal-state)
+                               (:perm-inc dspec) (:perm-dec dspec)
+                               (:perm-init dspec))
+                 sg)]
+    [new-sg
+     learning]))
+
+(defn punish-distal
+  [sg distal-state prior-distal-state dspec]
+  (let [punishments (segment-punishments sg
+                                         (:pred-cells prior-distal-state)
+                                         (:pred-cells distal-state)
+                                         (:prior-active-cells distal-state)
+                                         (:on-bits prior-distal-state)
+                                         (:perm-connected dspec)
+                                         (:stimulus-threshold dspec))
+        new-sg (if punishments
+                 (p/bulk-learn sg punishments (:on-bits prior-distal-state)
+                               (:perm-inc dspec) (:perm-punish dspec)
+                               (:perm-init dspec))
+                 sg)]
+    [new-sg
+     punishments]))
+
+(defn layer-learn-lateral
+  [this lc]
+  (let [sg (:distal-sg this)
+        dstate (:distal-state this)
+        dspec (:distal (:spec this))
+        [rng* rng] (random/split (:rng this))
+        [new-sg learning] (learn-distal sg dstate lc dspec rng*)]
+    (assoc this
+           :rng rng
+           :state (assoc (:state this) :distal-learning learning)
+           :distal-sg new-sg)))
+
+(defn layer-learn-apical
+  [this lc]
+  (let [sg (:apical-sg this)
+        dstate (:apical-state this)
+        dspec (:apical (:spec this))
+        [rng* rng] (random/split (:rng this))
+        [new-sg learning] (learn-distal sg dstate lc dspec rng*)]
+    (assoc this
+           :rng rng
+           :state (assoc (:state this) :apical-learning learning)
+           :apical-sg new-sg)))
+
+(defn layer-punish-lateral
+  [this]
+  (let [sg (:distal-sg this)
+        dstate (:distal-state this)
+        pdstate (:prior-distal-state this)
+        dspec (:distal (:spec this))
+        [new-sg punishments] (punish-distal sg dstate pdstate dspec)]
+    (assoc this
+           :state (assoc (:state this) :distal-punishments punishments)
+           :distal-sg new-sg)))
+
+(defn layer-punish-apical
+  [this]
+  (let [sg (:apical-sg this)
+        dstate (:apical-state this)
+        pdstate (:prior-apical-state this)
+        dspec (:apical (:spec this))
+        [new-sg punishments] (punish-distal sg dstate pdstate dspec)]
+    (assoc this
+           :state (assoc (:state this) :apical-punishments punishments)
+           :apical-sg new-sg)))
+
+(defn layer-learn-proximal
+  [this cols]
+  (let [sg (:proximal-sg this)
+        state (:state this)
+        pspec (:proximal (:spec this))
+        higher-level? (> (:max-segments pspec) 1)
+        [rng* rng] (random/split (:rng this))
+        prox-learning (segment-learning-map rng*
+                                            (map vector cols (repeat 0))
+                                            (:well-matching-ff-seg-paths state)
+                                            sg
+                                            (:in-ff-bits state)
+                                            (if higher-level?
+                                              (:in-stable-ff-bits state)
+                                              (:in-ff-bits state))
+                                            pspec)
+        psg (cond-> sg
+              (seq prox-learning)
+              (p/bulk-learn (vals prox-learning) (:in-ff-bits state)
+                            (:perm-inc pspec) (:perm-dec pspec)
+                            (:perm-init pspec))
+              ;; positive learning rate is higher for stable (predicted) inputs
+              (and (seq prox-learning)
+                   (seq (:in-stable-ff-bits state))
+                   (> (:perm-stable-inc pspec) (:perm-inc pspec)))
+              (p/bulk-learn (map #(syn/seg-update (:target-id %) :reinforce nil nil)
+                                 (vals prox-learning))
+                            (:in-stable-ff-bits state)
+                            (- (:perm-stable-inc pspec) (:perm-inc pspec))
+                            (:perm-dec pspec)
+                            (:perm-init pspec)))]
+    (assoc this
+           :rng rng
+           :state (assoc state :proximal-learning prox-learning)
+           :proximal-sg psg)))
+
 ;;; ## Orchestration
 
 (defn update-inhibition-radius
@@ -760,35 +880,6 @@
       :well-matching-seg-paths good-paths
       :pred-cells pc
       :timestep t})))
-
-(defn distal-learn
-  [sg distal-state prior-distal-state lc dspec rng]
-  (let [learning (segment-learning-map rng lc
-                                       (:well-matching-seg-paths distal-state)
-                                       sg (:on-bits distal-state)
-                                       (:on-lc-bits distal-state)
-                                       dspec)
-        punishments (if (:punish? dspec)
-                      (punish-failures sg
-                                       (:pred-cells prior-distal-state)
-                                       (:pred-cells distal-state)
-                                       (:prior-active-cells distal-state)
-                                       (:on-bits prior-distal-state)
-                                       (:perm-connected dspec)
-                                       (:stimulus-threshold dspec))
-                      nil)
-        new-sg (cond-> sg
-                 (seq learning)
-                 (p/bulk-learn (vals learning) (:on-bits distal-state)
-                               (:perm-inc dspec) (:perm-dec dspec)
-                               (:perm-init dspec))
-                 punishments
-                 (p/bulk-learn punishments (:on-bits prior-distal-state)
-                               (:perm-inc dspec) (:perm-punish dspec)
-                               (:perm-init dspec)))]
-    [new-sg
-     learning
-     punishments]))
 
 (defrecord LayerOfCells
     [spec rng topology input-topology inh-radius boosts active-duty-cycles
@@ -922,62 +1013,21 @@
   (layer-learn
     [this]
     (let [lc (:learning-cells state)
-          ;; distal
-          [rng* rng] (random/split rng)
-          [dsg
-           distal-learning
-           distal-punishments] (distal-learn distal-sg distal-state
-                                             prior-distal-state lc (:distal spec) rng*)
-          ;; apical
-          [rng* rng] (random/split rng)
-          [asg
-           apical-learning
-           apical-punishments] (if (:use-feedback? spec)
-                                 (distal-learn apical-sg apical-state
-                                               prior-apical-state lc (:apical spec) rng*)
-                                 [apical-sg nil nil])
-          ;; proximal
-          pspec (:proximal spec)
-          higher-level? (> (:max-segments pspec) 1)
           a-cols (:active-cols state)
-          [rng* rng] (random/split rng)
-          prox-learning (when (:engaged? state)
-                          (segment-learning-map rng* (map vector a-cols (repeat 0))
-                                                (:well-matching-ff-seg-paths state)
-                                                proximal-sg
-                                                (:in-ff-bits state)
-                                                (if higher-level?
-                                                  (:in-stable-ff-bits state)
-                                                  (:in-ff-bits state))
-                                                pspec))
-          psg (cond-> proximal-sg
-                prox-learning
-                (p/bulk-learn (vals prox-learning) (:in-ff-bits state)
-                              (:perm-inc pspec) (:perm-dec pspec)
-                              (:perm-init pspec))
-                ;; positive learning rate is higher for stable (predicted) inputs
-                (and prox-learning
-                     (seq (:in-stable-ff-bits state))
-                     (> (:perm-stable-inc pspec) (:perm-inc pspec)))
-                (p/bulk-learn (map #(syn/seg-update (:target-id %) :reinforce nil nil)
-                                   (vals prox-learning))
-                              (:in-stable-ff-bits state)
-                              (- (:perm-stable-inc pspec) (:perm-inc pspec))
-                              (:perm-dec pspec)
-                              (:perm-init pspec)))
           timestep (:timestep state)]
       (cond->
-          (assoc this
-                 :rng rng
-                 :state (assoc state
-                               :distal-learning distal-learning
-                               :distal-punishments distal-punishments
-                               :apical-learning apical-learning
-                               :apical-punishments apical-punishments
-                               :proximal-learning prox-learning)
-                 :distal-sg dsg
-                 :apical-sg asg
-                 :proximal-sg psg)
+          (update this :state assoc
+                  :distal-learning ()
+                  :apical-learning ()
+                  :distal-punishments ()
+                  :apical-punishments ()
+                  :proximal-learning ())
+        (:learn? (:distal spec)) (layer-learn-lateral lc)
+        (:learn? (:apical spec)) (layer-learn-apical lc)
+        (:punish? (:distal spec)) (layer-punish-lateral)
+        (:punish? (:apical spec)) (layer-punish-apical)
+        (and (:engaged? state)
+             (:learn? (:proximal spec))) (layer-learn-proximal a-cols)
         true (update-in [:active-duty-cycles] columns/update-duty-cycles
                         (:active-cols state) (:duty-cycle-period spec))
         (zero? (mod timestep (:boost-active-every spec))) (columns/boost-active)
