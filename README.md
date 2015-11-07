@@ -77,6 +77,6 @@ Java and .NET applications. Take a look at YourKit's leading software products:
 
 Copyright © 2014-2015 Felix Andrews and Marcus Lewis
 
-Distributed under your choice of
-* the Eclipse Public License, the same as Clojure.
-* the GNU Public Licence, Version 3 http://www.gnu.org/licenses/gpl.html, the same as NuPIC.
+Distributed under the
+[GNU Affero General Public Licence, Version 3](http://www.gnu.org/licenses/agpl-3.0.en.html),
+the same as NuPIC.
