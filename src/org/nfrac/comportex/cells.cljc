@@ -935,7 +935,7 @@
                              (if (or newly-engaged? (not engaged?))
                                base-level
                                (min (:activation-level-max spec)
-                                    (+ prev-level (* 0.5 base-level)))))
+                                    (+ prev-level base-level))))
           a-cols (select-active-columns (best-by-column abs-cell-exc)
                                         topology activation-level
                                         inh-radius spec)
