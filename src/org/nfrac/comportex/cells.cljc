@@ -186,6 +186,9 @@
   * `temporal-pooling-fall` - amount by which a cell's continuing
   temporal pooling excitation falls each time step.
 
+  * `temporal-pooling-amp` - multiplier on cell excitation to become
+  persistent temporal pooling.
+
   * `random-seed` - the random seed (for reproducible results).
 "
   {:input-dimensions [:define-me!]
@@ -230,6 +233,7 @@
    :stable-inbit-frac-threshold 0.5
    :temporal-pooling-max-exc 50.0
    :temporal-pooling-fall 5.0
+   :temporal-pooling-amp 3.0
    :random-seed 42
    })
 
@@ -900,10 +904,13 @@
           ;; also check for clear matches, these override pooling
           higher-level? (> (:max-segments pspec) 1)
           engaged? (or (not higher-level?)
-                       (> (count stable-ff-bits)
-                          (* (count ff-bits) (:stable-inbit-frac-threshold spec))))
+                       (>= (count stable-ff-bits)
+                           (* (count ff-bits) (:stable-inbit-frac-threshold spec))))
           newly-engaged? (or (not higher-level?)
-                             (and engaged? (not (:engaged? state))))
+                             (and engaged?
+                                  (or (not (:engaged? state))
+                                      ;; check for manual resets (break :tp)
+                                      (empty? (:temporal-pooling-exc state)))))
           tp-exc (cond-> (if newly-engaged?
                            {}
                            (:temporal-pooling-exc state))
@@ -983,10 +990,13 @@
           next-tp-exc (if higher-level?
                         (let [new-ac (if newly-engaged?
                                        ac
-                                       (set/difference ac (:active-cells state)))]
+                                       (set/difference ac (:active-cells state)))
+                              amp (:temporal-pooling-amp spec)
+                              max-exc (:temporal-pooling-max-exc spec)]
                           (into (select-keys tp-exc ac) ;; only keep TP for active cells
-                               (map vector new-ac
-                                    (repeat (:temporal-pooling-max-exc spec)))))
+                                (map (fn [[cell exc]]
+                                       [cell (-> exc (* amp) (min max-exc))]))
+                                (select-keys abs-cell-exc new-ac)))
                         {})]
       (assoc this
              :rng rng
