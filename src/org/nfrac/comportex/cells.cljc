@@ -930,7 +930,9 @@
                                           (:depth spec))
           ;; union temporal pooling: accrete more columns as pooling continues
           activation-level (let [base-level (:activation-level spec)
-                                 prev-level (/ (count (:active-cols state))
+                                 prev-ncols (->> (keys (:temporal-pooling-exc state))
+                                                 (map first) (distinct) (count))
+                                 prev-level (/ prev-ncols
                                                (p/size-of this))]
                              (if (or newly-engaged? (not engaged?))
                                base-level
