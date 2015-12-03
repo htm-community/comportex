@@ -55,12 +55,12 @@ lein repl
 See [A sample workflow with the
 REPL](https://github.com/nupic-community/comportex/wiki/A-sample-workflow-with-the-REPL).
 Or check out the Notebook (browser-based REPL with super powers) in
-[ComportexViz](https://github.com/nupic-community/comportexviz/).
+[Sanity](https://github.com/nupic-community/sanity/).
 
 
 ## Related projects
 
-* [ComportexViz](https://github.com/nupic-community/comportexviz/)
+* [Sanity](https://github.com/nupic-community/sanity/)
 * [NuPIC](https://github.com/numenta/nupic/)
 
 
@@ -75,8 +75,10 @@ Java and .NET applications. Take a look at YourKit's leading software products:
 
 ## License
 
-Copyright © 2014-2015 Felix Andrews and Marcus Lewis
+Copyright © 2014-2015 Felix Andrews and Marcus Lewis.
 
 Distributed under the
 [GNU Affero General Public Licence, Version 3](http://www.gnu.org/licenses/agpl-3.0.en.html),
 the same as NuPIC.
+
+[![DOI](https://zenodo.org/badge/19464/nupic-community/comportex.svg)](https://zenodo.org/badge/latestdoi/19464/nupic-community/comportex)
