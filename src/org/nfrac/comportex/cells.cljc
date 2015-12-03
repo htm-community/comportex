@@ -186,6 +186,9 @@
   * `temporal-pooling-fall` - amount by which a cell's continuing
   temporal pooling excitation falls each time step.
 
+  * `temporal-pooling-amp` - multiplier on cell excitation to become
+  persistent temporal pooling.
+
   * `random-seed` - the random seed (for reproducible results).
 "
   {:input-dimensions [:define-me!]
@@ -230,6 +233,7 @@
    :stable-inbit-frac-threshold 0.5
    :temporal-pooling-max-exc 50.0
    :temporal-pooling-fall 5.0
+   :temporal-pooling-amp 3.0
    :random-seed 42
    })
 
@@ -549,20 +553,17 @@
   again the unit amount is half the `:seg-learn-threshold`.
 
   Returns a map of cell ids to these relative excitation values."
-  [a-cols prior-col-winners distal-sg apical-sg distal-bits apical-bits
-   distal-apical-exc distal-min-act apical-min-act depth]
-  (let [adj-base-amount (quot distal-min-act 2)]
+  [a-cols prior-col-winners distal-sg distal-bits distal-exc min-act depth]
+  (let [adj-base-amount (quot min-act 2)]
     (->> (for [col a-cols
                :let [prior-wc (get prior-col-winners col)]
                ci (range depth)
                :let [cell-id [col ci]
-                     d-cell-segs (->> (p/cell-segments distal-sg cell-id)
-                                      (filter seq))
-                     a-cell-segs (->> (p/cell-segments apical-sg cell-id)
-                                      (filter seq))
-                     n-segs (+ (count d-cell-segs) (count a-cell-segs))]
+                     cell-segs (->> (p/cell-segments distal-sg cell-id)
+                                    (filter seq))
+                     n-segs (count cell-segs)]
                :when (pos? n-segs)]
-           (let [d-exc (distal-apical-exc cell-id)]
+           (let [d-exc (distal-exc cell-id)]
              (cond
                ;; predicted cell, use distal excitation
                d-exc
@@ -571,9 +572,7 @@
                (= prior-wc cell-id)
                [cell-id adj-base-amount]
                ;; some segment matches the input even if synapses disconnected
-               (or
-                (first (best-matching-segment d-cell-segs distal-bits distal-min-act 0.0))
-                (first (best-matching-segment a-cell-segs apical-bits apical-min-act 0.0)))
+               (first (best-matching-segment cell-segs distal-bits min-act 0.0))
                [cell-id adj-base-amount]
                ;; there are segments but none match the input; apply penalty
                :else
@@ -900,10 +899,13 @@
           ;; also check for clear matches, these override pooling
           higher-level? (> (:max-segments pspec) 1)
           engaged? (or (not higher-level?)
-                       (> (count stable-ff-bits)
-                          (* (count ff-bits) (:stable-inbit-frac-threshold spec))))
+                       (>= (count stable-ff-bits)
+                           (* (count ff-bits) (:stable-inbit-frac-threshold spec))))
           newly-engaged? (or (not higher-level?)
-                             (and engaged? (not (:engaged? state))))
+                             (and engaged?
+                                  (or (not (:engaged? state))
+                                      ;; check for manual resets (break :tp)
+                                      (empty? (:temporal-pooling-exc state)))))
           tp-exc (cond-> (if newly-engaged?
                            {}
                            (:temporal-pooling-exc state))
@@ -914,10 +916,12 @@
                          (select-keys (keys ff-good-paths))
                          true
                          (columns/apply-overlap-boosting boosts))
+          ;; ignore apical excitation unless there is matching distal.
           ;; unlike other segments, allow apical excitation to add to distal
           d-a-cell-exc (if (:use-feedback? spec)
                          (merge-with + (:cell-exc distal-state)
-                                     (:cell-exc apical-state))
+                                     (select-keys (:cell-exc apical-state)
+                                                  (keys (:cell-exc distal-state))))
                          (:cell-exc distal-state))
           ;; combine excitation values for selecting columns
           abs-cell-exc (total-excitations col-exc tp-exc d-a-cell-exc
@@ -926,12 +930,14 @@
                                           (:depth spec))
           ;; union temporal pooling: accrete more columns as pooling continues
           activation-level (let [base-level (:activation-level spec)
-                                 prev-level (/ (count (:active-cols state))
+                                 prev-ncols (->> (keys (:temporal-pooling-exc state))
+                                                 (map first) (distinct) (count))
+                                 prev-level (/ prev-ncols
                                                (p/size-of this))]
                              (if (or newly-engaged? (not engaged?))
                                base-level
                                (min (:activation-level-max spec)
-                                    (+ prev-level (* 0.5 base-level)))))
+                                    (+ prev-level base-level))))
           a-cols (select-active-columns (best-by-column abs-cell-exc)
                                         topology activation-level
                                         inh-radius spec)
@@ -943,16 +949,14 @@
           ;; * cells with inactive segments get a penalty.
           rel-cell-exc (->> (within-column-cell-exc a-cols
                                                     prior-col-winners
-                                                    distal-sg apical-sg
+                                                    distal-sg
                                                     (:on-bits distal-state)
-                                                    (:on-bits apical-state)
                                                     d-a-cell-exc
                                                     (:learn-threshold (:distal spec))
-                                                    (:learn-threshold (:apical spec))
                                                     (:depth spec))
                             (merge-with + tp-exc))
           ;; find active and winner cells in the columns
-          pc (set/union (:pred-cells distal-state) (:pred-cells apical-state))
+          pc (:pred-cells distal-state)
           depth (:depth spec)
           [rng* rng] (random/split rng)
           {ac :active-cells
@@ -983,10 +987,13 @@
           next-tp-exc (if higher-level?
                         (let [new-ac (if newly-engaged?
                                        ac
-                                       (set/difference ac (:active-cells state)))]
+                                       (set/difference ac (:active-cells state)))
+                              amp (:temporal-pooling-amp spec)
+                              max-exc (:temporal-pooling-max-exc spec)]
                           (into (select-keys tp-exc ac) ;; only keep TP for active cells
-                               (map vector new-ac
-                                    (repeat (:temporal-pooling-max-exc spec)))))
+                                (map (fn [[cell exc]]
+                                       [cell (-> exc (* amp) (min max-exc))]))
+                                (select-keys abs-cell-exc new-ac)))
                         {})]
       (assoc this
              :rng rng
@@ -1078,19 +1085,16 @@
   (predictive-cells [_]
     (when (== (:timestep state)
               (:timestep distal-state))
-      (set/union (:pred-cells distal-state)
-                 (:pred-cells apical-state))))
+      (:pred-cells distal-state)))
   (prior-predictive-cells [_]
     (let [t-1 (dec (:timestep state))]
       (cond
         ;; after depolarise phase has run
         (== t-1 (:timestep prior-distal-state))
-        (set/union (:pred-cells prior-distal-state)
-                   (:pred-cells prior-apical-state))
+        (:pred-cells prior-distal-state)
         ;; before depolarise phase has run
         (== t-1 (:timestep distal-state))
-        (set/union (:pred-cells distal-state)
-                   (:pred-cells apical-state)))))
+        (:pred-cells distal-state))))
 
   p/PInterruptable
   (break [this mode]
