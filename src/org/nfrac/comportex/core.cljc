@@ -685,8 +685,8 @@
         ff-bits (:in-ff-bits state)
         ff-s-bits (:in-stable-ff-bits state)
         ff-b-bits (set/difference ff-bits ff-s-bits)
-        distal-bits (:on-bits distal-state)
-        apical-bits (:on-bits apical-state)
+        distal-bits (:active-bits distal-state)
+        apical-bits (:active-bits apical-state)
         is-input-layer? (= lyr-id (first (layers rgn)))
         ff-bits-srcs (if is-input-layer?
                        (into {}

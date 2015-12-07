@@ -9,6 +9,8 @@
 - Abandoned the bias against cells with existing inactive segments.
 - :matching-[ff-]seg-paths now holds [seg-path exc] tuples instead of just seg-path.
 - Removed :well-matching-seg-paths and :well-matching-ff-seg-paths.
+- In LayerDistalState renamed :on-bits to :active-bits
+  and :on-lc-bits to :learnable-bits
 
 ### Added
 - LayerActiveState gains a key :col-active-cells, a map keyed by col id.

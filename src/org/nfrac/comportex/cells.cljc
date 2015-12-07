@@ -8,13 +8,11 @@
    * `si` -- a segment id, an integer index in the cell.
    * `cell-id` -- a vector `[col ci]`.
    * `seg-path` -- a vector `[col ci si]`.
-
+   * `pcon` -- the connected threshold of synaptic permanence.
    * `ff-bits` -- the set of indices of active bits/cells on proximal dendrites.
-   * `aci` -- the set of indices of active bits/cells on distal dendrites.
-   * `lci` -- the set of indices of learnable bits/cells on distal dendrites.
    * `ac` -- the set of ids of active cells.
    * `pc` -- the set of ids of predictive cells.
-   * `tpc` -- the set of ids of temporal pooling cells.
+   * `tp` -- temporal pooling.
    * `lc` -- the set of ids of learning cells.
    * `a-cols` -- the set of ids of active columns.
    * `seg` or `syns` -- incoming synapses as a map from source id to permanence.
@@ -290,37 +288,37 @@
   "Returns the number of active cells to which the synapses are
   connected, i.e. where synapse permanence is equal to or greater than
   `pcon`."
-  [syns aci pcon]
+  [syns active-bits pcon]
   (count-filter (fn [[id p]]
                   (and (>= p pcon)
-                       (aci id)))
+                       (active-bits id)))
                 syns))
 
 (defn cell-active-segments
   "Returns a seq of the segment indexes in the cell with activation at
   or above the activation threshold `th`, only considering synapses
   with permanence values at or above `pcon`."
-  [cell-segs aci th pcon]
+  [cell-segs active-bits th pcon]
   (keep-indexed (fn [si syns]
-                  (let [act (segment-activation syns aci pcon)]
+                  (let [act (segment-activation syns active-bits pcon)]
                     (when (>= act th) si)))
                 cell-segs))
 
 (defn best-matching-segment
   "Finds the segment in the cell having the most active synapses, as
   long as is above the activation threshold `min-act`, only considering
-  synapses with permanence values at or above `pcon`. `aci` are active bits.
+  synapses with permanence values at or above `pcon`.
   Returns
   `[seg-index activation synapses]`. If no such segments exist,
   returns `[nil 0 {}]`."
-  [cell-segs aci min-act pcon]
+  [cell-segs active-bits min-act pcon]
   (loop [segs (seq cell-segs)
          si 0
          best-si 0
          best-act 0
          best-syns nil]
     (if-let [syns (first segs)]
-      (let [act (long (segment-activation syns aci pcon))
+      (let [act (long (segment-activation syns active-bits pcon))
             best? (> act best-act)]
         (recur (next segs)
                (inc si)
@@ -515,13 +513,13 @@
       [(count segs) nil])))
 
 (defn segment-new-synapse-source-ids
-  "Returns a collection of up to n ids chosen from the learnable cell
-  bits `lci-vec`. May be less than `n` if the random samples have
+  "Returns a collection of up to n ids chosen from the learnable
+  source bits. May be less than `n` if the random samples have
   duplicates or some already exist on the segment, or if there are
   fewer than `n` learnable cells."
-  [seg lci-vec n rng]
-  (when (seq lci-vec)
-    (->> lci-vec
+  [seg learnable-bits-vec n rng]
+  (when (seq learnable-bits-vec)
+    (->> learnable-bits-vec
          (util/sample rng n)
          (distinct)
          (remove seg))))
@@ -544,13 +542,13 @@
   "To punish segments which predicted activation on cells which did
   not become active. Ignores any which are still predictive.  Returns
   a sequence of SegUpdate records."
-  [distal-sg prior-pc pc ac prior-aci pcon stimulus-th]
+  [distal-sg prior-pc pc ac prior-bits pcon stimulus-th]
   (let [bad-cells (set/difference prior-pc
                                   pc
                                   ac)]
     (for [cell-id bad-cells
           :let [cell-segs (p/cell-segments distal-sg cell-id)]
-          si (cell-active-segments cell-segs prior-aci stimulus-th pcon)
+          si (cell-active-segments cell-segs prior-bits stimulus-th pcon)
           :let [seg-path (conj cell-id si)]]
       (syn/seg-update seg-path :punish nil nil))))
 
@@ -562,21 +560,17 @@
   exc]`. If this is missing for a cell then a new segment will be
   grown, perhaps replacing an existing one.
 
-  `aci` is the set of active source indices, used to find a matching
-  segment, while `lci` is the set of learnable source indices, used to
-  grow new synapses.
-
   Note that ''cell-ids'' here may also refer to columns in a proximal
   synapse graph, where the convention is [col 0]. Everything else is
   the same since proximal synapses graphs can also have multiple
   segments [col 0 seg-idx]."
-  [cells matching-segs sg aci lci rng
+  [cells matching-segs sg learnable-bits rng
    {pcon :perm-connected
     min-act :learn-threshold
     new-syns :new-synapse-count
     max-syns :max-synapse-count
     max-segs :max-segments}]
-  (let [lci-vec (vec lci)] ;; for faster sampling
+  (let [learnable-bits (vec learnable-bits)] ;; for faster sampling
     (loop [cells (seq cells)
            m (transient {})
            rng rng]
@@ -593,7 +587,8 @@
                       (nth cell-segs si)))
               grow-n (-> (- new-syns (or exc 0)) (max 0))
               [rng* rng] (random/split rng)
-              grow-source-ids (segment-new-synapse-source-ids seg lci-vec grow-n rng*)
+              grow-source-ids (segment-new-synapse-source-ids seg learnable-bits
+                                                              grow-n rng*)
               die-source-ids (if new-segment?
                                (keys replaced-syns)
                                (segment-excess-synapse-source-ids seg grow-n
@@ -613,11 +608,10 @@
 (defn learn-distal
   [sg distal-state cells matching-segs dspec rng]
   (let [learning (learning-updates cells matching-segs
-                                   sg (:on-bits distal-state)
-                                   (:on-lc-bits distal-state)
+                                   sg (:learnable-bits distal-state)
                                    rng dspec)
         new-sg (if (seq learning)
-                 (p/bulk-learn sg (vals learning) (:on-bits distal-state)
+                 (p/bulk-learn sg (vals learning) (:active-bits distal-state)
                                (:perm-inc dspec) (:perm-dec dspec)
                                (:perm-init dspec))
                  sg)]
@@ -630,11 +624,11 @@
                                          (:pred-cells prior-distal-state)
                                          (:pred-cells distal-state)
                                          prior-active-cells
-                                         (:on-bits prior-distal-state)
+                                         (:active-bits prior-distal-state)
                                          (:perm-connected dspec)
                                          (:stimulus-threshold dspec))
         new-sg (if punishments
-                 (p/bulk-learn sg punishments (:on-bits prior-distal-state)
+                 (p/bulk-learn sg punishments (:active-bits prior-distal-state)
                                (:perm-inc dspec) (:perm-punish dspec)
                                (:perm-init dspec))
                  sg)]
@@ -703,7 +697,6 @@
         prox-learning (learning-updates (map vector cols (repeat 0))
                                         (:matching-ff-seg-paths state)
                                         sg
-                                        (:in-ff-bits state)
                                         (if higher-level?
                                           (:in-stable-ff-bits state)
                                           (:in-ff-bits state))
@@ -761,7 +754,7 @@
     prior-active-cells timestep])
 
 (defrecord LayerDistalState
-    [on-bits on-lc-bits cell-exc pred-cells matching-seg-paths timestep])
+    [active-bits learnable-bits cell-exc pred-cells matching-seg-paths timestep])
 
 (def empty-active-state
   (map->LayerActiveState
@@ -780,7 +773,7 @@
 
 (def empty-distal-state
   (map->LayerDistalState
-   {:on-bits #{}
+   {:active-bits #{}
     :cell-exc {}
     :pred-cells #{}
     :matching-seg-paths {}}))
@@ -887,8 +880,8 @@
         full-matching-apical (:matching-seg-paths apical-state)
         d-full-matches (keep full-matching-distal ac)
         a-full-matches (keep full-matching-apical ac)
-        distal-bits (:on-bits distal-state)
-        apical-bits (:on-bits apical-state)
+        distal-bits (:active-bits distal-state)
+        apical-bits (:active-bits apical-state)
         min-distal (:learn-threshold (:distal spec))
         min-apical (:learn-threshold (:apical spec))
         ;; TODO: perf - maintain index of targets-by-source with pcon=0
@@ -986,7 +979,7 @@
   new (effectively new) segment will be grown."
   [col-ac distal-state apical-state learn-state distal-sg apical-sg spec rng
    newly-engaged?]
-  (let [reset? (empty? (:on-bits distal-state))
+  (let [reset? (empty? (:active-bits distal-state))
         ;; keep winners stable only at higher levels (first level needs to see repeats)
         prior-col-winners (when-not newly-engaged? (:col-winners learn-state))]
     (loop [col-ac col-ac
@@ -1023,13 +1016,13 @@
                       :apical (persistent! winning-apical)}}))))
 
 (defn compute-distal-state
-  [sg aci lci dspec t]
-  (let [seg-exc (p/excitations sg aci (:stimulus-threshold dspec))
+  [sg active-bits learnable-bits dspec t]
+  (let [seg-exc (p/excitations sg active-bits (:stimulus-threshold dspec))
         [cell-exc seg-paths] (best-segment-excitations-and-paths seg-exc)
         pc (set (keys cell-exc))]
     (map->LayerDistalState
-     {:on-bits (set aci)
-      :on-lc-bits (set lci)
+     {:active-bits (set active-bits)
+      :learnable-bits (set learnable-bits)
       :cell-exc cell-exc
       :matching-seg-paths seg-paths
       :pred-cells pc
@@ -1093,25 +1086,25 @@
     [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]
     (let [depth (:depth spec)
           widths (distal-sources-widths spec)
-          distal-aci (util/align-indices widths
-                                  [(if (:lateral-synapses? spec)
-                                     (:out-ff-bits state)
-                                     [])
-                                   distal-ff-bits])
+          distal-bits (util/align-indices widths
+                                          [(if (:lateral-synapses? spec)
+                                             (:out-ff-bits state)
+                                             [])
+                                           distal-ff-bits])
           wc (vals (:col-winners learn-state))
-          distal-lci (util/align-indices widths
-                                  [(if (:lateral-synapses? spec)
-                                     (cells->bits depth wc)
-                                     [])
-                                   distal-ff-bits])
-          apical-aci (if (:use-feedback? spec) apical-fb-bits [])
-          apical-lci (if (:use-feedback? spec) apical-fb-wc-bits [])]
+          distal-lbits (util/align-indices widths
+                                           [(if (:lateral-synapses? spec)
+                                              (cells->bits depth wc)
+                                              [])
+                                            distal-ff-bits])
+          apical-bits (if (:use-feedback? spec) apical-fb-bits [])
+          apical-lbits (if (:use-feedback? spec) apical-fb-wc-bits [])]
       (assoc this
         :prior-distal-state distal-state
         :prior-apical-state apical-state
-        :distal-state (compute-distal-state distal-sg distal-aci distal-lci
+        :distal-state (compute-distal-state distal-sg distal-bits distal-lbits
                                             (:distal spec) (:timestep state))
-        :apical-state (compute-distal-state apical-sg apical-aci apical-lci
+        :apical-state (compute-distal-state apical-sg apical-bits apical-lbits
                                             (:apical spec) (:timestep state)))))
 
   (layer-depth [_]
