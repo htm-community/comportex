@@ -333,46 +333,28 @@
         [nil 0 {}]))))
 
 (defn best-segment-excitations-and-paths
-  "Finds the most excited dendrite segment for each cell. Returns a
-  tuple of 3 maps keyed by cell id, the first contains the segment
-  excitation values, the second contains the segment paths, and the
-  third the segment paths only for cells with excitation meeting
-  min-threshold. In other words the latter paths identify the dominant
-  segments on well-matching cells."
-  [seg-exc min-threshold]
+  "Finds the most excited dendrite segment for each cell. Returns
+  `[cell-exc cell-seg-exc]` where
+
+  * cell-exc is a map from cell-id to best excitation value.
+  * cell-seg-exc is a map from cell-id to best [seg-path exc]."
+  [seg-exc]
   (loop [seg-exc (seq seg-exc)
          excs (transient {})
-         paths (transient {})
-         good-paths (transient {})]
-    (if-let [[k exc] (first seg-exc)]
-      (let [id (pop k) ;; seg-id to cell-id: [col ci _]
+         paths (transient {})]
+    (if-let [[path exc] (first seg-exc)]
+      (let [id (pop path) ;; seg-id to cell-id: [col ci _]
             prev-exc (get excs id 0.0)]
         (if (> exc prev-exc)
           (recur (next seg-exc)
                  (assoc! excs id exc)
-                 (assoc! paths id k)
-                 (if (>= exc min-threshold)
-                   (assoc! good-paths id k)
-                   good-paths))
+                 (assoc! paths id [path exc]))
           (recur (next seg-exc)
                  excs
-                 paths
-                 good-paths)))
+                 paths)))
       ;; finished
       [(persistent! excs)
-       (persistent! paths)
-       (persistent! good-paths)])))
-
-(defn best-segment-excitations
-  "Computes excitatation as a map from cell id to the greatest
-  number of active synapses on any one dendrite segment."
-  [seg-exc]
-  (persistent!
-   (reduce-kv (fn [m k exc]
-                (let [id (pop k)] ;; seg-id to cell-id: [col ci _]
-                  (assoc! m id (max exc (get m id 0.0)))))
-              (transient {})
-              seg-exc)))
+       (persistent! paths)])))
 
 (defn best-by-column
   "Returns a map of column ids to representative excitation values,
@@ -436,13 +418,13 @@
                             n-on)))))
 
 (defn column-active-cells
-  "Returns `[winner-cell-id active-cell-ids]`.
-  The winner cell is one with greatest excitation, with ties broken
-  randomly. If no cells exceed the threshold, then all become
-  active (''bursting''). Otherwise, only cells above the threshold
-  become active; but if the winner exceeds all others by at least
-  `dominance-margin` then it is the only active cell."
-  [col cell-exc prior-winner depth threshold dominance-margin rng reset?]
+  "Returns a sequence of cell ids to become active in the column.
+  If no cells have excitation over the threshold, then all become
+  active (bursting). Otherwise, only cells above the threshold become
+  active; but if the top excitation exceeds all others by at least
+  `dominance-margin` then the others are inhibited even if they are
+  over the threshold."
+  [col cell-exc depth threshold dominance-margin]
   (let [cell-ids (for [ci (range depth)] [col ci])]
     (loop [ids cell-ids
            best-ids ()
@@ -466,119 +448,46 @@
                      exc
                      second-exc))))
         ;; finished
-        (let [winner (cond
-                       (== (count best-ids) 1)
-                       (first best-ids)
-                       (and prior-winner (some #(= % prior-winner) best-ids))
-                       prior-winner
-                       reset?
-                       (first cell-ids)
-                       :else
-                       (util/rand-nth rng best-ids))
-              actives (cond
-                        ;; stimulus threshold not reached
-                        (< best-exc threshold)
-                        cell-ids
-                        ;; best cells exceed all others by dominance-margin
-                        (>= (- best-exc second-exc) dominance-margin)
-                        best-ids
-                        ;; otherwise, all cells over threshold become active
-                        :else
-                        good-ids)]
-          [winner actives])))))
+        (cond
+          ;; stimulus threshold not reached
+          (< best-exc threshold)
+          cell-ids
+          ;; best cells exceed all others by dominance-margin
+          (>= (- best-exc second-exc) dominance-margin)
+          best-ids
+          ;; otherwise, all cells over threshold become active
+          :else
+          good-ids)))))
 
 (defn select-active-cells
   "Determines active cells in the given columns and whether they are bursting.
-   Returns keys
+  Returns keys
+  * `:by-column` - map of column id to seq of active cell ids.
   * `:active-cells` - the set of active cell ids.
   * `:stable-active-cells` - the set of non-bursting active cells.
-  * `:burst-cols` - the set of bursting column ids.
-  * `:col-winners` - the map of column id to winner cell id."
-  [a-cols cell-exc bursting? prior-col-winners reset?
-   depth threshold dominance-margin rng]
+  * `:burst-cols` - the set of bursting column ids."
+  [a-cols cell-exc depth threshold dominance-margin]
   (loop [cols (seq a-cols)
+         col-ac (transient {}) ;; active cells by column
          ac (transient #{}) ;; active cells
          sac (transient #{}) ;; stable active cells
          b-cols (transient #{}) ;; bursting columns
-         col-winners (transient {})
-         rng rng]
+         ]
     (if-let [col (first cols)]
-      (let [[rng rng*] (random/split rng)
-            ;; carry forward learning cells for higher level sequences
-            prior-winner (get prior-col-winners col)
-            [win-cell col-ac] (column-active-cells col cell-exc prior-winner
-                                                   depth threshold dominance-margin
-                                                   rng* reset?)
-            b-col? (bursting? col win-cell col-ac)
-            next-ac (reduce conj! ac col-ac)
-            next-sac (if b-col?
-                       sac
-                       (reduce conj! sac col-ac))]
+      (let [this-ac (column-active-cells col cell-exc depth
+                                         threshold dominance-margin)
+            bursting? (== depth (count this-ac))]
         (recur (next cols)
-               next-ac
-               next-sac
-               (if b-col? (conj! b-cols col) b-cols)
-               (assoc! col-winners col win-cell)
-               rng))
+               (assoc! col-ac col this-ac)
+               (reduce conj! ac this-ac)
+               (if bursting? sac (reduce conj! sac this-ac))
+               (if bursting? (conj! b-cols col) b-cols)))
       ;; finished
-      {:active-cells (persistent! ac)
+      {:by-column (persistent! col-ac)
+       :active-cells (persistent! ac)
        :stable-active-cells (persistent! sac)
-       :burst-cols (persistent! b-cols)
-       :col-winners (persistent! col-winners)}
+       :burst-cols (persistent! b-cols)}
       )))
-
-(defn within-column-cell-exc
-  "Calculates cell excitation values to be used to select cells within
-  columns `a-cols`; they are compared only within each column, not
-  across columns. Where no segments exist, the value is
-  zero. Otherwise three cases are possible:
-
-  * For predicted cells, the distal excitation (number of active
-  synapses on the most active segment) is returned.
-
-  * A positive value is given for cells with partially-matching
-  segments. This applies if any segments exist with at least
-  `:seg-learn-threshold` active synapses -- even if the synapses are
-  not yet connected (below the permanence threshold).  The value is
-  chosen to be lower than any connected active segment: half the
-  `:seg-learn-threshold`.
-
-  * A negative value is given for cells with only inactive distal
-  segments. We need this to encourage context-specific choice of cells
-  in a column: avoid cells that are missing their learned context
-  signal (segment). (As a biological justification, perhaps more
-  segments create a larger cell surface area to lose potential?)
-
-  The value is negatively proportional to the number of segments:
-  again the unit amount is half the `:seg-learn-threshold`.
-
-  Returns a map of cell ids to these relative excitation values."
-  [a-cols prior-col-winners distal-sg distal-bits distal-exc min-act depth]
-  (let [adj-base-amount (quot min-act 2)]
-    (->> (for [col a-cols
-               :let [prior-wc (get prior-col-winners col)]
-               ci (range depth)
-               :let [cell-id [col ci]
-                     cell-segs (->> (p/cell-segments distal-sg cell-id)
-                                    (filter seq))
-                     n-segs (count cell-segs)]
-               :when (pos? n-segs)]
-           (let [d-exc (distal-exc cell-id)]
-             (cond
-               ;; predicted cell, use distal excitation
-               d-exc
-               [cell-id d-exc]
-               ;; continuing winner cell
-               (= prior-wc cell-id)
-               [cell-id adj-base-amount]
-               ;; some segment matches the input even if synapses disconnected
-               (first (best-matching-segment cell-segs distal-bits min-act 0.0))
-               [cell-id adj-base-amount]
-               ;; there are segments but none match the input; apply penalty
-               :else
-               [cell-id (* -1 adj-base-amount n-segs)]
-               )))
-         (into {}))))
 
 ;;; ## Learning
 
@@ -645,72 +554,68 @@
           :let [seg-path (conj cell-id si)]]
       (syn/seg-update seg-path :punish nil nil))))
 
-(defn segment-learning-map
-  "Takes the learning cells `lc` and maps each to a SegUpdate record,
+(defn learning-updates
+  "Takes the learning `cells` and maps each to a SegUpdate record,
   which includes the segment path to learn on, together with lists of
-  any synapse sources to add or remove. The segment index is chosen as
-  the best matching one, but if none match sufficiently then a new
-  segment will be grown, perhaps replacing an existing one. `aci` is
-  the set of active source indices, used to find a matching segment,
-  while `lci` is the set of learnable source indices, used to grow new
-  synapses. If `poor-match?` returns true for a cell id then
-  unconnected synapses are used to find a matching segment. Otherwise
-  only connected synapses are used.
+  any synapse sources to add or remove. Any matching segments to learn
+  on are given as `matching-segs`, mapping cell ids to `[seg-path
+  exc]`. If this is missing for a cell then a new segment will be
+  grown, perhaps replacing an existing one.
+
+  `aci` is the set of active source indices, used to find a matching
+  segment, while `lci` is the set of learnable source indices, used to
+  grow new synapses.
 
   Note that ''cell-ids'' here may also refer to columns in a proximal
   synapse graph, where the convention is [col 0]. Everything else is
   the same since proximal synapses graphs can also have multiple
   segments [col 0 seg-idx]."
-  [rng lc well-matching-paths sg aci lci {pcon :perm-connected
-                                          min-act :learn-threshold
-                                          new-syns :new-synapse-count
-                                          max-syns :max-synapse-count
-                                          max-segs :max-segments}]
+  [cells matching-segs sg aci lci rng
+   {pcon :perm-connected
+    min-act :learn-threshold
+    new-syns :new-synapse-count
+    max-syns :max-synapse-count
+    max-segs :max-segments}]
   (let [lci-vec (vec lci)] ;; for faster sampling
-    (loop [cells (seq lc)
+    (loop [cells (seq cells)
            m (transient {})
            rng rng]
       (if-let [cell-id (first cells)]
-        (if-let [seg-path (get well-matching-paths cell-id)]
-          ;; choose the well matching segment
+        (let [[matching-path exc] (get matching-segs cell-id)
+              new-segment? (not matching-path)
+              cell-segs (p/cell-segments sg cell-id)
+              [new-si replaced-syns] (when new-segment?
+                                       (new-segment-id cell-segs pcon max-segs
+                                                       max-syns))
+              seg (if new-segment?
+                    {}
+                    (let [[_ _ si] matching-path]
+                      (nth cell-segs si)))
+              grow-n (-> (- new-syns (or exc 0)) (max 0))
+              [rng* rng] (random/split rng)
+              grow-source-ids (segment-new-synapse-source-ids seg lci-vec grow-n rng*)
+              die-source-ids (if new-segment?
+                               (keys replaced-syns)
+                               (segment-excess-synapse-source-ids seg grow-n
+                                                                  max-syns))
+              seg-path (if new-segment? (conj cell-id new-si) matching-path)]
           (recur (next cells)
-                 (assoc! m cell-id (syn/seg-update seg-path :learn nil nil))
-                 rng)
-          ;; otherwise - not well matching - check disconnected synapses
-          (let [cell-segs (p/cell-segments sg cell-id)
-                [match-si exc seg] (best-matching-segment cell-segs aci
-                                                          min-act 0.0)
-                new-segment? (not match-si)
-                [seg-idx die-syns] (if match-si
-                                     [match-si nil]
-                                     (new-segment-id cell-segs pcon max-segs
-                                                     max-syns))
-                grow-n (- new-syns exc)
-                [rng* rng] (if (pos? grow-n) (random/split rng) [rng rng])
-                grow-source-ids (segment-new-synapse-source-ids seg lci-vec grow-n rng*)
-                die-source-ids (if new-segment?
-                                 (keys die-syns) ;; remove any existing (replaced)
-                                 (segment-excess-synapse-source-ids seg grow-n
-                                                                    max-syns))
-                seg-path (conj cell-id seg-idx)]
-            (recur (next cells)
-                   ;; if not enough learnable sources to grow a new segment, skip it
-                   (if (and new-segment?
-                            (< (count grow-source-ids) min-act))
-                     m ;; skip
-                     (assoc! m cell-id (syn/seg-update seg-path :learn grow-source-ids
-                                                       die-source-ids)))
-                   rng)))
+                 ;; if not enough learnable sources to grow a new segment, skip it
+                 (if (and new-segment?
+                          (< (count grow-source-ids) min-act))
+                   m ;; skip
+                   (assoc! m cell-id (syn/seg-update seg-path :learn grow-source-ids
+                                                     die-source-ids)))
+                 rng))
         ;; finished
         (persistent! m)))))
 
 (defn learn-distal
-  [sg distal-state lc dspec rng]
-  (let [learning (segment-learning-map rng lc
-                                       (:well-matching-seg-paths distal-state)
-                                       sg (:on-bits distal-state)
-                                       (:on-lc-bits distal-state)
-                                       dspec)
+  [sg distal-state cells matching-segs dspec rng]
+  (let [learning (learning-updates cells matching-segs
+                                   sg (:on-bits distal-state)
+                                   (:on-lc-bits distal-state)
+                                   rng dspec)
         new-sg (if (seq learning)
                  (p/bulk-learn sg (vals learning) (:on-bits distal-state)
                                (:perm-inc dspec) (:perm-dec dspec)
@@ -737,27 +642,29 @@
      punishments]))
 
 (defn layer-learn-lateral
-  [this lc]
+  [this cells matching-segs]
   (let [sg (:distal-sg this)
         dstate (:distal-state this)
         dspec (:distal (:spec this))
         [rng* rng] (random/split (:rng this))
-        [new-sg learning] (learn-distal sg dstate lc dspec rng*)]
+        [new-sg learning] (learn-distal sg dstate cells matching-segs dspec rng*)]
     (assoc this
            :rng rng
-           :state (assoc (:state this) :distal-learning learning)
+           :learn-state (assoc-in (:learn-state this)
+                                  [:learning :distal] learning)
            :distal-sg new-sg)))
 
 (defn layer-learn-apical
-  [this lc]
+  [this cells matching-segs]
   (let [sg (:apical-sg this)
         dstate (:apical-state this)
         dspec (:apical (:spec this))
         [rng* rng] (random/split (:rng this))
-        [new-sg learning] (learn-distal sg dstate lc dspec rng*)]
+        [new-sg learning] (learn-distal sg dstate cells matching-segs dspec rng*)]
     (assoc this
            :rng rng
-           :state (assoc (:state this) :apical-learning learning)
+           :learn-state (assoc-in (:learn-state this)
+                                  [:learning :apical] learning)
            :apical-sg new-sg)))
 
 (defn layer-punish-lateral
@@ -768,7 +675,8 @@
         dspec (:distal (:spec this))
         [new-sg punishments] (punish-distal sg dstate pdstate dspec)]
     (assoc this
-           :state (assoc (:state this) :distal-punishments punishments)
+           :learn-state (assoc-in (:learn-state this)
+                                  [:punishments :distal] punishments)
            :distal-sg new-sg)))
 
 (defn layer-punish-apical
@@ -779,7 +687,8 @@
         dspec (:apical (:spec this))
         [new-sg punishments] (punish-distal sg dstate pdstate dspec)]
     (assoc this
-           :state (assoc (:state this) :apical-punishments punishments)
+           :learn-state (assoc-in (:learn-state this)
+                                  [:punishments :apical] punishments)
            :apical-sg new-sg)))
 
 (defn layer-learn-proximal
@@ -789,15 +698,14 @@
         pspec (:proximal (:spec this))
         higher-level? (> (:max-segments pspec) 1)
         [rng* rng] (random/split (:rng this))
-        prox-learning (segment-learning-map rng*
-                                            (map vector cols (repeat 0))
-                                            (:well-matching-ff-seg-paths state)
-                                            sg
-                                            (:in-ff-bits state)
-                                            (if higher-level?
-                                              (:in-stable-ff-bits state)
-                                              (:in-ff-bits state))
-                                            pspec)
+        prox-learning (learning-updates (map vector cols (repeat 0))
+                                        (:matching-ff-seg-paths state)
+                                        sg
+                                        (:in-ff-bits state)
+                                        (if higher-level?
+                                          (:in-stable-ff-bits state)
+                                          (:in-ff-bits state))
+                                        rng* pspec)
         psg (cond-> sg
               (seq prox-learning)
               (p/bulk-learn (vals prox-learning) (:in-ff-bits state)
@@ -815,7 +723,8 @@
                             (:perm-init pspec)))]
     (assoc this
            :rng rng
-           :state (assoc state :proximal-learning prox-learning)
+           :learn-state (assoc-in (:learn-state this)
+                                  [:learning :proximal] prox-learning)
            :proximal-sg psg)))
 
 ;;; ## Orchestration
@@ -841,41 +750,48 @@
 (defrecord LayerActiveState
     [in-ff-bits in-stable-ff-bits
      out-ff-bits out-stable-ff-bits
-     col-overlaps matching-ff-seg-paths well-matching-ff-seg-paths
+     col-overlaps matching-ff-seg-paths
      temporal-pooling-exc
-     active-cols burst-cols active-cells col-winners timestep])
+     active-cols burst-cols col-active-cells active-cells timestep])
+
+(defrecord LayerLearnState
+    [col-winners winner-seg learning-cells learning punishments timestep])
 
 (defrecord LayerDistalState
     [on-bits on-lc-bits cell-exc pred-cells
-     matching-seg-paths well-matching-seg-paths
-     prior-active-cells timestep])
+     matching-seg-paths prior-active-cells timestep])
 
 (def empty-active-state
   (map->LayerActiveState
-   {:col-winners {}
-    :active-cells #{}
+   {:active-cells #{}
     :active-cols #{}
     :temporal-pooling-exc {}
-    :well-matching-ff-seg-paths {}}))
+    :matching-ff-seg-paths {}}))
+
+(def empty-learn-state
+  (map->LayerLearnState
+   {:col-winners {}
+    :learning-cells #{}
+    :learning {}
+    :punishments {}}))
 
 (def empty-distal-state
   (map->LayerDistalState
    {:on-bits #{}
     :cell-exc {}
     :pred-cells #{}
-    :well-matching-seg-paths {}}))
+    :matching-seg-paths {}}))
 
 (defn compute-active-state
-  [state ff-bits stable-ff-bits proximal-sg distal-sg distal-state apical-state
-   boosts topology inh-radius spec rng]
+  [state ff-bits stable-ff-bits proximal-sg distal-state apical-state
+   boosts topology inh-radius spec]
   (let [pspec (:proximal spec)
-        ;; proximal excitation in number of active synapses, keyed by [col 0 seg-idx]
+        ;; proximal excitation as number of active synapses, keyed by [col 0 seg-idx]
         col-seg-overlaps (p/excitations proximal-sg ff-bits
                                         (:stimulus-threshold pspec))
-        ;; these all keyed by [col 0]
-        [raw-col-exc ff-seg-paths ff-good-paths]
-        (best-segment-excitations-and-paths col-seg-overlaps
-                                            (:new-synapse-count pspec))
+        ;; these both keyed by [col 0]
+        [raw-col-exc ff-seg-paths]
+        (best-segment-excitations-and-paths col-seg-overlaps)
         ;; temporal pooling, depending on stability of input bits.
         ;; also check for clear matches, these override pooling
         higher-level? (> (:max-segments pspec) 1)
@@ -894,7 +810,7 @@
                  (decay-tp (:temporal-pooling-fall spec)))
         col-exc (cond-> raw-col-exc
                   (not engaged?)
-                  (select-keys (keys ff-good-paths))
+                  (select-keys (keys ff-seg-paths))
                   true
                   (columns/apply-overlap-boosting boosts))
         ;; ignore apical excitation unless there is matching distal.
@@ -922,48 +838,15 @@
         a-cols (select-active-columns (best-by-column abs-cell-exc)
                                       topology activation-level
                                       inh-radius spec)
-        ;; keep winners stable only at higher levels (first level needs to see repeats)
-        prior-col-winners (if higher-level? (:col-winners state))
-        ;; calculate relative excitations for cells within each active column:
-        ;; * include distal excitation on predicted cells.
-        ;; * matching segments below connected threshold get a bonus.
-        ;; * cells with inactive segments get a penalty.
-        rel-cell-exc (->> (within-column-cell-exc a-cols
-                                                  prior-col-winners
-                                                  distal-sg
-                                                  (:on-bits distal-state)
-                                                  d-a-cell-exc
-                                                  (:learn-threshold (:distal spec))
-                                                  (:depth spec))
-                          (merge-with + tp-exc))
-        ;; find active and winner cells in the columns
-        pc (:pred-cells distal-state)
+        ;; find active cells in the columns
         depth (:depth spec)
-        [rng* rng] (random/split rng)
-        {ac :active-cells
-         col-winners :col-winners
+        {col-ac :by-column
+         ac :active-cells
          burst-cols :burst-cols
          stable-ac :stable-active-cells}
-        (select-active-cells a-cols rel-cell-exc
-                             ;; definition of bursting for a column
-                             (fn [col win-cell col-ac]
-                               (if (and (not newly-engaged?)
-                                        (= win-cell (get prior-col-winners col)))
-                                 ;; for continuing temporal pooling
-                                 (== depth (count col-ac))
-                                 ;; otherwise: for discrete transitions
-                                 (not (or (pc win-cell) (tp-exc win-cell)))))
-                             prior-col-winners
-                             (empty? (:on-bits distal-state)) ;; reset?
+        (select-active-cells a-cols (merge-with + d-a-cell-exc tp-exc)
                              depth (:stimulus-threshold (:distal spec))
-                             (:dominance-margin spec) rng*)
-        ;; learning cells are the winning cells, but excluding any
-        ;; continuing winners when temporal pooling
-        old-winners (vals (:col-winners state))
-        new-winners (vals col-winners)
-        learning (if newly-engaged? ;; always true at first level
-                   new-winners
-                   (remove (set old-winners) new-winners))
+                             (:dominance-margin spec))
         ;; update continuing TP activation
         next-tp-exc (if higher-level?
                       (let [new-ac (if newly-engaged?
@@ -981,68 +864,218 @@
       :in-stable-ff-bits stable-ff-bits
       :out-ff-bits (set (cells->bits depth ac))
       :out-stable-ff-bits (set (cells->bits depth stable-ac))
-      :out-wc-bits (set (cells->bits depth (vals col-winners)))
       :engaged? engaged?
       :newly-engaged? newly-engaged?
       :col-overlaps raw-col-exc
       :matching-ff-seg-paths ff-seg-paths
-      :well-matching-ff-seg-paths ff-good-paths
       :temporal-pooling-exc next-tp-exc
+      :col-active-cells col-ac
       :active-cells ac
       :active-cols a-cols
       :burst-cols burst-cols
-      :col-winners col-winners
-      :learning-cells learning
       :timestep (inc (:timestep state))
       })))
+
+(defn select-winner-cell
+  "Returns [winner-cell [distal-seg-path exc] [apical-seg-path exc]]
+  giving the best matching existing segments to learn on, if any."
+  [ac distal-state apical-state distal-sg apical-sg spec rng]
+  (let [full-matching-distal (:matching-seg-paths distal-state)
+        full-matching-apical (:matching-seg-paths apical-state)
+        d-full-matches (keep full-matching-distal ac)
+        a-full-matches (keep full-matching-apical ac)
+        distal-bits (:on-bits distal-state)
+        apical-bits (:on-bits apical-state)
+        min-distal (:learn-threshold (:distal spec))
+        min-apical (:learn-threshold (:apical spec))
+        ;; TODO: perf - maintain index of targets-by-source with pcon=0
+        best-partial-distal-segment
+        (fn [cell-id]
+          (let [cell-segs (p/cell-segments distal-sg cell-id)
+                [match-si exc seg] (best-matching-segment
+                                    cell-segs distal-bits min-distal 0.0)]
+            (when match-si
+              [(conj cell-id match-si) exc])))
+        best-partial-apical-segment
+        (fn [cell-id]
+          (let [cell-segs (p/cell-segments apical-sg cell-id)
+                [match-si exc seg] (best-matching-segment
+                                    cell-segs apical-bits min-apical 0.0)]
+            (when match-si
+              [(conj cell-id match-si) exc])))
+        distal-match*
+        (cond
+          ;; * if one matching distal segment
+          ;; ==> select it
+          (== (count d-full-matches) 1)
+          (first d-full-matches)
+          ;; * if multiple matching distal segments
+          ;; ==> these are the active cells; fall through to apical selection
+          ;; (and finally select distal segment afterwards)
+          (> (count d-full-matches) 1)
+          nil
+          ;; * if some partial matching distal segments
+          ;; ==> select best of those
+          :else
+          (let [partial-matches (keep best-partial-distal-segment ac)]
+            (if (seq partial-matches)
+              (apply max-key second partial-matches)
+              ;; * otherwise - no distal matches
+              nil
+              )))
+        apical-match
+        (cond
+          ;; * if there is already a distal match
+          ;; ==> select best apical segment on that cell
+          distal-match*
+          (let [cell-id (pop (first distal-match*))]
+            (if-let [full-match (full-matching-apical cell-id)]
+              full-match
+              (best-partial-apical-segment cell-id)))
+          ;; * if multiple matching distal segments / cells
+          ;; ==> select best by apical, fall back to random
+          (> (count d-full-matches) 1)
+          (if (seq a-full-matches)
+            (util/rand-nth rng a-full-matches)
+            (let [partial-matches (keep best-partial-apical-segment ac)]
+              (if (seq partial-matches)
+                (apply max-key second partial-matches)
+                ;; * otherwise - no apical matches
+                nil
+                )))
+          :else
+          nil
+          )
+        distal-match
+        (cond
+          ;; * if already have it, nothing to do
+          distal-match*
+          distal-match*
+          ;; * if multiple matching distal segments
+          ;;   (deferred case from above)
+          ;; ==> select best segment on chosen cell (by apical or randomly)
+          (> (count d-full-matches) 1)
+          (let [cell-id (if apical-match
+                          (pop (first (apical-match)))
+                          (util/rand-nth rng ac))
+                match (full-matching-distal cell-id)]
+            (assert match "fully active distal, if any, should equal active cells")
+            match)
+          :else
+          nil)
+        winner-cell
+        (cond
+          distal-match
+          (pop (first distal-match))
+          :else
+          (util/rand-nth rng ac))]
+    [winner-cell distal-match apical-match]))
+
+(defn select-winner-cells
+  "Returns keys / nested keys
+
+  * `:col-winners` - maps column id to winning cell id;
+  * `:winner-seg :distal` - maps cell id to [seg-path exc] for a lateral segment;
+  * `:winner-seg :apical` - maps cell id to [seg-path exc] for an apical segment;
+
+  These :winner-seg maps contain only the winning cell ids for which an
+  existing segment matches sufficiently to be learning. Otherwise, a
+  new (effectively new) segment will be grown."
+  [col-ac distal-state apical-state learn-state distal-sg apical-sg spec rng
+   newly-engaged?]
+  (let [reset? (empty? (:on-bits distal-state))
+        ;; keep winners stable only at higher levels (first level needs to see repeats)
+        prior-col-winners (when-not newly-engaged? (:col-winners learn-state))]
+    (loop [col-ac col-ac
+           col-winners (transient {})
+           winning-distal (transient {})
+           winning-apical (transient {})
+           rng rng]
+      (if-let [[col ac] (first col-ac)]
+        (if reset?
+          (recur (next col-ac)
+                 (assoc! col-winners col (first ac))
+                 winning-distal winning-apical rng)
+          (let [;; carry forward learning cells for higher level sequences
+                prior-winner (get prior-col-winners col)
+                ac (if (and prior-winner (some #(= % prior-winner) ac))
+                     [prior-winner]
+                     ac)
+                [rng* rng] (random/split rng)
+                [winner dmatch amatch]
+                (select-winner-cell ac distal-state apical-state
+                                    distal-sg apical-sg spec rng*)]
+            (recur (next col-ac)
+                   (assoc! col-winners col winner)
+                   (if dmatch
+                     (assoc! winning-distal winner dmatch)
+                     winning-distal)
+                   (if amatch
+                     (assoc! winning-apical winner amatch)
+                     winning-apical)
+                   rng)))
+        ;; finished
+        {:col-winners (persistent! col-winners)
+         :winner-seg {:distal (persistent! winning-distal)
+                      :apical (persistent! winning-apical)}}))))
 
 (defn compute-distal-state
   [sg aci lci dspec t]
   (let [seg-exc (p/excitations sg aci (:stimulus-threshold dspec))
-        [cell-exc seg-paths good-paths] (best-segment-excitations-and-paths
-                                         seg-exc (:new-synapse-count dspec))
+        [cell-exc seg-paths] (best-segment-excitations-and-paths seg-exc)
         pc (set (keys cell-exc))]
     (map->LayerDistalState
      {:on-bits (set aci)
       :on-lc-bits (set lci)
       :cell-exc cell-exc
       :matching-seg-paths seg-paths
-      :well-matching-seg-paths good-paths
       :pred-cells pc
       :timestep t})))
 
 (defrecord LayerOfCells
     [spec rng topology input-topology inh-radius boosts active-duty-cycles
      proximal-sg distal-sg apical-sg state distal-state prior-distal-state
-     apical-state prior-apical-state]
+     apical-state prior-apical-state learn-state]
 
   p/PLayerOfCells
 
   (layer-activate
     [this ff-bits stable-ff-bits]
-    (let [[rng* rng] (random/split rng)
-          new-state (compute-active-state state ff-bits stable-ff-bits
-                                          proximal-sg distal-sg distal-state
-                                          apical-state boosts topology
-                                          inh-radius spec rng*)]
-      (assoc this
-             :rng rng
-             :state new-state)))
+    (let [new-state (compute-active-state state ff-bits stable-ff-bits
+                                          proximal-sg distal-state apical-state
+                                          boosts topology inh-radius spec)]
+      (assoc this :state new-state)))
 
   (layer-learn
     [this]
-    (let [lc (:learning-cells state)
-          a-cols (:active-cols state)
+    (let [a-cols (:active-cols state)
+          col-ac (:col-active-cells state)
+          newly-engaged? (:newly-engaged? state)
+          [rng* rng] (random/split rng)
+          {:keys [col-winners winner-seg]}
+          (select-winner-cells col-ac distal-state apical-state learn-state
+                               distal-sg apical-sg spec rng* newly-engaged?)
+          ;; learning cells are the winning cells, but excluding any
+          ;; continuing winners when temporal pooling
+          old-winners (vals (:col-winners learn-state))
+          new-winners (vals col-winners)
+          lc (if newly-engaged? ;; always true at first level
+               new-winners
+               (remove (set old-winners) new-winners))
+          depth (:depth spec)
+          out-wc-bits (set (cells->bits depth (vals col-winners)))
           timestep (:timestep state)]
       (cond->
-          (update this :state assoc
-                  :proximal-learning {}
-                  :distal-learning {}
-                  :apical-learning {}
-                  :distal-punishments ()
-                  :apical-punishments ())
-        (:learn? (:distal spec)) (layer-learn-lateral lc)
-        (:learn? (:apical spec)) (layer-learn-apical lc)
+          this
+        true (assoc :learn-state (assoc empty-learn-state
+                                        :col-winners col-winners
+                                        :winner-seg winner-seg
+                                        :learning-cells lc
+                                        :out-wc-bits out-wc-bits
+                                        :timestep timestep)
+                    :rng rng)
+        (:learn? (:distal spec)) (layer-learn-lateral lc (:distal winner-seg))
+        (:learn? (:apical spec)) (layer-learn-apical lc (:apical winner-seg))
         (:punish? (:distal spec)) (layer-punish-lateral)
         (:punish? (:apical spec)) (layer-punish-apical)
         (and (:engaged? state)
@@ -1061,7 +1094,7 @@
                                      (:out-ff-bits state)
                                      [])
                                    distal-ff-bits])
-          wc (vals (:col-winners state))
+          wc (vals (:col-winners learn-state))
           distal-lci (util/align-indices widths
                                   [(if (:lateral-synapses? spec)
                                      (cells->bits depth wc)
@@ -1090,7 +1123,7 @@
   (active-cells [_]
     (:active-cells state))
   (winner-cells [_]
-    (set (vals (:col-winners state))))
+    (set (vals (:col-winners learn-state))))
   (temporal-pooling-cells [_]
     (when (:engaged? state)
       (keys (:temporal-pooling-exc state))))
@@ -1133,7 +1166,7 @@
     (id->cell (:depth spec) i))
   p/PFeedBack
   (wc-bits-value [_]
-    (:out-wc-bits state))
+    (:out-wc-bits learn-state))
   p/PTemporal
   (timestep [_]
     (:timestep state))
@@ -1172,6 +1205,7 @@
                                                (:perm-connected (:apical spec))
                                                true)
         state (assoc empty-active-state :timestep 0)
+        learn-state (assoc empty-learn-state :timestep 0)
         distal-state (assoc empty-distal-state :timestep 0)]
     {:spec spec
      :rng rng
@@ -1182,6 +1216,7 @@
      :distal-sg distal-sg
      :apical-sg apical-sg
      :state state
+     :learn-state learn-state
      :distal-state distal-state
      :prior-distal-state distal-state
      :boosts (vec (repeat n-cols 1.0))
