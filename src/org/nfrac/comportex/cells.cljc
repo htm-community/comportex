@@ -692,10 +692,27 @@
   (let [sg (:proximal-sg this)
         state (:state this)
         pspec (:proximal (:spec this))
+        min-prox (:learn-threshold pspec)
         higher-level? (> (:max-segments pspec) 1)
+        active-bits (:in-ff-bits state)
+        full-matching-segs (:matching-ff-seg-paths state)
+        ids (map vector cols (repeat 0))
+        matching-segs
+        (persistent!
+         (reduce (fn [m id]
+                   (if-let [full-match (full-matching-segs id)]
+                     (assoc! m id full-match)
+                     (let [cell-segs (p/cell-segments sg id)
+                           [match-si exc seg] (best-matching-segment
+                                               cell-segs active-bits min-prox 0.0)]
+                       (if match-si
+                         (assoc! m id [(conj id match-si) exc])
+                         m))))
+                 (transient {})
+                 ids))
         [rng* rng] (random/split (:rng this))
-        prox-learning (learning-updates (map vector cols (repeat 0))
-                                        (:matching-ff-seg-paths state)
+        prox-learning (learning-updates ids
+                                        matching-segs
                                         sg
                                         (if higher-level?
                                           (:in-stable-ff-bits state)
