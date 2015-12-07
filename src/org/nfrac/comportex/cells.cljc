@@ -625,11 +625,11 @@
      learning]))
 
 (defn punish-distal
-  [sg distal-state prior-distal-state dspec]
+  [sg distal-state prior-distal-state prior-active-cells dspec]
   (let [punishments (segment-punishments sg
                                          (:pred-cells prior-distal-state)
                                          (:pred-cells distal-state)
-                                         (:prior-active-cells distal-state)
+                                         prior-active-cells
                                          (:on-bits prior-distal-state)
                                          (:perm-connected dspec)
                                          (:stimulus-threshold dspec))
@@ -672,8 +672,9 @@
   (let [sg (:distal-sg this)
         dstate (:distal-state this)
         pdstate (:prior-distal-state this)
+        prior-ac (:prior-active-cells (:learn-state this))
         dspec (:distal (:spec this))
-        [new-sg punishments] (punish-distal sg dstate pdstate dspec)]
+        [new-sg punishments] (punish-distal sg dstate pdstate prior-ac dspec)]
     (assoc this
            :learn-state (assoc-in (:learn-state this)
                                   [:punishments :distal] punishments)
@@ -684,8 +685,9 @@
   (let [sg (:apical-sg this)
         dstate (:apical-state this)
         pdstate (:prior-apical-state this)
+        prior-ac (:prior-active-cells (:learn-state this))
         dspec (:apical (:spec this))
-        [new-sg punishments] (punish-distal sg dstate pdstate dspec)]
+        [new-sg punishments] (punish-distal sg dstate pdstate prior-ac dspec)]
     (assoc this
            :learn-state (assoc-in (:learn-state this)
                                   [:punishments :apical] punishments)
@@ -755,11 +757,11 @@
      active-cols burst-cols col-active-cells active-cells timestep])
 
 (defrecord LayerLearnState
-    [col-winners winner-seg learning-cells learning punishments timestep])
+    [col-winners winner-seg learning-cells learning punishments
+    prior-active-cells timestep])
 
 (defrecord LayerDistalState
-    [on-bits on-lc-bits cell-exc pred-cells
-     matching-seg-paths prior-active-cells timestep])
+    [on-bits on-lc-bits cell-exc pred-cells matching-seg-paths timestep])
 
 (def empty-active-state
   (map->LayerActiveState
@@ -773,7 +775,8 @@
    {:col-winners {}
     :learning-cells #{}
     :learning {}
-    :punishments {}}))
+    :punishments {}
+    :prior-active-cells #{}}))
 
 (def empty-distal-state
   (map->LayerDistalState
@@ -1072,6 +1075,7 @@
                                         :winner-seg winner-seg
                                         :learning-cells lc
                                         :out-wc-bits out-wc-bits
+                                        :prior-active-cells (:active-cells state)
                                         :timestep timestep)
                     :rng rng)
         (:learn? (:distal spec)) (layer-learn-lateral lc (:distal winner-seg))
@@ -1105,14 +1109,10 @@
       (assoc this
         :prior-distal-state distal-state
         :prior-apical-state apical-state
-        :distal-state (->
-                       (compute-distal-state distal-sg distal-aci distal-lci
-                                             (:distal spec) (:timestep state))
-                       (assoc :prior-active-cells (:active-cells state)))
-        :apical-state (->
-                       (compute-distal-state apical-sg apical-aci apical-lci
-                                             (:apical spec) (:timestep state))
-                       (assoc :prior-active-cells (:active-cells state))))))
+        :distal-state (compute-distal-state distal-sg distal-aci distal-lci
+                                            (:distal spec) (:timestep state))
+        :apical-state (compute-distal-state apical-sg apical-aci apical-lci
+                                            (:apical spec) (:timestep state)))))
 
   (layer-depth [_]
     (:depth spec))
