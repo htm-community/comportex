@@ -940,18 +940,14 @@
 
 (defn compute-active-state
   [state ff-bits stable-ff-bits proximal-sg distal-state apical-state
-   boosts topology inh-radius spec engaged?]
+   boosts topology inh-radius spec]
   (let [;; proximal excitation as number of active synapses, keyed by [col 0 seg-idx]
         col-seg-overlaps (p/excitations proximal-sg ff-bits
                                         (:stimulus-threshold (:proximal spec)))
         ;; these both keyed by [col 0]
         [raw-col-exc ff-seg-paths]
         (best-segment-excitations-and-paths col-seg-overlaps)
-        col-exc (cond-> raw-col-exc
-                  (not engaged?)
-                  (select-keys (keys ff-seg-paths))
-                  true
-                  (columns/apply-overlap-boosting boosts))
+        col-exc (columns/apply-overlap-boosting raw-col-exc boosts)
         tp-exc (:temporal-pooling-exc state)
         ;; ignore apical excitation unless there is matching distal.
         ;; unlike other segments, allow apical excitation to add to distal
@@ -1028,8 +1024,7 @@
         (compute-active-state (assoc state :temporal-pooling-exc tp-exc)
                               ff-bits stable-ff-bits proximal-sg distal-state
                               apical-state boosts topology inh-radius
-                              (assoc spec :activation-level activation-level)
-                              engaged?)
+                              (assoc spec :activation-level activation-level))
         ;; update continuing TP activation
         ac (:active-cells next-state)
         next-tp-exc (if higher-level?
