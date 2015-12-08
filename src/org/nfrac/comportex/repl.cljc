@@ -36,9 +36,10 @@
                       [:col-overlaps :matching-ff-seg-paths
                        :in-ff-bits :in-stable-ff-bits
                        :out-ff-bits :out-stable-ff-bits
-                       :active-cells]
+                       :active-cells :col-overlaps
+                       :temporal-pooling-exc]
                       LayerDistalState
-                      [:on-bits :on-lc-bits :cell-exc :pred-cells
+                      [:active-bits :learnable-bits :cell-exc :pred-cells
                        :matching-seg-paths]})
 
 (defrecord TruncateOnPrint [v])

@@ -685,8 +685,8 @@
         ff-bits (:in-ff-bits state)
         ff-s-bits (:in-stable-ff-bits state)
         ff-b-bits (set/difference ff-bits ff-s-bits)
-        distal-bits (:on-bits distal-state)
-        apical-bits (:on-bits apical-state)
+        distal-bits (:active-bits distal-state)
+        apical-bits (:active-bits apical-state)
         is-input-layer? (= lyr-id (first (layers rgn)))
         ff-bits-srcs (if is-input-layer?
                        (into {}
@@ -719,7 +719,7 @@
           (map (fn [cell-id]
                  (let [[col ci] cell-id
                        ;; breakdown of proximal excitation by source
-                       ff-seg-path (get (:matching-ff-seg-paths state) [col 0])
+                       [ff-seg-path _] (get (:matching-ff-seg-paths state) [col 0])
                        ff-conn-sources (when ff-seg-path
                                          (p/sources-connected-to psg ff-seg-path))
                        active-ff-b (->> (filter ff-b-bits ff-conn-sources)
@@ -729,7 +729,7 @@
                        ff-b-by-src (frequencies (map ff-bits-srcs active-ff-b))
                        ff-s-by-src (frequencies (map ff-bits-srcs active-ff-s))
                        ;; breakdown of distal excitation by source
-                       d-seg-path (get (:matching-seg-paths distal-state) cell-id)
+                       [d-seg-path _] (get (:matching-seg-paths distal-state) cell-id)
                        d-conn-sources (when d-seg-path
                                         (p/sources-connected-to dsg d-seg-path))
                        active-d (->> (filter distal-bits d-conn-sources)
@@ -737,7 +737,7 @@
                        d-by-src (->> (frequencies (map distal-bits-srcs active-d))
                                      (util/remap #(* % distal-weight)))
                        ;; same for apical
-                       a-seg-path (get (:matching-seg-paths apical-state) cell-id)
+                       [a-seg-path _] (get (:matching-seg-paths apical-state) cell-id)
                        a-conn-sources (when a-seg-path
                                         (p/sources-connected-to asg a-seg-path))
                        active-a (->> (filter apical-bits a-conn-sources)
