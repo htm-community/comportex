@@ -176,14 +176,14 @@
       (println "Warning: unknown keys in spec:" unk)))
   (let [l4-spec (-> (assoc spec
                       :lateral-synapses? false)
-                    (util/deep-merge (:layer-4 spec))
+                    (util/deep-merge (:layer-4 spec {}))
                     (dissoc :layer-3 :layer-4))
         l4 (cells/layer-of-cells l4-spec)
         l3-spec (-> (assoc spec
                       :input-dimensions (p/dimensions (p/ff-topology l4))
                       :distal-motor-dimensions [0]
                       :lateral-synapses? true)
-                    (util/deep-merge (:layer-3 spec))
+                    (util/deep-merge (:layer-3 spec {}))
                     (dissoc :layer-3 :layer-4))
         l3 (cells/layer-of-cells l3-spec)]
     (map->SensoriMotorRegion

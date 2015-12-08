@@ -188,13 +188,15 @@
     (persistent!
      (update-each! (transient m) ks f))))
 
+(defn- mapish? [m] (or (nil? m) (map? m)))
+
 (defn deep-merge-with
   "Like merge-with, but merges maps recursively, applying the given fn
   only when there's a non-map at a particular level."
   [f & maps]
   (apply
    (fn m [& maps]
-     (if (every? map? maps)
+     (if (every? mapish? maps)
        (apply merge-with m maps)
        (apply f maps)))
    maps))
@@ -202,7 +204,7 @@
 (defn deep-merge
   "Like merge, but merges maps recursively."
   [& maps]
-  (if (every? map? maps)
+  (if (every? mapish? maps)
     (apply merge-with deep-merge maps)
     (last maps)))
 
