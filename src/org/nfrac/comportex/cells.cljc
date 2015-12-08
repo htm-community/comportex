@@ -489,6 +489,149 @@
 
 ;;; ## Learning
 
+(defn select-winner-cell
+  "Returns [winner-cell [distal-seg-path exc] [apical-seg-path exc]]
+  giving the best matching existing segments to learn on, if any."
+  [ac distal-state apical-state distal-sg apical-sg spec rng]
+  (let [full-matching-distal (:matching-seg-paths distal-state)
+        full-matching-apical (:matching-seg-paths apical-state)
+        d-full-matches (keep full-matching-distal ac)
+        a-full-matches (keep full-matching-apical ac)
+        distal-bits (:active-bits distal-state)
+        apical-bits (:active-bits apical-state)
+        min-distal (:learn-threshold (:distal spec))
+        min-apical (:learn-threshold (:apical spec))
+        ;; TODO: perf - maintain index of targets-by-source with pcon=0
+        best-partial-distal-segment
+        (fn [cell-id]
+          (let [cell-segs (p/cell-segments distal-sg cell-id)
+                [match-si exc seg] (best-matching-segment
+                                    cell-segs distal-bits min-distal 0.0)]
+            (when match-si
+              [(conj cell-id match-si) exc])))
+        best-partial-apical-segment
+        (fn [cell-id]
+          (let [cell-segs (p/cell-segments apical-sg cell-id)
+                [match-si exc seg] (best-matching-segment
+                                    cell-segs apical-bits min-apical 0.0)]
+            (when match-si
+              [(conj cell-id match-si) exc])))
+        distal-match*
+        (cond
+          ;; * if one matching distal segment
+          ;; ==> select it
+          (== (count d-full-matches) 1)
+          (first d-full-matches)
+          ;; * if multiple matching distal segments
+          ;; ==> these are the active cells; fall through to apical selection
+          ;; (and finally select distal segment afterwards)
+          (> (count d-full-matches) 1)
+          nil
+          ;; * if some partial matching distal segments
+          ;; ==> select best of those
+          :else
+          (let [partial-matches (keep best-partial-distal-segment ac)]
+            (if (seq partial-matches)
+              (apply max-key second partial-matches)
+              ;; * otherwise - no distal matches
+              nil
+              )))
+        apical-match
+        (cond
+          ;; * if there is already a distal match
+          ;; ==> select best apical segment on that cell
+          distal-match*
+          (let [cell-id (pop (first distal-match*))]
+            (if-let [full-match (full-matching-apical cell-id)]
+              full-match
+              (best-partial-apical-segment cell-id)))
+          ;; * if multiple matching distal segments / cells
+          ;; ==> select best by apical, fall back to random
+          (> (count d-full-matches) 1)
+          (if (seq a-full-matches)
+            (util/rand-nth rng a-full-matches)
+            (let [partial-matches (keep best-partial-apical-segment ac)]
+              (if (seq partial-matches)
+                (apply max-key second partial-matches)
+                ;; * otherwise - no apical matches
+                nil
+                )))
+          :else
+          nil
+          )
+        distal-match
+        (cond
+          ;; * if already have it, nothing to do
+          distal-match*
+          distal-match*
+          ;; * if multiple matching distal segments
+          ;;   (deferred case from above)
+          ;; ==> select best segment on chosen cell (by apical or randomly)
+          (> (count d-full-matches) 1)
+          (let [cell-id (if apical-match
+                          (pop (first (apical-match)))
+                          (util/rand-nth rng ac))
+                match (full-matching-distal cell-id)]
+            (assert match "fully active distal, if any, should equal active cells")
+            match)
+          :else
+          nil)
+        winner-cell
+        (cond
+          distal-match
+          (pop (first distal-match))
+          :else
+          (util/rand-nth rng ac))]
+    [winner-cell distal-match apical-match]))
+
+(defn select-winner-cells
+  "Returns keys / nested keys
+
+  * `:col-winners` - maps column id to winning cell id;
+  * `:winner-seg :distal` - maps cell id to [seg-path exc] for a lateral segment;
+  * `:winner-seg :apical` - maps cell id to [seg-path exc] for an apical segment;
+
+  These :winner-seg maps contain only the winning cell ids for which an
+  existing segment matches sufficiently to be learning. Otherwise, a
+  new (effectively new) segment will be grown."
+  [col-ac distal-state apical-state learn-state distal-sg apical-sg spec rng
+   newly-engaged?]
+  (let [reset? (empty? (:active-bits distal-state))
+        ;; keep winners stable only at higher levels (first level needs to see repeats)
+        prior-col-winners (when-not newly-engaged? (:col-winners learn-state))]
+    (loop [col-ac col-ac
+           col-winners (transient {})
+           winning-distal (transient {})
+           winning-apical (transient {})
+           rng rng]
+      (if-let [[col ac] (first col-ac)]
+        (if reset?
+          (recur (next col-ac)
+                 (assoc! col-winners col (first ac))
+                 winning-distal winning-apical rng)
+          (let [;; carry forward learning cells for higher level sequences
+                prior-winner (get prior-col-winners col)
+                ac (if (and prior-winner (some #(= % prior-winner) ac))
+                     [prior-winner]
+                     ac)
+                [rng* rng] (random/split rng)
+                [winner dmatch amatch]
+                (select-winner-cell ac distal-state apical-state
+                                    distal-sg apical-sg spec rng*)]
+            (recur (next col-ac)
+                   (assoc! col-winners col winner)
+                   (if dmatch
+                     (assoc! winning-distal winner dmatch)
+                     winning-distal)
+                   (if amatch
+                     (assoc! winning-apical winner amatch)
+                     winning-apical)
+                   rng)))
+        ;; finished
+        {:col-winners (persistent! col-winners)
+         :winner-seg {:distal (persistent! winning-distal)
+                      :apical (persistent! winning-apical)}}))))
+
 (defn new-segment-id
   "Returns a segment index on the cell at which to grow a new segment,
   together with any existing synapses at that index. It may refer to
@@ -905,149 +1048,6 @@
            :engaged? engaged?
            :newly-engaged? newly-engaged?
            :temporal-pooling-exc next-tp-exc)))
-
-(defn select-winner-cell
-  "Returns [winner-cell [distal-seg-path exc] [apical-seg-path exc]]
-  giving the best matching existing segments to learn on, if any."
-  [ac distal-state apical-state distal-sg apical-sg spec rng]
-  (let [full-matching-distal (:matching-seg-paths distal-state)
-        full-matching-apical (:matching-seg-paths apical-state)
-        d-full-matches (keep full-matching-distal ac)
-        a-full-matches (keep full-matching-apical ac)
-        distal-bits (:active-bits distal-state)
-        apical-bits (:active-bits apical-state)
-        min-distal (:learn-threshold (:distal spec))
-        min-apical (:learn-threshold (:apical spec))
-        ;; TODO: perf - maintain index of targets-by-source with pcon=0
-        best-partial-distal-segment
-        (fn [cell-id]
-          (let [cell-segs (p/cell-segments distal-sg cell-id)
-                [match-si exc seg] (best-matching-segment
-                                    cell-segs distal-bits min-distal 0.0)]
-            (when match-si
-              [(conj cell-id match-si) exc])))
-        best-partial-apical-segment
-        (fn [cell-id]
-          (let [cell-segs (p/cell-segments apical-sg cell-id)
-                [match-si exc seg] (best-matching-segment
-                                    cell-segs apical-bits min-apical 0.0)]
-            (when match-si
-              [(conj cell-id match-si) exc])))
-        distal-match*
-        (cond
-          ;; * if one matching distal segment
-          ;; ==> select it
-          (== (count d-full-matches) 1)
-          (first d-full-matches)
-          ;; * if multiple matching distal segments
-          ;; ==> these are the active cells; fall through to apical selection
-          ;; (and finally select distal segment afterwards)
-          (> (count d-full-matches) 1)
-          nil
-          ;; * if some partial matching distal segments
-          ;; ==> select best of those
-          :else
-          (let [partial-matches (keep best-partial-distal-segment ac)]
-            (if (seq partial-matches)
-              (apply max-key second partial-matches)
-              ;; * otherwise - no distal matches
-              nil
-              )))
-        apical-match
-        (cond
-          ;; * if there is already a distal match
-          ;; ==> select best apical segment on that cell
-          distal-match*
-          (let [cell-id (pop (first distal-match*))]
-            (if-let [full-match (full-matching-apical cell-id)]
-              full-match
-              (best-partial-apical-segment cell-id)))
-          ;; * if multiple matching distal segments / cells
-          ;; ==> select best by apical, fall back to random
-          (> (count d-full-matches) 1)
-          (if (seq a-full-matches)
-            (util/rand-nth rng a-full-matches)
-            (let [partial-matches (keep best-partial-apical-segment ac)]
-              (if (seq partial-matches)
-                (apply max-key second partial-matches)
-                ;; * otherwise - no apical matches
-                nil
-                )))
-          :else
-          nil
-          )
-        distal-match
-        (cond
-          ;; * if already have it, nothing to do
-          distal-match*
-          distal-match*
-          ;; * if multiple matching distal segments
-          ;;   (deferred case from above)
-          ;; ==> select best segment on chosen cell (by apical or randomly)
-          (> (count d-full-matches) 1)
-          (let [cell-id (if apical-match
-                          (pop (first (apical-match)))
-                          (util/rand-nth rng ac))
-                match (full-matching-distal cell-id)]
-            (assert match "fully active distal, if any, should equal active cells")
-            match)
-          :else
-          nil)
-        winner-cell
-        (cond
-          distal-match
-          (pop (first distal-match))
-          :else
-          (util/rand-nth rng ac))]
-    [winner-cell distal-match apical-match]))
-
-(defn select-winner-cells
-  "Returns keys / nested keys
-
-  * `:col-winners` - maps column id to winning cell id;
-  * `:winner-seg :distal` - maps cell id to [seg-path exc] for a lateral segment;
-  * `:winner-seg :apical` - maps cell id to [seg-path exc] for an apical segment;
-
-  These :winner-seg maps contain only the winning cell ids for which an
-  existing segment matches sufficiently to be learning. Otherwise, a
-  new (effectively new) segment will be grown."
-  [col-ac distal-state apical-state learn-state distal-sg apical-sg spec rng
-   newly-engaged?]
-  (let [reset? (empty? (:active-bits distal-state))
-        ;; keep winners stable only at higher levels (first level needs to see repeats)
-        prior-col-winners (when-not newly-engaged? (:col-winners learn-state))]
-    (loop [col-ac col-ac
-           col-winners (transient {})
-           winning-distal (transient {})
-           winning-apical (transient {})
-           rng rng]
-      (if-let [[col ac] (first col-ac)]
-        (if reset?
-          (recur (next col-ac)
-                 (assoc! col-winners col (first ac))
-                 winning-distal winning-apical rng)
-          (let [;; carry forward learning cells for higher level sequences
-                prior-winner (get prior-col-winners col)
-                ac (if (and prior-winner (some #(= % prior-winner) ac))
-                     [prior-winner]
-                     ac)
-                [rng* rng] (random/split rng)
-                [winner dmatch amatch]
-                (select-winner-cell ac distal-state apical-state
-                                    distal-sg apical-sg spec rng*)]
-            (recur (next col-ac)
-                   (assoc! col-winners col winner)
-                   (if dmatch
-                     (assoc! winning-distal winner dmatch)
-                     winning-distal)
-                   (if amatch
-                     (assoc! winning-apical winner amatch)
-                     winning-apical)
-                   rng)))
-        ;; finished
-        {:col-winners (persistent! col-winners)
-         :winner-seg {:distal (persistent! winning-distal)
-                      :apical (persistent! winning-apical)}}))))
 
 (defn compute-distal-state
   [sg active-bits learnable-bits dspec t]
