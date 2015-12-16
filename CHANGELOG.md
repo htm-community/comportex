@@ -14,6 +14,7 @@
 
 ### Added
 - LayerActiveState gains a key :col-active-cells, a map keyed by col id.
+- Spec parameter :apical-bias-frac
 
 ### Fixed
 - Segments with connected synapses below :new-synapse-count but above
