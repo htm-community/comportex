@@ -54,7 +54,9 @@ lein repl
 
 See [A sample workflow with the
 REPL](https://github.com/nupic-community/comportex/wiki/A-sample-workflow-with-the-REPL).
-Or check out the Notebook (browser-based REPL with super powers) in
+
+Or, for a better experience, check out the Notebook (browser-based
+REPL with super powers) in
 [Sanity](https://github.com/nupic-community/sanity/).
 
 
