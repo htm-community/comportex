@@ -165,6 +165,10 @@
   number of active proximal synapses, when selecting active
   columns. Set to zero to disable ``prediction-assisted'' activation.
 
+  * `apical-bias-frac` - probability of choosing a winner cell
+  according to apical excitation when otherwise the choice would have
+  been random. Generates similarity between cases in similar contexts.
+
   * `spontaneous-activation?` - if true, cells may become active with
   sufficient distal synapse excitation, even in the absence of any
   proximal synapse excitation.
@@ -226,6 +230,7 @@
    :global-inhibition? true
    :inhibition-base-distance 1
    :distal-vs-proximal-weight 0.0
+   :apical-bias-frac 0.0
    :spontaneous-activation? false
    :dominance-margin 4
    :stable-inbit-frac-threshold 0.5
@@ -460,6 +465,7 @@
 (defn select-active-cells
   "Determines active cells in the given columns and whether they are bursting.
   Returns keys
+
   * `:by-column` - map of column id to seq of active cell ids.
   * `:active-cells` - the set of active cell ids.
   * `:stable-active-cells` - the set of non-bursting active cells.
@@ -501,6 +507,7 @@
         apical-bits (:active-bits apical-state)
         min-distal (:learn-threshold (:distal spec))
         min-apical (:learn-threshold (:apical spec))
+        apical-bias-frac (:apical-bias-frac spec)
         ;; TODO: perf - maintain index of targets-by-source with pcon=0
         best-partial-distal-segment
         (fn [cell-id]
@@ -547,7 +554,11 @@
               (best-partial-apical-segment cell-id)))
           ;; * if multiple matching distal segments / cells
           ;; ==> select best by apical, fall back to random
-          (> (count d-full-matches) 1)
+          (or (> (count d-full-matches) 1)
+              ;; * if some matching apical segment
+              ;; ==> with some probability, select it, otherwise random
+              (and (pos? apical-bias-frac)
+                   (<= (random/rand-double rng) apical-bias-frac)))
           (if (seq a-full-matches)
             (util/rand-nth rng a-full-matches)
             (let [partial-matches (keep best-partial-apical-segment ac)]
@@ -556,6 +567,7 @@
                 ;; * otherwise - no apical matches
                 nil
                 )))
+          ;; * otherwise - no matching apical segments
           :else
           nil
           )
@@ -580,6 +592,8 @@
         (cond
           distal-match
           (pop (first distal-match))
+          apical-match
+          (pop (first apical-match))
           :else
           (util/rand-nth rng ac))]
     [winner-cell distal-match apical-match]))
