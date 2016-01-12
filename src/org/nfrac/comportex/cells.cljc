@@ -581,7 +581,7 @@
           ;; ==> select best segment on chosen cell (by apical or randomly)
           (> (count d-full-matches) 1)
           (let [cell-id (if apical-match
-                          (pop (first (apical-match)))
+                          (pop (first apical-match))
                           (util/rand-nth rng ac))
                 match (full-matching-distal cell-id)]
             (assert match "fully active distal, if any, should equal active cells")
