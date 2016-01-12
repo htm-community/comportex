@@ -83,9 +83,6 @@
     "The set of winning cell ids, one in each active column. These are
     only _learning_ cells when they turn on, but are always
     _learnable_.")
-  (temporal-pooling-cells [this]
-    "The collection of temporal pooling cells, i.e. those having some
-    non-zero level of continuing temporal pooling excitation.")
   (predictive-cells [this]
     "The set of predictive cell ids derived from the current active
     cells. If the depolarise phase has not been applied yet, returns
@@ -150,11 +147,16 @@
   (break [this mode]
     "Returns this model (or model component) without its current
     sequence state, forcing the following input to be treated as a new
-    sequence. If mode is :tm, cancels any distal predictions and
-    prevents learning lateral/distal connections. If mode is :fb,
-    cancels any feedback predictions and prevents learning connections
-    on apical dendrites. If mode is :tp, cancels any temporal pooling
-    potential."))
+    sequence. `mode` can be
+
+    * :tm, cancels any distal predictions and prevents learning
+      lateral/distal connections.
+    * :fb, cancels any feedback predictions and prevents learning
+      connections on apical dendrites.
+    * :syns, cancels any continuing stable synapses used for temporal
+      pooling in any higher layers (not `this` layer).
+    * :winners, allows new winner cells to be chosen in continuing
+      columns."))
 
 (defprotocol PTemporal
   (timestep [this]))
