@@ -1,6 +1,8 @@
 # Change Log
 
 ## [Unreleased]
+
+## [0.0.13] - 2016-01-12
 ### Changed
 - Winner cells are not selected in layer-activate phase, only later in
   the layer-learn phase.
@@ -26,5 +28,6 @@
 ## [0.0.12] - 2015-12-01
 - Before this I didn't keep a change log.
 
-[Unreleased]: https://github.com/nupic-community/comportex/compare/v0.0.12...HEAD
+[Unreleased]: https://github.com/nupic-community/comportex/compare/v0.0.13...HEAD
+[0.0.13]: https://github.com/nupic-community/comportex/compare/v0.0.12...v0.0.13
 [0.0.12]: https://github.com/nupic-community/comportex/compare/v0.0.10...v0.0.12
