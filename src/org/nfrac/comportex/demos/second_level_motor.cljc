@@ -144,13 +144,14 @@ the three little pigs.
           end-of-passage? (= i (dec (count sentences)))
           r0-lyr (get-in htm-a [:regions :rgn-0 :layer-3])
           r1-lyr (get-in htm-a [:regions :rgn-1 :layer-3])
-          r1-engaged? (:engaged? (:state r1-lyr))
+          r0-stability (/ (count (:out-stable-ff-bits (:state r0-lyr)))
+                          (count (:out-ff-bits (:state r0-lyr))))
           word-burst? (cond-> (:word-bursting? (:action inval))
                         ;; ignore burst on first letter of word
-                        (pos? k) (or (not r1-engaged?)))
+                        (pos? k) (or (< r0-stability 0.5)))
           sent-burst? (cond-> (:sentence-bursting? (:action inval))
                         ;; ignore burst on first letter of word
-                        (pos? k) (or (not r1-engaged?)))
+                        (pos? k) (or (< r0-stability 0.5)))
           action* (cond
                     ;; not yet at end of word
                     (not end-of-word?)

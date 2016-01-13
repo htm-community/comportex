@@ -145,12 +145,7 @@
 
   * `activation-level` - fraction of columns that can be
   active (either locally or globally); inhibition kicks in to reduce
-  it to this level. Does not apply to temporal pooling.
-
-  * `activation-level-max` - maximum fraction of columns that can be
-  active as temporal pooling progresses. Each step of continued
-  pooling allocates an extra 50% of `activation-level` until this
-  maximum is reached.
+  it to this level.
 
   * `global-inhibition?` - whether to use the faster global algorithm
   for column inhibition (just keep those with highest overlap scores),
@@ -182,10 +177,6 @@
   remain active from cells whose activation was predicted and thus
   generated minibursts to metabotropic receptors. They might be
   curtailed earlier by a manual break.
-
-  * `stable-inbit-frac-threshold` - fraction of proximal input bits
-  to a layer which must be from stable cells in order to start
-  temporal pooling.
 
   * `random-seed` - the random seed (for reproducible results).
 "
@@ -222,7 +213,6 @@
    :distal-topdown-dimensions [0]
    :use-feedback? false
    :activation-level 0.02
-   :activation-level-max 0.10
    :global-inhibition? true
    :inhibition-base-distance 1
    :distal-vs-proximal-weight 0.0
@@ -230,7 +220,6 @@
    :spontaneous-activation? false
    :dominance-margin 4
    :stable-activation-steps 5
-   :stable-inbit-frac-threshold 0.5
    :random-seed 42
    })
 
@@ -591,12 +580,10 @@
 
   These :winner-seg maps contain only the winning cell ids for which an
   existing segment matches sufficiently to be learning. Otherwise, a
-  new (effectively new) segment will be grown."
-  [col-ac distal-state apical-state learn-state distal-sg apical-sg spec rng
-   newly-engaged?]
-  (let [reset? (empty? (:active-bits distal-state))
-        ;; keep winners stable only at higher levels (first level needs to see repeats)
-        prior-col-winners (when-not newly-engaged? (:col-winners learn-state))]
+  new (effectively new) segment will be grown. We keep winner cells stable
+  in continuing active columns."
+  [col-ac prior-winners distal-state apical-state distal-sg apical-sg spec rng]
+  (let [reset? (empty? (:active-bits distal-state))]
     (loop [col-ac col-ac
            col-winners (transient {})
            winning-distal (transient {})
@@ -607,8 +594,7 @@
           (recur (next col-ac)
                  (assoc! col-winners col (first ac))
                  winning-distal winning-apical rng)
-          (let [;; carry forward learning cells for higher level sequences
-                prior-winner (get prior-col-winners col)
+          (let [prior-winner (get prior-winners col)
                 ac (if (and prior-winner (some #(= % prior-winner) ac))
                      [prior-winner]
                      ac)
@@ -834,7 +820,6 @@
         state (:state this)
         pspec (:proximal (:spec this))
         min-prox (:learn-threshold pspec)
-        higher-level? (> (:max-segments pspec) 1)
         active-bits (:in-ff-bits state)
         full-matching-segs (:matching-ff-seg-paths state)
         ids (map vector cols (repeat 0))
@@ -855,9 +840,7 @@
         prox-learning (learning-updates ids
                                         matching-segs
                                         sg
-                                        (if higher-level?
-                                          (:in-stable-ff-bits state)
-                                          (:in-ff-bits state))
+                                        (:in-ff-bits state)
                                         rng* pspec)
         psg (cond-> sg
               (seq prox-learning)
@@ -973,33 +956,10 @@
 (defn compute-active-state-and-tp
   [state ff-bits stable-ff-bits proximal-sg distal-state apical-state
    boosts topology inh-radius spec]
-  (let [
-        ;; temporal pooling, depending on stability of input bits.
-        ;; also check for clear matches, these override pooling
-        higher-level? (> (:max-segments (:proximal spec)) 1)
-        engaged? (or (not higher-level?)
-                     (>= (count stable-ff-bits)
-                         (* (count ff-bits) (:stable-inbit-frac-threshold spec))))
-        newly-engaged? (or (not higher-level?)
-                           (and engaged?
-                                (or (not (:engaged? state))
-                                    ;; check for manual resets
-                                    (:break-winners? state))))
-        ;; union temporal pooling: accrete more columns as pooling continues
-        activation-level (let [base-level (:activation-level spec)
-                               prev-ncols (if (or newly-engaged? (not engaged?))
-                                            0
-                                            (count (:active-cols state)))
-                               prev-level (/ prev-ncols
-                                             (p/size topology))]
-                           (min (:activation-level-max spec)
-                                (+ prev-level base-level)))
-        ;; main part
-        [next-state new-stable-cells]
+  (let [[next-state new-stable-cells]
         (compute-active-state state
                               ff-bits stable-ff-bits proximal-sg distal-state
-                              apical-state boosts topology inh-radius
-                              (assoc spec :activation-level activation-level))
+                              apical-state boosts topology inh-radius spec)
         ;; continuing mini-burst synapses for temporal pooling
         stable-cells-buffer
         (-> (loop [q (or (:stable-cells-buffer state) util/empty-queue)]
@@ -1011,8 +971,6 @@
         depth (:depth spec)
         all-stable-bits (set (cells->bits depth all-stable-cells))]
     (assoc next-state
-           :engaged? engaged?
-           :newly-engaged? newly-engaged?
            :out-ff-bits (into all-stable-bits
                               (cells->bits depth (:active-cells next-state)))
            :out-stable-ff-bits all-stable-bits
@@ -1050,21 +1008,20 @@
     [this]
     (let [a-cols (:active-cols state)
           col-ac (:col-active-cells state)
-          newly-engaged? (:newly-engaged? state)
-
+          prior-winners (when-not (:break-winners? learn-state)
+                          (:col-winners learn-state))
           [rng* rng] (random/split rng)
           {:keys [col-winners winner-seg]}
-          (select-winner-cells col-ac distal-state apical-state learn-state
-                               distal-sg apical-sg spec rng* newly-engaged?)
+          (select-winner-cells col-ac prior-winners distal-state apical-state
+                               distal-sg apical-sg spec rng*)
           ;; learning cells are the winning cells, but excluding any
           ;; continuing winners when temporal pooling
-          old-winners (vals (:col-winners learn-state))
-          new-winners (vals col-winners)
-          lc (if newly-engaged? ;; always true at first level
-               new-winners
-               (remove (set old-winners) new-winners))
+          winner-cells (vals col-winners)
+          lc (if (seq prior-winners)
+               (remove (set (vals prior-winners)) winner-cells)
+               winner-cells)
           depth (:depth spec)
-          out-wc-bits (set (cells->bits depth (vals col-winners)))
+          out-wc-bits (set (cells->bits depth winner-cells))
           timestep (:timestep state)]
       (cond->
           this
@@ -1080,8 +1037,7 @@
         (:learn? (:apical spec)) (layer-learn-apical lc (:apical winner-seg))
         (:punish? (:distal spec)) (layer-punish-lateral)
         (:punish? (:apical spec)) (layer-punish-apical)
-        (and (:engaged? state)
-             (:learn? (:proximal spec))) (layer-learn-proximal a-cols)
+        (:learn? (:proximal spec)) (layer-learn-proximal a-cols)
         true (update-in [:active-duty-cycles] columns/update-duty-cycles
                         (:active-cols state) (:duty-cycle-period spec))
         (zero? (mod timestep (:boost-active-every spec))) (columns/boost-active)
@@ -1144,7 +1100,7 @@
       :fb (assoc this :apical-state
                  (assoc empty-distal-state :timestep (:timestep state)))
       :syns (update-in this [:state :stable-cells-buffer] empty)
-      :winners (assoc-in this [:state :break-winners?] true)))
+      :winners (assoc-in this [:learn-state :break-winners?] true)))
 
   p/PTopological
   (topology [this]
