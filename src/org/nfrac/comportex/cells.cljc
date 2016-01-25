@@ -1046,10 +1046,11 @@
   (layer-depolarise
     [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]
     (let [depth (:depth spec)
+          ac (:active-cells state)
           widths (distal-sources-widths spec)
           distal-bits (util/align-indices widths
                                           [(if (:lateral-synapses? spec)
-                                             (:out-ff-bits state)
+                                             (cells->bits depth ac)
                                              [])
                                            distal-ff-bits])
           wc (vals (:col-winners learn-state))
