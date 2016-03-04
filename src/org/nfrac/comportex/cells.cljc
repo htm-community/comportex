@@ -198,6 +198,7 @@
               :perm-connected 0.20
               :perm-init 0.25
               :learn? true
+              :grow? false
               }
    :distal (assoc dendrite-parameter-defaults
                   :learn? true)
@@ -840,7 +841,8 @@
         prox-learning (learning-updates ids
                                         matching-segs
                                         sg
-                                        (:in-ff-bits state)
+                                        (when (:grow? pspec)
+                                          (:in-ff-bits state))
                                         rng* pspec)
         psg (cond-> sg
               (seq prox-learning)
