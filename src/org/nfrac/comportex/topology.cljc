@@ -30,18 +30,19 @@
 
 (defrecord TwoDTopology
     [width height]
-  ;; Represents coordinates [x y], with y changing faster over indices.
+  ;; Represents coordinates [x y], with x changing faster over
+  ;; indices: they are layed out by row, like pixels in an image.
   ;; Uses Manhattan distance for neighbours and distance.
   p/PTopology
   (dimensions [_]
     [width height])
   (coordinates-of-index
     [_ idx]
-    [(quot idx height) (rem idx height)])
+    [(rem idx width) (quot idx width)])
   (index-of-coordinates
     [_ coord]
     (let [[cx cy] coord]
-      (+ (* cx height) cy)))
+      (+ cx (* cy width))))
   (neighbours*
     [this coord outer-r inner-r]
     (let [[cx cy] coord]
@@ -67,20 +68,21 @@
 
 (defrecord ThreeDTopology
     [width height depth]
-  ;; Represents coordinates [x y z], with z changing fastest over indices.
+  ;; Represents coordinates [x y z], with x changing fastest over
+  ;; indices. Like a stack of images.
   ;; Uses Manhattan distance for neighbours and distance.
   p/PTopology
   (dimensions [_]
     [width height depth])
   (coordinates-of-index
     [_ idx]
-    (let [x (quot idx (* height depth))
-          x-rem (rem idx (* height depth))]
-      [x (quot x-rem depth) (rem x-rem depth)]))
+    (let [z (quot idx (* width height))
+          z-rem (rem idx (* width height))]
+      [(rem z-rem width) (quot z-rem width) z]))
   (index-of-coordinates
     [_ coord]
     (let [[cx cy cz] coord]
-      (+ (* cx height depth) (* cy height) cz)))
+      (+ cx (* cy width) (* cz width height))))
   (neighbours*
     [this coord outer-r inner-r]
     (let [[cx cy cz] coord]

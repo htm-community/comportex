@@ -13,6 +13,7 @@
 - Removed :well-matching-seg-paths and :well-matching-ff-seg-paths.
 - In LayerDistalState renamed :on-bits to :active-bits
   and :on-lc-bits to :learnable-bits
+- 2D and 3D topologies now index across rows first, like image pixels.
 
 ### Added
 - LayerActiveState gains a key :col-active-cells, a map keyed by col id.
