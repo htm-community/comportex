@@ -873,7 +873,7 @@
 
 (defrecord LayerActiveState
     [in-ff-bits in-stable-ff-bits
-     out-ff-bits out-stable-ff-bits
+     out-immediate-ff-bits out-stable-ff-bits
      col-overlaps matching-ff-seg-paths stable-cells-buffer
      active-cols burst-cols col-active-cells active-cells timestep])
 
@@ -971,8 +971,7 @@
         depth (:depth spec)
         all-stable-bits (set (cells->bits depth all-stable-cells))]
     (assoc next-state
-           :out-ff-bits (into all-stable-bits
-                              (cells->bits depth (:active-cells next-state)))
+           :out-immediate-ff-bits (cells->bits depth (:active-cells next-state))
            :out-stable-ff-bits all-stable-bits
            :stable-cells-buffer stable-cells-buffer)))
 
@@ -1046,11 +1045,10 @@
   (layer-depolarise
     [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]
     (let [depth (:depth spec)
-          ac (:active-cells state)
           widths (distal-sources-widths spec)
           distal-bits (util/align-indices widths
                                           [(if (:lateral-synapses? spec)
-                                             (cells->bits depth ac)
+                                             (:out-immediate-ff-bits state)
                                              [])
                                            distal-ff-bits])
           wc (vals (:col-winners learn-state))
@@ -1111,7 +1109,8 @@
     (topology/make-topology (conj (p/dims-of this)
                                   (p/layer-depth this))))
   (bits-value [_]
-    (:out-ff-bits state))
+    (set/union (:out-immediate-ff-bits state)
+               (:out-stable-ff-bits state)))
   (stable-bits-value [_]
     (:out-stable-ff-bits state))
   (source-of-bit
