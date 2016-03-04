@@ -186,6 +186,24 @@
     (map->CategoryEncoder {:topo topo
                            :value->index (zipmap values (range))})))
 
+(defrecord NoEncoder
+    [topo]
+  p/PTopological
+  (topology [_]
+    topo)
+  p/PEncoder
+  (encode
+    [_ x]
+    x)
+  (decode
+    [this bit-votes n]
+    [(keys bit-votes)]))
+
+(defn no-encoder
+  [dimensions]
+  (let [topo (topology/make-topology dimensions)]
+    (map->NoEncoder {:topo topo})))
+
 (defn unique-sdr
   [x n-bits n-active]
   (let [rngs (-> (random/make-random (hash x))
