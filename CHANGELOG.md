@@ -1,6 +1,26 @@
 # Change Log
 
 ## [Unreleased]
+### Changed
+- No more temporal pooling excitation. Instead, synapses from predicted
+  cells excite their target cells over multiple time steps.
+- No more union pooling; activation level is constant.
+- First level layers are not treated any differently from higher layers.
+  - Proximal synapses grow to any active synapses, not just stable ones.
+  - Winner cells remain the same in continuing active columns unless reset;
+    we may rely on an external timing signal to distinguish repeats.
+  - Learn on winner cells only when they become active (even at first level).
+    But might revisit this to learn auto-associatively for pattern completion.
+
+### Added
+- Spec parameter :stable-activation-steps
+- State key :stable-cells-buffer
+
+### Removed
+- Spec parameters :temporal-pooling-max-exc, -fall, -amp
+- Spec parameters :activation-level-max, :stable-inbit-frac-threshold
+- State keys :engaged?, :newly-engaged?
+- temporal-pooling-cells protocol function.
 
 ## [0.0.13] - 2016-01-12
 ### Changed

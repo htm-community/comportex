@@ -665,7 +665,6 @@
   * :proximal-stable - a map keyed by source region/sense id.
   * :distal - a map keyed by source region/sense id.
   * :boost - number.
-  * :temporal-pooling - number.
   "
   [htm prior-htm rgn-id lyr-id cell-ids]
   (let [rgn (get-in htm [:regions rgn-id])
@@ -676,7 +675,6 @@
         d-stim-thresh (:stimulus-threshold (:distal spec))
         a-stim-thresh (:stimulus-threshold (:apical spec))
         distal-weight (:distal-vs-proximal-weight spec)
-        tp-fall (:temporal-pooling-fall spec)
         state (:state lyr)
         prior-state (:state prior-lyr)
         distal-state (:distal-state prior-lyr)
@@ -713,8 +711,7 @@
         dsg (:distal-sg prior-lyr)
         asg (:apical-sg prior-lyr)
         ;; internal sources
-        boosts (:boosts prior-lyr)
-        p-tp-exc (:temporal-pooling-exc prior-state)]
+        boosts (:boosts prior-lyr)]
     (into {}
           (map (fn [cell-id]
                  (let [[col ci] cell-id
@@ -752,17 +749,12 @@
                        ;; effect of boosting
                        overlap (+ b-overlap s-overlap)
                        boost-amt (* overlap (- (get boosts col) 1.0))
-                       ;; temporal pooling excitation (see cells/decay-tp)
-                       prior-tp (max 0 (- (get p-tp-exc cell-id 0.0)
-                                          tp-fall
-                                          b-overlap))
                        ;; total excitation
-                       total (+ b-overlap s-overlap boost-amt prior-tp d-a-exc)]
+                       total (+ b-overlap s-overlap boost-amt d-a-exc)]
                    [cell-id {:total total
                              :proximal-unstable ff-b-by-src
                              :proximal-stable ff-s-by-src
                              :boost boost-amt
-                             :temporal-pooling prior-tp
                              :distal (merge d-by-src a-by-src)}])))
           cell-ids)))
 

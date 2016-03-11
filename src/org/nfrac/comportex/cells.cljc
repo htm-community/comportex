@@ -145,12 +145,7 @@
 
   * `activation-level` - fraction of columns that can be
   active (either locally or globally); inhibition kicks in to reduce
-  it to this level. Does not apply to temporal pooling.
-
-  * `activation-level-max` - maximum fraction of columns that can be
-  active as temporal pooling progresses. Each step of continued
-  pooling allocates an extra 50% of `activation-level` until this
-  maximum is reached.
+  it to this level.
 
   * `global-inhibition?` - whether to use the faster global algorithm
   for column inhibition (just keep those with highest overlap scores),
@@ -178,18 +173,10 @@
   others in the column to be considered dominant. And therefore to
   inhibit all other cells in the column.
 
-  * `stable-inbit-frac-threshold` - fraction of proximal input bits
-  to a layer which must be from stable cells in order to start
-  temporal pooling.
-
-  * `temporal-pooling-max-exc` - maximum continuing temporal pooling
-  excitation level.
-
-  * `temporal-pooling-fall` - amount by which a cell's continuing
-  temporal pooling excitation falls each time step.
-
-  * `temporal-pooling-amp` - multiplier on cell excitation to become
-  persistent temporal pooling.
+  * `stable-activation-steps` - number of time steps that synapses
+  remain active from cells whose activation was predicted and thus
+  generated minibursts to metabotropic receptors. They might be
+  curtailed earlier by a manual break.
 
   * `random-seed` - the random seed (for reproducible results).
 "
@@ -211,6 +198,7 @@
               :perm-connected 0.20
               :perm-init 0.25
               :learn? true
+              :grow? false
               }
    :distal (assoc dendrite-parameter-defaults
                   :learn? true)
@@ -226,17 +214,13 @@
    :distal-topdown-dimensions [0]
    :use-feedback? false
    :activation-level 0.02
-   :activation-level-max 0.10
    :global-inhibition? true
    :inhibition-base-distance 1
    :distal-vs-proximal-weight 0.0
    :apical-bias-frac 0.0
    :spontaneous-activation? false
    :dominance-margin 4
-   :stable-inbit-frac-threshold 0.5
-   :temporal-pooling-max-exc 50.0
-   :temporal-pooling-fall 5.0
-   :temporal-pooling-amp 3.0
+   :stable-activation-steps 5
    :random-seed 42
    })
 
@@ -372,28 +356,18 @@
 
 (defn total-excitations
   "Combine the proximal and distal excitations in a map of cell id to
-  excitation, as a weighted sum. Temporal Pooling `tp-exc` is added to
-  the proximal excitation but is given keyed by cell rather than by
-  column. Normally only cells with some proximal input are included,
-  but if `spontaneous-activation?` is true, this is relaxed
-  (i.e. prediction alone could cause activation).
+  excitation, as a weighted sum. Normally only cells with some
+  proximal input are included, but if `spontaneous-activation?` is
+  true, this is relaxed (i.e. prediction alone could cause
+  activation).
 
-  * col-exc is keyed by column as [col 0].
-  * tp-exc is keyed by cell as [col ci]."
-  [col-exc tp-exc distal-exc distal-weight spontaneous-activation? depth]
-  (let [has-tp? (seq tp-exc)
-        ;; add TP columns to list of columns to consider (may have no proximal)
-        basic-col-exc (if has-tp?
-                        (merge-with + col-exc
-                                    (into {} (map (fn [[col _]] [[col 0] 0]))
-                                          (keys tp-exc)))
-                        col-exc)
-        ;; expand to all cells within columns, add TP values
-        basic-exc (for [[[col _] exc] basic-col-exc
+  * col-exc is keyed by column as [col 0]."
+  [col-exc distal-exc distal-weight spontaneous-activation? depth]
+  (let [;; expand to all cells within columns
+        basic-exc (for [[[col _] exc] col-exc
                         ci (range depth)
-                        :let [cell-id [col ci]
-                              tp (if has-tp? (get tp-exc cell-id 0.0) 0.0)]]
-                    [cell-id (+ exc tp)])]
+                        :let [cell-id [col ci]]]
+                    [cell-id exc])]
     (if (zero? distal-weight)
       (into {} basic-exc)
       (let [basic-exc (if spontaneous-activation?
@@ -607,12 +581,10 @@
 
   These :winner-seg maps contain only the winning cell ids for which an
   existing segment matches sufficiently to be learning. Otherwise, a
-  new (effectively new) segment will be grown."
-  [col-ac distal-state apical-state learn-state distal-sg apical-sg spec rng
-   newly-engaged?]
-  (let [reset? (empty? (:active-bits distal-state))
-        ;; keep winners stable only at higher levels (first level needs to see repeats)
-        prior-col-winners (when-not newly-engaged? (:col-winners learn-state))]
+  new (effectively new) segment will be grown. We keep winner cells stable
+  in continuing active columns."
+  [col-ac prior-winners distal-state apical-state distal-sg apical-sg spec rng]
+  (let [reset? (empty? (:active-bits distal-state))]
     (loop [col-ac col-ac
            col-winners (transient {})
            winning-distal (transient {})
@@ -623,8 +595,7 @@
           (recur (next col-ac)
                  (assoc! col-winners col (first ac))
                  winning-distal winning-apical rng)
-          (let [;; carry forward learning cells for higher level sequences
-                prior-winner (get prior-col-winners col)
+          (let [prior-winner (get prior-winners col)
                 ac (if (and prior-winner (some #(= % prior-winner) ac))
                      [prior-winner]
                      ac)
@@ -850,7 +821,6 @@
         state (:state this)
         pspec (:proximal (:spec this))
         min-prox (:learn-threshold pspec)
-        higher-level? (> (:max-segments pspec) 1)
         active-bits (:in-ff-bits state)
         full-matching-segs (:matching-ff-seg-paths state)
         ids (map vector cols (repeat 0))
@@ -871,8 +841,7 @@
         prox-learning (learning-updates ids
                                         matching-segs
                                         sg
-                                        (if higher-level?
-                                          (:in-stable-ff-bits state)
+                                        (when (:grow? pspec)
                                           (:in-ff-bits state))
                                         rng* pspec)
         psg (cond-> sg
@@ -904,23 +873,10 @@
          (inh/inhibition-radius (:proximal-sg layer) (:topology layer)
                                 (:input-topology layer))))
 
-(defn decay-tp
-  [tp-exc fall]
-  (persistent!
-   (reduce-kv (fn [m id exc]
-                ;; constant fall amount
-                (let [e (- exc fall)]
-                  (if (pos? e)
-                    (assoc! m id e)
-                    m)))
-              (transient {})
-              tp-exc)))
-
 (defrecord LayerActiveState
     [in-ff-bits in-stable-ff-bits
-     out-ff-bits out-stable-ff-bits
-     col-overlaps matching-ff-seg-paths
-     temporal-pooling-exc
+     out-immediate-ff-bits out-stable-ff-bits
+     col-overlaps matching-ff-seg-paths stable-cells-buffer
      active-cols burst-cols col-active-cells active-cells timestep])
 
 (defrecord LayerLearnState
@@ -934,7 +890,6 @@
   (map->LayerActiveState
    {:active-cells #{}
     :active-cols #{}
-    :temporal-pooling-exc {}
     :matching-ff-seg-paths {}}))
 
 (def empty-learn-state
@@ -962,7 +917,6 @@
         [raw-col-exc ff-seg-paths]
         (best-segment-excitations-and-paths col-seg-overlaps)
         col-exc (columns/apply-overlap-boosting raw-col-exc boosts)
-        tp-exc (:temporal-pooling-exc state)
         ;; ignore apical excitation unless there is matching distal.
         ;; unlike other segments, allow apical excitation to add to distal
         d-a-cell-exc (if (:use-feedback? spec)
@@ -971,7 +925,7 @@
                                                 (keys (:cell-exc distal-state))))
                        (:cell-exc distal-state))
         ;; combine excitation values for selecting columns
-        abs-cell-exc (total-excitations col-exc tp-exc d-a-cell-exc
+        abs-cell-exc (total-excitations col-exc d-a-cell-exc
                                         (:distal-vs-proximal-weight spec)
                                         (:spontaneous-activation? spec)
                                         (:depth spec))
@@ -984,15 +938,13 @@
          ac :active-cells
          burst-cols :burst-cols
          stable-ac :stable-active-cells}
-        (select-active-cells a-cols (merge-with + d-a-cell-exc tp-exc)
+        (select-active-cells a-cols d-a-cell-exc
                              depth (:stimulus-threshold (:distal spec))
                              (:dominance-margin spec))
         ]
     [(map->LayerActiveState
       {:in-ff-bits ff-bits
        :in-stable-ff-bits stable-ff-bits
-       :out-ff-bits (set (cells->bits depth ac))
-       :out-stable-ff-bits (set (cells->bits depth stable-ac))
        :col-overlaps raw-col-exc
        :matching-ff-seg-paths ff-seg-paths
        :col-active-cells col-ac
@@ -1001,62 +953,29 @@
        :burst-cols burst-cols
        :timestep (inc (:timestep state))
        })
-     abs-cell-exc]))
+     stable-ac]))
 
 (defn compute-active-state-and-tp
   [state ff-bits stable-ff-bits proximal-sg distal-state apical-state
    boosts topology inh-radius spec]
-  (let [
-        ;; temporal pooling, depending on stability of input bits.
-        ;; also check for clear matches, these override pooling
-        higher-level? (> (:max-segments (:proximal spec)) 1)
-        engaged? (or (not higher-level?)
-                     (>= (count stable-ff-bits)
-                         (* (count ff-bits) (:stable-inbit-frac-threshold spec))))
-        newly-engaged? (or (not higher-level?)
-                           (and engaged?
-                                (or (not (:engaged? state))
-                                    ;; check for manual resets (break :tp)
-                                    (empty? (:temporal-pooling-exc state)))))
-        tp-exc (cond-> (if newly-engaged?
-                         {}
-                         (:temporal-pooling-exc state))
-                 true ;(not engaged?)
-                 (decay-tp (:temporal-pooling-fall spec)))
-        ;; union temporal pooling: accrete more columns as pooling continues
-        activation-level (let [base-level (:activation-level spec)
-                               prev-ncols (->> (keys (:temporal-pooling-exc state))
-                                               (map first) (distinct) (count))
-                               prev-level (/ prev-ncols
-                                             (p/size topology))]
-                           (if (or newly-engaged? (not engaged?))
-                             base-level
-                             (min (:activation-level-max spec)
-                                  (+ prev-level base-level))))
-        ;; main part
-        [next-state abs-cell-exc]
-        (compute-active-state (assoc state :temporal-pooling-exc tp-exc)
+  (let [[next-state new-stable-cells]
+        (compute-active-state state
                               ff-bits stable-ff-bits proximal-sg distal-state
-                              apical-state boosts topology inh-radius
-                              (assoc spec :activation-level activation-level))
-        ;; update continuing TP activation
-        ac (:active-cells next-state)
-        next-tp-exc (if higher-level?
-                      (let [new-ac (if newly-engaged?
-                                     ac
-                                     (set/difference ac (:active-cells state)))
-                            amp (:temporal-pooling-amp spec)
-                            max-exc (:temporal-pooling-max-exc spec)]
-                        (into (select-keys tp-exc ac) ;; only keep TP for active cells
-                              (map (fn [[cell exc]]
-                                     [cell (-> exc (* amp) (min max-exc))]))
-                              (select-keys abs-cell-exc new-ac)))
-                      {})
-        ]
+                              apical-state boosts topology inh-radius spec)
+        ;; continuing mini-burst synapses for temporal pooling
+        stable-cells-buffer
+        (-> (loop [q (or (:stable-cells-buffer state) util/empty-queue)]
+              (if (>= (count q) (:stable-activation-steps spec))
+                (recur (pop q))
+                q))
+            (conj new-stable-cells))
+        all-stable-cells (apply set/union stable-cells-buffer)
+        depth (:depth spec)
+        all-stable-bits (set (cells->bits depth all-stable-cells))]
     (assoc next-state
-           :engaged? engaged?
-           :newly-engaged? newly-engaged?
-           :temporal-pooling-exc next-tp-exc)))
+           :out-immediate-ff-bits (cells->bits depth (:active-cells next-state))
+           :out-stable-ff-bits all-stable-bits
+           :stable-cells-buffer stable-cells-buffer)))
 
 (defn compute-distal-state
   [sg active-bits learnable-bits dspec t]
@@ -1090,20 +1009,20 @@
     [this]
     (let [a-cols (:active-cols state)
           col-ac (:col-active-cells state)
-          newly-engaged? (:newly-engaged? state)
+          prior-winners (when-not (:break-winners? learn-state)
+                          (:col-winners learn-state))
           [rng* rng] (random/split rng)
           {:keys [col-winners winner-seg]}
-          (select-winner-cells col-ac distal-state apical-state learn-state
-                               distal-sg apical-sg spec rng* newly-engaged?)
+          (select-winner-cells col-ac prior-winners distal-state apical-state
+                               distal-sg apical-sg spec rng*)
           ;; learning cells are the winning cells, but excluding any
           ;; continuing winners when temporal pooling
-          old-winners (vals (:col-winners learn-state))
-          new-winners (vals col-winners)
-          lc (if newly-engaged? ;; always true at first level
-               new-winners
-               (remove (set old-winners) new-winners))
+          winner-cells (vals col-winners)
+          lc (if (seq prior-winners)
+               (remove (set (vals prior-winners)) winner-cells)
+               winner-cells)
           depth (:depth spec)
-          out-wc-bits (set (cells->bits depth (vals col-winners)))
+          out-wc-bits (set (cells->bits depth winner-cells))
           timestep (:timestep state)]
       (cond->
           this
@@ -1119,8 +1038,7 @@
         (:learn? (:apical spec)) (layer-learn-apical lc (:apical winner-seg))
         (:punish? (:distal spec)) (layer-punish-lateral)
         (:punish? (:apical spec)) (layer-punish-apical)
-        (and (:engaged? state)
-             (:learn? (:proximal spec))) (layer-learn-proximal a-cols)
+        (:learn? (:proximal spec)) (layer-learn-proximal a-cols)
         true (update-in [:active-duty-cycles] columns/update-duty-cycles
                         (:active-cols state) (:duty-cycle-period spec))
         (zero? (mod timestep (:boost-active-every spec))) (columns/boost-active)
@@ -1132,7 +1050,7 @@
           widths (distal-sources-widths spec)
           distal-bits (util/align-indices widths
                                           [(if (:lateral-synapses? spec)
-                                             (:out-ff-bits state)
+                                             (:out-immediate-ff-bits state)
                                              [])
                                            distal-ff-bits])
           wc (vals (:col-winners learn-state))
@@ -1161,9 +1079,6 @@
     (:active-cells state))
   (winner-cells [_]
     (set (vals (:col-winners learn-state))))
-  (temporal-pooling-cells [_]
-    (when (:engaged? state)
-      (keys (:temporal-pooling-exc state))))
   (predictive-cells [_]
     (when (== (:timestep state)
               (:timestep distal-state))
@@ -1185,7 +1100,8 @@
                  (assoc empty-distal-state :timestep (:timestep state)))
       :fb (assoc this :apical-state
                  (assoc empty-distal-state :timestep (:timestep state)))
-      :tp (update-in this [:state :temporal-pooling-exc] empty)))
+      :syns (update-in this [:state :stable-cells-buffer] empty)
+      :winners (assoc-in this [:learn-state :break-winners?] true)))
 
   p/PTopological
   (topology [this]
@@ -1195,7 +1111,8 @@
     (topology/make-topology (conj (p/dims-of this)
                                   (p/layer-depth this))))
   (bits-value [_]
-    (:out-ff-bits state))
+    (set/union (:out-immediate-ff-bits state)
+               (:out-stable-ff-bits state)))
   (stable-bits-value [_]
     (:out-stable-ff-bits state))
   (source-of-bit

@@ -40,13 +40,16 @@ the three little pigs.
               :perm-dec 0.01}
    :lateral-synapses? true
    :distal-vs-proximal-weight 0.0
-   :use-feedback? false
+   :use-feedback? true
+   :apical {:learn? true}
    })
 
 (def higher-level-spec
   (util/deep-merge
    spec
    {:column-dimensions [800]
+    :stable-inbit-frac-threshold 0.5
+    :ff-init-frac 0.05
     :proximal {:max-segments 5
                :new-synapse-count 12
                :learn-threshold 6}}))
@@ -141,15 +144,14 @@ the three little pigs.
           end-of-passage? (= i (dec (count sentences)))
           r0-lyr (get-in htm-a [:regions :rgn-0 :layer-3])
           r1-lyr (get-in htm-a [:regions :rgn-1 :layer-3])
-          r0-burst-frac (/ (* (p/layer-depth r0-lyr) ;; number of cells
-                              (count (p/bursting-columns r0-lyr)))
-                           (max 1 (count (p/active-cells r0-lyr))))
+          r0-stability (/ (count (:out-stable-ff-bits (:state r0-lyr)))
+                          (count (:out-ff-bits (:state r0-lyr))))
           word-burst? (cond-> (:word-bursting? (:action inval))
                         ;; ignore burst on first letter of word
-                        (pos? k) (or (>= r0-burst-frac 0.50)))
+                        (pos? k) (or (< r0-stability 0.5)))
           sent-burst? (cond-> (:sentence-bursting? (:action inval))
                         ;; ignore burst on first letter of word
-                        (pos? k) (or (>= r0-burst-frac 0.50)))
+                        (pos? k) (or (< r0-stability 0.5)))
           action* (cond
                     ;; not yet at end of word
                     (not end-of-word?)
@@ -159,12 +161,14 @@ the three little pigs.
 
                     ;; word not yet learned, repeat word
                     word-burst?
-                    {:word-bursting? false}
+                    {:next-letter-saccade -1
+                     :word-bursting? false}
 
                     ;; go to next word (not yet at end of sentence)
                     ;; same letter-motor signal as when repeating a word
                     (not end-of-sentence?)
                     {:next-word-saccade 1
+                     :next-letter-saccade -1
                      :word-bursting? false}
 
                     ;; end of sentence.
@@ -172,6 +176,7 @@ the three little pigs.
                     ;; sentence not yet learned, repeat sentence
                     sent-burst?
                     {:next-word-saccade -1
+                     :next-letter-saccade -1
                      :word-bursting? false
                      :sentence-bursting? false}
 
@@ -179,19 +184,20 @@ the three little pigs.
                     (not end-of-passage?)
                     {:next-sentence-saccade 1
                      :next-word-saccade 1
+                     :next-letter-saccade -1
                      :word-bursting? false
                      :sentence-bursting? false}
 
                     ;; reached end of passage
                     :else
                     {:next-word-saccade -1
+                     :next-letter-saccade -1
                      :word-bursting? false
                      :sentence-bursting? false}
                     )
           ;; next-letter-saccade represents starting a word (-1) or continuing (1)
           ;; that is all that rgn-0 knows.
-          action (merge {:next-letter-saccade -1
-                         :next-word-saccade 0
+          action (merge {:next-word-saccade 0
                          :next-sentence-saccade 0
                          :word-bursting? word-burst?
                          :sentence-bursting? sent-burst?}
@@ -207,9 +213,14 @@ the three little pigs.
         (p/htm-sense inval-with-action :motor)
         true
         (p/htm-depolarise)
-        ;; reset first region's sequence when going on to new word
-        (and end-of-word? (not word-burst?))
+        ;; break sequence when repeating word (but keep tp synapses)
+        end-of-word?
         (update-in [:regions :rgn-0] p/break :tm)
+        ;; reset context when going on to new word
+        (and end-of-word? (not word-burst?))
+        (update-in [:regions :rgn-0] p/break :syns)
+        (and end-of-word? (not word-burst?))
+        (update-in [:regions :rgn-1] p/break :winners)
         ))))
 
 (comment
