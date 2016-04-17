@@ -32,8 +32,13 @@
         n-cols (p/size topo)
         one-d? (or (== 1 (count (p/dimensions topo)))
                    (== 1 (count (p/dimensions itopo))))
-        [cw ch] (p/dimensions topo)
-        [iw ih] (p/dimensions itopo)]
+        [cw ch cdepth] (p/dimensions topo)
+        [iw ih idepth] (p/dimensions itopo)
+        ;; range of z coordinates usable as focus for radius
+        focus-izs (when idepth
+                    (if (<= idepth (inc (* 2 radius)))
+                      (list (quot idepth 2))
+                      (range radius (- idepth radius))))]
     (if global?
       (let [n-syns (round (* frac input-size))]
         (->> (random/split-n rng n-cols)
@@ -48,9 +53,15 @@
            (mapv (fn [col col-rng]
                    (let [focus-i (if one-d?
                                    (round (* input-size (/ col n-cols)))
-                                   (let [[cx cy] (p/coordinates-of-index topo col)]
-                                     (p/index-of-coordinates itopo [(round (* iw (/ cx cw)))
-                                                                    (round (* ih (/ cy ch)))])))
+                                   ;; use corresponding positions in 2D
+                                   (let [[cx cy _] (p/coordinates-of-index topo col)
+                                         ix (round (* iw (/ cx cw)))
+                                         iy (round (* ih (/ cy ch)))
+                                         ;; in 3D, choose z coordinate from range
+                                         iz (when idepth
+                                              (nth focus-izs (mod col (count focus-izs))))
+                                         icoord (if idepth [ix iy iz] [ix iy])]
+                                     (p/index-of-coordinates itopo icoord)))
                          all-ids (vec (p/neighbours-indices itopo focus-i radius))
                          n (round (* frac (count all-ids)))
                          [rng1 rng2] (random/split col-rng)
