@@ -22,6 +22,9 @@
 - State keys :engaged?, :newly-engaged?
 - temporal-pooling-cells protocol function.
 
+### Fixed
+- coord-distance now uses Chebyshev distance to match neighbours function.
+
 ## [0.0.13] - 2016-01-12
 ### Changed
 - Winner cells are not selected in layer-activate phase, only later in

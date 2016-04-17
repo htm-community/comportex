@@ -55,7 +55,5 @@
             "All total excitation in range.")
         (is (every? (comp pos? first vals :proximal-unstable) (map bd wc))
             "Some proximal excitation on each active column")
-        (is (every? (comp zero? :temporal-pooling) (vals bd))
-            "Zero TP excitation in first layer.")
         (is (every? (comp map? :distal) (vals bd))
             "Distal keys hold maps.")))))

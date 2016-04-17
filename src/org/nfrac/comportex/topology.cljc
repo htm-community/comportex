@@ -32,7 +32,8 @@
     [width height]
   ;; Represents coordinates [x y], with x changing faster over
   ;; indices: they are layed out by row, like pixels in an image.
-  ;; Uses Manhattan distance for neighbours and distance.
+  ;; Uses Chebyshev distance (max coord diff) for neighbours and
+  ;; distance.
   p/PTopology
   (dimensions [_]
     [width height])
@@ -46,7 +47,7 @@
   (neighbours*
     [this coord outer-r inner-r]
     (let [[cx cy] coord]
-      ;; Manhattan distance
+      ;; by Chebyshev distance
       (for [x (range (max (- cx outer-r) 0)
                      (min (+ cx outer-r 1) width))
             y (range (max (- cy outer-r) 0)
@@ -58,9 +59,9 @@
     [_ coord-a coord-b]
     (let [[xa ya] coord-a
           [xb yb] coord-b]
-      ;; Manhattan distance
-      (+ (abs (- xb xa))
-         (abs (- yb ya))))))
+      ;; Chebyshev distance
+      (max (abs (- xb xa))
+           (abs (- yb ya))))))
 
 (defn two-d-topology
   [width height]
@@ -69,8 +70,10 @@
 (defrecord ThreeDTopology
     [width height depth]
   ;; Represents coordinates [x y z], with x changing fastest over
-  ;; indices. Like a stack of images.
-  ;; Uses Manhattan distance for neighbours and distance.
+  ;; indices. Like a stack of images. The indexing is as in a
+  ;; concatenation of multiple 2D xy images.
+  ;; Uses Chebyshev distance (max coord diff) for neighbours and
+  ;; distance.
   p/PTopology
   (dimensions [_]
     [width height depth])
@@ -86,7 +89,7 @@
   (neighbours*
     [this coord outer-r inner-r]
     (let [[cx cy cz] coord]
-      ;; Manhattan distance
+      ;; by Chebyshev distance
       (for [x (range (max (- cx outer-r) 0)
                      (min (+ cx outer-r 1) width))
             y (range (max (- cy outer-r) 0)
@@ -95,16 +98,16 @@
                      (min (+ cz outer-r 1) depth))
             :when (or (> (abs (- x cx)) inner-r)
                       (> (abs (- y cy)) inner-r)
-                      (> (abs (- y cz)) inner-r))]
+                      (> (abs (- z cz)) inner-r))]
         [x y z])))
   (coord-distance
     [_ coord-a coord-b]
     (let [[xa ya za] coord-a
           [xb yb zb] coord-b]
-      ;; Manhattan distance
-      (+ (abs (- xb xa))
-         (abs (- yb ya))
-         (abs (- zb za))))))
+      ;; Chebyshev distance
+      (max (abs (- xb xa))
+           (abs (- yb ya))
+           (abs (- zb za))))))
 
 (defn three-d-topology
   [w h d]
