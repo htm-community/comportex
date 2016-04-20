@@ -30,9 +30,7 @@
 
 (defn inhibition-radius
   "The radius in column space defining neighbouring columns, based on
-   the average receptive field size. Specifically, neighbouring
-   columns are defined by sharing at least 50% of their receptive
-   fields, on average.
+   the average receptive field size.
 
    * `sg` is the synapse graph linking the inputs to targets.
 
@@ -40,7 +38,7 @@
 
    * `itopo` is the topology of the inputs."
   [sg topo itopo]
-  (let [shared-frac 0.5
+  (let [shared-frac 0.0
         max-dim (apply max (p/dimensions topo))
         max-idim (apply max (p/dimensions itopo))
         arfs (avg-receptive-field-size sg topo itopo)
@@ -65,7 +63,7 @@
    inhibits a neighbour cell at a distance `dist` columns away."
   ^double [^double x ^double dist ^double max-dist ^double base-dist]
   (let [z (- 1.0 (/ (max 0.0 (- dist base-dist))
-                    (- max-dist base-dist)))]
+                    (max 1.0 (- max-dist base-dist))))]
     (* x z)))
 
 (defn map->vec
