@@ -66,18 +66,15 @@ REPL with super powers) in
 * [NuPIC](https://github.com/numenta/nupic/)
 
 
-## YourKit
+## Hello
 
-YourKit is kindly supporting this open source project with its full-featured Java Profiler.
-YourKit, LLC is the creator of innovative and intelligent tools for profiling
-Java and .NET applications. Take a look at YourKit's leading software products:
-<a href="http://www.yourkit.com/java/profiler/index.jsp">YourKit Java Profiler</a> and
-<a href="http://www.yourkit.com/.net/profiler/index.jsp">YourKit .NET Profiler</a>.
+* [nupic.theory](http://lists.numenta.org/mailman/listinfo/nupic-theory_lists.numenta.org) mailing list on the theory.
+* or email or github issues.
 
 
 ## License
 
-Copyright © 2014-2015 Felix Andrews and Marcus Lewis.
+Copyright © 2014-2016 Felix Andrews and Marcus Lewis.
 
 Distributed under the
 [GNU Affero General Public Licence, Version 3](http://www.gnu.org/licenses/agpl-3.0.en.html),

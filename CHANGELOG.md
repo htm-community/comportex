@@ -11,10 +11,12 @@
     we may rely on an external timing signal to distinguish repeats.
   - Learn on winner cells only when they become active (even at first level).
     But might revisit this to learn auto-associatively for pattern completion.
+- inhibition radius is now full span of receptive field size, not half of it.
 
 ### Added
 - Spec parameter :stable-activation-steps
 - State key :stable-cells-buffer
+- Can create 2D regions with 3D inputs.
 
 ### Removed
 - Spec parameters :temporal-pooling-max-exc, -fall, -amp
@@ -24,6 +26,7 @@
 
 ### Fixed
 - coord-distance now uses Chebyshev distance to match neighbours function.
+- local inhibition failed when inhibition-base-distance >= inh-radius.
 
 ## [0.0.13] - 2016-01-12
 ### Changed
