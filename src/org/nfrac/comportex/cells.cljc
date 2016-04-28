@@ -605,12 +605,8 @@
                                     distal-sg apical-sg spec rng*)]
             (recur (next col-ac)
                    (assoc! col-winners col winner)
-                   (if dmatch
-                     (assoc! winning-distal winner dmatch)
-                     winning-distal)
-                   (if amatch
-                     (assoc! winning-apical winner amatch)
-                     winning-apical)
+                   (assoc! winning-distal winner dmatch)
+                   (assoc! winning-apical winner amatch)
                    rng)))
         ;; finished
         {:col-winners (persistent! col-winners)
