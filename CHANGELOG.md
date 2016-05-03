@@ -17,6 +17,7 @@
 - Spec parameter :stable-activation-steps
 - State key :stable-cells-buffer
 - Can create 2D regions with 3D inputs.
+- Can specify custom spatial pooling function via spec key :spatial-pooling.
 
 ### Removed
 - Spec parameters :temporal-pooling-max-exc, -fall, -amp

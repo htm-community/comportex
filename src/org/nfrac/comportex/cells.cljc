@@ -179,6 +179,10 @@
   curtailed earlier by a manual break.
 
   * `random-seed` - the random seed (for reproducible results).
+
+  * `spatial-pooling` - keyword to look up a spatial pooling
+  implementation of the multimethod
+  `org.nfrac.comportex.cells/spatial-pooling`.
 "
   {:input-dimensions [:define-me!]
    :column-dimensions [1000]
@@ -222,6 +226,8 @@
    :dominance-margin 4
    :stable-activation-steps 5
    :random-seed 42
+   ;; algorithm implementations
+   :spatial-pooling ::standard-spatial-pooling
    })
 
 ;; TODO decide on defaults (reliability vs speed), provide alternatives?
@@ -903,14 +909,18 @@
     :pred-cells #{}
     :matching-seg-paths {}}))
 
-(defn standard-spatial-pooling
-  "Standard spatial pooling: choosing a column representation.
+(defmulti spatial-pooling
+  "Spatial pooling: choosing a column representation.
   Returns keys
 
   * :active-cols
   * :matching-ff-seg-paths
   * :col-overlaps
   "
+  (fn [ff-bits stable-ff-bits proximal-sg boosts topology inh-radius fb-cell-exc spec]
+    (:spatial-pooling spec)))
+
+(defmethod spatial-pooling ::standard-spatial-pooling
   [ff-bits stable-ff-bits proximal-sg boosts topology inh-radius fb-cell-exc spec]
   (let [;; proximal excitation as number of active synapses, keyed by [col 0 seg-idx]
         col-seg-overlaps (p/excitations proximal-sg ff-bits
@@ -941,9 +951,9 @@
                                    (select-keys (:cell-exc apical-state)
                                                 (keys (:cell-exc distal-state))))
                        (:cell-exc distal-state))
-        sp-info (standard-spatial-pooling ff-bits stable-ff-bits proximal-sg
-                                          boosts topology inh-radius fb-cell-exc
-                                          spec)
+        sp-info (spatial-pooling ff-bits stable-ff-bits proximal-sg
+                                 boosts topology inh-radius fb-cell-exc
+                                 spec)
         ;; find active cells in the columns
         cell-info (select-active-cells (:active-cols sp-info) fb-cell-exc
                                        (:depth spec)
