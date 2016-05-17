@@ -109,7 +109,9 @@
     [_ xs]
     (->> xs
          (mapcat (partial p/encode encoder))
-         (distinct))))
+         (distinct)))
+  (decode [_ bit-votes n-values]
+    (p/decode encoder bit-votes n-values)))
 
 (defn ensplat
   "Returns an encoder for a sequence of values. The given encoder will
