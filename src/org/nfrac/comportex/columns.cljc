@@ -34,6 +34,12 @@
                    (== 1 (count (p/dimensions itopo))))
         [cw ch cdepth] (p/dimensions topo)
         [iw ih idepth] (p/dimensions itopo)
+        ;; range of coordinates usable as focus (adjust for radius at edges)
+        focus-ix (fn [frac width]
+                   (-> frac
+                       (* (- width (* 2 radius)))
+                       (+ radius)
+                       (round)))
         ;; range of z coordinates usable as focus for radius
         focus-izs (when idepth
                     (if (<= idepth (inc (* 2 radius)))
@@ -55,14 +61,14 @@
                                    (round (* input-size (/ col n-cols)))
                                    ;; use corresponding positions in 2D
                                    (let [[cx cy _] (p/coordinates-of-index topo col)
-                                         ix (round (* iw (/ cx cw)))
-                                         iy (round (* ih (/ cy ch)))
+                                         ix (focus-ix (/ cx cw) iw)
+                                         iy (focus-ix (/ cy ch) ih)
                                          ;; in 3D, choose z coordinate from range
                                          iz (when idepth
                                               (nth focus-izs (mod col (count focus-izs))))
                                          icoord (if idepth [ix iy iz] [ix iy])]
                                      (p/index-of-coordinates itopo icoord)))
-                         all-ids (vec (p/neighbours-indices itopo focus-i radius))
+                         all-ids (vec (p/neighbours-indices itopo focus-i radius -1))
                          n (round (* frac (count all-ids)))
                          [rng1 rng2] (random/split col-rng)
                          ids (cond
