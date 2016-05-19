@@ -14,7 +14,7 @@ In the spirit of Clojure, Comportex is more a library than a
 framework. The user controls simulations, and decides what to do with
 them. If you want to take the set of active cells and use them to
 generate predictions or anomaly scores, that is up to you. It's not
-going to do it for you.
+going to do it automatically.
 
 Comportex is not yet stable. Our aims are to:
 
@@ -68,7 +68,7 @@ REPL with super powers) in
 
 ## Hello
 
-* [nupic.theory](http://lists.numenta.org/mailman/listinfo/nupic-theory_lists.numenta.org) mailing list on the theory.
+* Get in touch via **HTM Forum** in the categories [HTM Theory](https://discourse.numenta.org/c/htm-theory) or [Comportex](https://discourse.numenta.org/c/htm-hackers/comportex)
 * or email or github issues.
 
 
