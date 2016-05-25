@@ -41,7 +41,7 @@
 
 (defn rand
   [rng lower upper]
-  {:pre [(< lower upper)]}
+  {:pre [(<= lower upper)]}
   (-> (random/rand-double rng)
       (* (- upper lower))
       (+ lower)))
@@ -220,6 +220,7 @@
   [n m]
   (cond
    (<= n 0) []
+   (empty? m) []
    (== n 1) [(key (apply max-key val (seq m)))]
    :else
    (loop [ms (seq m)
