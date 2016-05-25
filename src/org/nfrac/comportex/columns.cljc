@@ -138,29 +138,88 @@
 
 ;;; ## Boosting
 
-(defn boost-active-global
-  [ads spec]
-  (let [a-th (:boost-active-duty-ratio spec)
-        maxb (:max-boost spec)
-        max-ad (apply max 0 ads)
-        crit-ad (double (* a-th max-ad))]
-    (mapv (fn [ad]
-            (-> (- maxb (* (- maxb 1)
-                           (/ ad crit-ad)))
-                (max 1.0)))
-          ads)))
+(defn boost-factor
+  "y is the duty cycle value."
+  [y neighbour-max crit-ratio max-boost]
+  (let [crit-y (double (* neighbour-max crit-ratio))
+        maxb max-boost]
+    (-> (- maxb (* (- maxb 1)
+                   (/ y crit-y)))
+        (max 1.0))))
+
+(defn boost-factors-global
+  [ys spec]
+  (let [crit-ratio (:boost-active-duty-ratio spec)
+        max-boost (:max-boost spec)
+        max-y (apply max 0 ys)]
+    (mapv (fn [y]
+            (boost-factor y max-y crit-ratio max-boost))
+          ys)))
+
+(defn boost-factors-local
+  [ys topo inh-radius spec]
+  (let [crit-ratio (:boost-active-duty-ratio spec)
+        max-boost (:max-boost spec)]
+    (mapv (fn [col y]
+            (let [nb-is (p/neighbours-indices topo col inh-radius 0)
+                  max-y (apply max 0 (map ys nb-is))]
+              (boost-factor y max-y crit-ratio max-boost)))
+          (range)
+          ys)))
 
 (defn boost-active
   "Recalculates boost factors for each column based on its frequency
    of activation (active duty cycle) compared to the maximum from its
    neighbours."
   [lyr]
-  (let [global? (>= (:ff-potential-radius (:spec lyr)) 1)]
-    ;; TODO for local case, partition the column space based on radius...
-    (if-not (pos? (:boost-active-duty-ratio (:spec lyr)))
-      lyr
+  (if-not (pos? (:boost-active-duty-ratio (:spec lyr)))
+    ;; disabled
+    lyr
+    (let [global? (>= (:ff-potential-radius (:spec lyr)) 1)]
       (assoc lyr :boosts
-             (boost-active-global (:active-duty-cycles lyr) (:spec lyr))))))
+             (if global?
+               (boost-factors-global (:active-duty-cycles lyr)
+                                     (:spec lyr))
+               (boost-factors-local (:active-duty-cycles lyr)
+                                    (:topology lyr)
+                                    (:inh-radius lyr)
+                                    (:spec lyr)))))))
+
+(defn adjust-overlap-global
+  [sg ys spec]
+  (let [crit-ratio (:adjust-overlap-duty-ratio spec)
+        max-y (apply max 0 ys)
+        crit-y (double (* max-y crit-ratio))
+        upds (keep (fn [[col y]]
+                     (when (<= y crit-y)
+                       (syn/seg-update [col 0 0] :reinforce nil nil)))
+                   (map vector (range) ys))
+        pcon (:perm-connected (:proximal spec))]
+    (p/bulk-learn sg upds (constantly true) (* 0.1 pcon) 0 0)))
+
+(defn adjust-overlap-local
+  [sg ys topo inh-radius spec]
+  ;; TODO:
+  (adjust-overlap-global sg ys spec))
+
+(defn adjust-overlap
+  [lyr]
+  (if-not (pos? (:adjust-overlap-duty-ratio (:spec lyr)))
+    ;; disabled
+    lyr
+    (let [global? (>= (:ff-potential-radius (:spec lyr)) 1)]
+      (update-in
+       lyr [:proximal-sg]
+       (fn [sg]
+         (if global?
+           (adjust-overlap-global sg
+                                  (:overlap-duty-cycles lyr)
+                                  (:spec lyr))
+           (adjust-overlap-local sg
+                                 (:overlap-duty-cycles lyr)
+                                 (:topology lyr)
+                                 (:inh-radius lyr)
+                                 (:spec lyr))))))))
 
 (defn update-duty-cycles
   "Records a set of events with indices `is` in the vector `v`

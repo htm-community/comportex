@@ -123,8 +123,15 @@
   is below this proportion of the _highest_ of its neighbours, its
   boost factor is increased.
 
-  * `boost-active-every` - number of time steps between recalculating
+  * `adjust-overlap-duty-ratio` - when a column's overlap frequency
+  differs from any of its neighbours by at least this fraction, its
+  permanences are adjusted.
+
+  *  `boost-active-every` - number of time steps between recalculating
   column boosting factors.
+
+  *  `adjust-overlap-every` - number of time steps between adjusting
+  column permanences to stabilise overlap frequencies.
 
   * `inh-radius-every` - number of time steps between recalculating
   the effective inhibition radius.
@@ -210,8 +217,10 @@
                   :learn? false)
    :max-boost 1.5
    :duty-cycle-period 1000
-   :boost-active-duty-ratio 0.001
-   :boost-active-every 1000
+   :boost-active-duty-ratio (/ 1.0 200)
+   :adjust-overlap-duty-ratio (/ 1.0 100)
+   :boost-active-every 100
+   :adjust-overlap-every 300
    :inh-radius-every 1000
    :lateral-synapses? true
    :distal-motor-dimensions [0]
@@ -1006,7 +1015,7 @@
       :timestep t})))
 
 (defrecord LayerOfCells
-    [spec rng topology input-topology inh-radius boosts active-duty-cycles
+    [spec rng topology input-topology inh-radius boosts active-duty-cycles overlap-duty-cycles
      proximal-sg distal-sg apical-sg state distal-state prior-distal-state
      apical-state prior-apical-state learn-state]
 
@@ -1056,7 +1065,11 @@
         (:learn? (:proximal spec)) (layer-learn-proximal a-cols)
         true (update-in [:active-duty-cycles] columns/update-duty-cycles
                         (:active-cols state) (:duty-cycle-period spec))
+        true (update-in [:overlap-duty-cycles] columns/update-duty-cycles
+                        (map first (keys (:col-overlaps state)))
+                        (:duty-cycle-period spec))
         (zero? (mod timestep (:boost-active-every spec))) (columns/boost-active)
+        (zero? (mod timestep (:adjust-overlap-every spec))) (columns/adjust-overlap)
         (zero? (mod timestep (:inh-radius-every spec))) (update-inhibition-radius))))
 
   (layer-depolarise
@@ -1190,6 +1203,7 @@
      :prior-distal-state distal-state
      :boosts (vec (repeat n-cols 1.0))
      :active-duty-cycles (vec (repeat n-cols 0.0))
+     :overlap-duty-cycles (vec (repeat n-cols 0.0))
      }))
 
 (defn layer-of-cells

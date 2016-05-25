@@ -18,6 +18,7 @@
 - State key :stable-cells-buffer
 - Can create 2D regions with 3D inputs.
 - Can specify custom spatial pooling function via spec key :spatial-pooling.
+- Adjust overlap based on overlap duty cycle, to compare to NuPIC.
 
 ### Removed
 - Spec parameters :temporal-pooling-max-exc, -fall, -amp
