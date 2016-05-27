@@ -1,6 +1,6 @@
 # Comportex
 
-<img src="https://raw.githubusercontent.com/nupic-community/comportex/master/comportex-logo.png"
+<img src="https://raw.githubusercontent.com/htm-community/comportex/master/comportex-logo.png"
  alt="Comportex logo" align="right" />
 
 Comportex is an implementation of
@@ -31,11 +31,11 @@ by Marcus Lewis.
 ## Documentation
 
 For now there is the
-[annotated source code](http://nupic-community.github.com/comportex/docs/).
+[annotated source code](http://htm-community.github.com/comportex/docs/).
 The main API is in the namespaces `core`, `protocols` and `encoders`, while the
 algorithms are mainly in `cells`, `synapses` and `inhibition`.
 
-Parameter descriptions can be found on [`org.nfrac.comportex.cells/parameter-defaults`](https://github.com/nupic-community/comportex/blob/master/src/org/nfrac/comportex/cells.cljc#L31).
+Parameter descriptions can be found on [`org.nfrac.comportex.cells/parameter-defaults`](https://github.com/htm-community/comportex/blob/master/src/org/nfrac/comportex/cells.cljc#L31).
 
 [This blog post](http://floybix.github.io/2014/11/05/htm-protocols/)
 has some explanation of the protocols.
@@ -53,16 +53,16 @@ lein repl
 ```
 
 See [A sample workflow with the
-REPL](https://github.com/nupic-community/comportex/wiki/A-sample-workflow-with-the-REPL).
+REPL](https://github.com/htm-community/comportex/wiki/A-sample-workflow-with-the-REPL).
 
 Or, for a better experience, check out the Notebook (browser-based
 REPL with super powers) in
-[Sanity](https://github.com/nupic-community/sanity/).
+[Sanity](https://github.com/htm-community/sanity/).
 
 
 ## Related projects
 
-* [Sanity](https://github.com/nupic-community/sanity/)
+* [Sanity](https://github.com/htm-community/sanity/)
 * [NuPIC](https://github.com/numenta/nupic/)
 
 

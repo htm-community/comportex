@@ -58,6 +58,6 @@
 ## [0.0.12] - 2015-12-01
 - Before this I didn't keep a change log.
 
-[Unreleased]: https://github.com/nupic-community/comportex/compare/v0.0.13...HEAD
-[0.0.13]: https://github.com/nupic-community/comportex/compare/v0.0.12...v0.0.13
-[0.0.12]: https://github.com/nupic-community/comportex/compare/v0.0.10...v0.0.12
+[Unreleased]: https://github.com/htm-community/comportex/compare/v0.0.13...HEAD
+[0.0.13]: https://github.com/htm-community/comportex/compare/v0.0.12...v0.0.13
+[0.0.12]: https://github.com/htm-community/comportex/compare/v0.0.10...v0.0.12

@@ -1,6 +1,6 @@
 (defproject org.nfrac/comportex "0.0.14-SNAPSHOT"
   :description "Functionally composable cortex, an implementation of Hierarchical Temporal Memory"
-  :url "http://github.com/nupic-community/comportex/"
+  :url "http://github.com/htm-community/comportex/"
   :license {:name "GNU Affero General Public Licence"
             :url "http://www.gnu.org/licenses/agpl-3.0.en.html"}
   :dependencies [[org.clojure/clojure "1.8.0-RC2"]
