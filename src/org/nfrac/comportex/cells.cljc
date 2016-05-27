@@ -219,8 +219,11 @@
    :duty-cycle-period 1000
    :boost-active-duty-ratio (/ 1.0 200)
    :adjust-overlap-duty-ratio (/ 1.0 100)
+   :float-overlap-duty-ratio 0.1
+   :float-overlap-duty-ratio-hi 10.0
    :boost-active-every 100
    :adjust-overlap-every 300
+   :float-overlap-every 100
    :inh-radius-every 1000
    :lateral-synapses? true
    :distal-motor-dimensions [0]
@@ -1070,6 +1073,7 @@
                         (:duty-cycle-period spec))
         (zero? (mod timestep (:boost-active-every spec))) (columns/boost-active)
         (zero? (mod timestep (:adjust-overlap-every spec))) (columns/adjust-overlap)
+        (zero? (mod timestep (:float-overlap-every spec))) (columns/layer-float-overlap)
         (zero? (mod timestep (:inh-radius-every spec))) (update-inhibition-radius))))
 
   (layer-depolarise
@@ -1202,8 +1206,8 @@
      :distal-state distal-state
      :prior-distal-state distal-state
      :boosts (vec (repeat n-cols 1.0))
-     :active-duty-cycles (vec (repeat n-cols 0.0))
-     :overlap-duty-cycles (vec (repeat n-cols 0.0))
+     :active-duty-cycles (vec (repeat n-cols (:activation-level spec)))
+     :overlap-duty-cycles (vec (repeat n-cols (:activation-level spec)))
      }))
 
 (defn layer-of-cells

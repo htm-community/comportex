@@ -221,6 +221,38 @@
                                  (:inh-radius lyr)
                                  (:spec lyr))))))))
 
+(defn float-overlap-global
+  [sg ys spec]
+  (let [mean-y (mean ys)
+        lo-z (:float-overlap-duty-ratio spec)
+        hi-z (:float-overlap-duty-ratio-hi spec)
+        weaks (keep (fn [[col y]]
+                      (let [z (/ y mean-y)]
+                        (when (< z lo-z)
+                          (syn/seg-update [col 0 0] :reinforce nil nil))))
+                    (map vector (range) ys))
+        strongs (keep (fn [[col y]]
+                        (let [z (/ y mean-y)]
+                          (when (> z hi-z)
+                            (syn/seg-update [col 0 0] :punish nil nil))))
+                      (map vector (range) ys))
+        pcon (:perm-connected (:proximal spec))]
+    (p/bulk-learn sg (concat weaks strongs)
+                  (constantly true) (* 0.1 pcon) (* 0.1 pcon) 0)
+    )
+  )
+
+(defn layer-float-overlap
+  [lyr]
+  (if-not (pos? (:float-overlap-duty-ratio (:spec lyr)))
+    ;; disabled
+    lyr
+    (update-in lyr [:proximal-sg]
+               (fn [sg]
+                 (float-overlap-global sg
+                                       (:active-duty-cycles lyr)
+                                       (:spec lyr))))))
+
 (defn update-duty-cycles
   "Records a set of events with indices `is` in the vector `v`
    according to duty cycle period `period`. As in NuPIC, the formula
