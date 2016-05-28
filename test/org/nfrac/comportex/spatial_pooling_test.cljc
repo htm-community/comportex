@@ -31,7 +31,6 @@
 
 (def spec {:column-dimensions [1000]
            :ff-potential-radius 0.5
-           :global-inhibition? true
            :duty-cycle-period 600
            :depth 1
            :distal {:max-segments 1}

@@ -12,7 +12,7 @@
    :ff-init-frac 0.15
    :ff-potential-radius 1.0
    :proximal {:stimulus-threshold 3}
-   :global-inhibition? false
+   :spatial-pooling :local-inhibition
    :activation-level 0.015
    :distal-vs-proximal-weight 1.0
    })

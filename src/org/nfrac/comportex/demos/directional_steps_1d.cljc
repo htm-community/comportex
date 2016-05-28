@@ -14,7 +14,7 @@
   {:column-dimensions [800]
    :ff-potential-radius 0.2
    :ff-init-frac 0.3
-   :global-inhibition? false
+   :spatial-pooling :local-inhibition
    :activation-level 0.04
    :boost-active-every 10000
    :depth 4

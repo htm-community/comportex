@@ -154,13 +154,9 @@
   active (either locally or globally); inhibition kicks in to reduce
   it to this level.
 
-  * `global-inhibition?` - whether to use the faster global algorithm
-  for column inhibition (just keep those with highest overlap scores),
-  or to apply local inhibition (only within a column's neighbours).
-
   * `inhibition-base-distance` - the distance in columns within which
   a cell *will always* inhibit neighbouring cells with lower
-  excitation. Ignored if `global-inhibition?` is true.
+  excitation. Used by `:spatial-pooling :local-inhibition`.
 
   * `distal-vs-proximal-weight` - scaling to apply to the number of
   active distal synapses (on the winning segment) before adding to the
@@ -190,6 +186,11 @@
   * `spatial-pooling` - keyword to look up a spatial pooling
   implementation of the multimethod
   `org.nfrac.comportex.cells/spatial-pooling`.
+  An alternative is `:local-inhibition`, implemented in this namespace.
+
+  * `temporal-pooling` - keyword to look up a temporal pooling
+  implementation of the multimethod
+  `org.nfrac.comportex.cells/temporal-pooling`.
 "
   {:input-dimensions [:define-me!]
    :column-dimensions [1000]
@@ -230,7 +231,6 @@
    :distal-topdown-dimensions [0]
    :use-feedback? false
    :activation-level 0.02
-   :global-inhibition? true
    :inhibition-base-distance 1
    :distal-vs-proximal-weight 0.0
    :apical-bias-frac 0.0
@@ -239,7 +239,8 @@
    :stable-activation-steps 5
    :random-seed 42
    ;; algorithm implementations
-   :spatial-pooling ::standard-spatial-pooling
+   :spatial-pooling :standard
+   :temporal-pooling :standard
    })
 
 ;; TODO decide on defaults (reliability vs speed), provide alternatives?
@@ -399,18 +400,6 @@
                      (assoc! m id (+ p-exc (* distal-weight d-exc)))))
                  (transient {})
                  basic-exc))))))
-
-(defn select-active-columns
-  "Returns a set of column ids to become active after lateral inhibition."
-  [col-exc topo activation-level inh-radius spec]
-  (let [level activation-level
-        n-on (max 1 (round (* level (p/size topo))))]
-    (set
-     (if (:global-inhibition? spec)
-       (inh/inhibit-globally col-exc n-on)
-       (inh/inhibit-locally col-exc topo inh-radius
-                            (:inhibition-base-distance spec)
-                            n-on)))))
 
 (defn column-active-cells
   "Returns a sequence of cell ids to become active in the column.
@@ -889,9 +878,11 @@
 
 (defrecord LayerActiveState
     [in-ff-bits in-stable-ff-bits
-     out-immediate-ff-bits out-stable-ff-bits
-     col-overlaps matching-ff-seg-paths stable-cells-buffer
+     col-overlaps matching-ff-seg-paths stable-active-cells
      active-cols burst-cols col-active-cells active-cells timestep])
+
+(defrecord LayerTPState
+    [out-stable-ff-bits])
 
 (defrecord LayerLearnState
     [col-winners winner-seg learning-cells learning punishments
@@ -929,12 +920,24 @@
   * :matching-ff-seg-paths
   * :col-overlaps
   "
-  (fn [ff-bits stable-ff-bits proximal-sg boosts topology inh-radius fb-cell-exc spec]
-    (:spatial-pooling spec)))
+  (fn [layer ff-bits stable-ff-bits fb-cell-exc]
+    (:spatial-pooling (:spec layer))))
 
-(defmethod spatial-pooling ::standard-spatial-pooling
-  [ff-bits stable-ff-bits proximal-sg boosts topology inh-radius fb-cell-exc spec]
-  (let [;; proximal excitation as number of active synapses, keyed by [col 0 seg-idx]
+(defmulti temporal-pooling
+  "Temporal pooling: a relatively stable layer output signal over time.
+  Returns keys
+
+  * :out-stable-ff-bits
+  "
+  (fn [layer active-state prev-tp-state]
+    (:temporal-pooling (:spec layer))))
+
+(defmethod spatial-pooling :standard
+  [layer ff-bits stable-ff-bits fb-cell-exc]
+  (let [proximal-sg (:proximal-sg layer)
+        boosts (:boosts layer)
+        spec (:spec layer)
+        ;; proximal excitation as number of active synapses, keyed by [col 0 seg-idx]
         col-seg-overlaps (p/excitations proximal-sg ff-bits
                                         (:stimulus-threshold (:proximal spec)))
         ;; these both keyed by [col 0]
@@ -946,52 +949,78 @@
                                         (:distal-vs-proximal-weight spec)
                                         (:spontaneous-activation? spec)
                                         (:depth spec))
-        a-cols (select-active-columns (best-by-column abs-cell-exc)
-                                      topology (:activation-level spec)
-                                      inh-radius spec)]
+        n-on (max 1 (round (* (:activation-level spec) (p/size-of layer))))
+        a-cols (-> (best-by-column abs-cell-exc)
+                   (inh/inhibit-globally n-on)
+                   (set))]
+    {:active-cols a-cols
+     :matching-ff-seg-paths ff-seg-paths
+     :col-overlaps raw-col-exc}))
+
+(defmethod spatial-pooling :local-inhibition
+  [layer ff-bits stable-ff-bits fb-cell-exc]
+  (let [proximal-sg (:proximal-sg layer)
+        boosts (:boosts layer)
+        spec (:spec layer)
+        ;; proximal excitation as number of active synapses, keyed by [col 0 seg-idx]
+        col-seg-overlaps (p/excitations proximal-sg ff-bits
+                                        (:stimulus-threshold (:proximal spec)))
+        ;; these both keyed by [col 0]
+        [raw-col-exc ff-seg-paths]
+        (best-segment-excitations-and-paths col-seg-overlaps)
+        col-exc (columns/apply-overlap-boosting raw-col-exc boosts)
+        ;; combine excitation values for selecting columns
+        abs-cell-exc (total-excitations col-exc fb-cell-exc
+                                        (:distal-vs-proximal-weight spec)
+                                        (:spontaneous-activation? spec)
+                                        (:depth spec))
+        n-on (max 1 (round (* (:activation-level spec) (p/size-of layer))))
+        a-cols (-> (best-by-column abs-cell-exc)
+                   (inh/inhibit-locally (:topology layer)
+                                        (:inh-radius layer)
+                                        (:inhibition-base-distance spec)
+                                        n-on)
+                   (set))]
     {:active-cols a-cols
      :matching-ff-seg-paths ff-seg-paths
      :col-overlaps raw-col-exc}))
 
 (defn compute-active-state
-  [state ff-bits stable-ff-bits proximal-sg distal-state apical-state
-   boosts topology inh-radius spec]
-  (let [;; ignore apical excitation unless there is matching distal.
+  [layer ff-bits stable-ff-bits]
+  (let [spec (:spec layer)
+        distal-state (:distal-state layer)
+        apical-state (:apical-state layer)
+        ;; ignore apical excitation unless there is matching distal.
         ;; unlike other segments, allow apical excitation to add to distal
         fb-cell-exc (if (:use-feedback? spec)
                        (merge-with + (:cell-exc distal-state)
                                    (select-keys (:cell-exc apical-state)
                                                 (keys (:cell-exc distal-state))))
                        (:cell-exc distal-state))
-        sp-info (spatial-pooling ff-bits stable-ff-bits proximal-sg
-                                 boosts topology inh-radius fb-cell-exc
-                                 spec)
+        sp-info (spatial-pooling layer ff-bits stable-ff-bits fb-cell-exc)
         ;; find active cells in the columns
         cell-info (select-active-cells (:active-cols sp-info) fb-cell-exc
                                        (:depth spec)
                                        (:stimulus-threshold (:distal spec))
-                                       (:dominance-margin spec))]
+                                       (:dominance-margin spec))
+        depth (:depth spec)]
     (map->LayerActiveState
      (merge
       sp-info
       cell-info
       {:in-ff-bits ff-bits
        :in-stable-ff-bits stable-ff-bits
-       :timestep (inc (:timestep state))
+       :out-immediate-ff-bits (cells->bits depth (:active-cells cell-info))
+       :timestep (inc (:timestep (:state layer)))
        }))))
 
-(defn compute-active-state-and-tp
-  [state ff-bits stable-ff-bits proximal-sg distal-state apical-state
-   boosts topology inh-radius spec]
-  (let [next-state*
-        (compute-active-state state
-                              ff-bits stable-ff-bits proximal-sg distal-state
-                              apical-state boosts topology inh-radius spec)
-        new-stable-cells (:stable-active-cells next-state*)
-        next-state (dissoc next-state* :stable-active-cells)
+(defmethod temporal-pooling :standard
+  [layer active-state prev-tp-state]
+  (let [spec (:spec layer)
+        new-stable-cells (:stable-active-cells active-state)
         ;; continuing mini-burst synapses for temporal pooling
         stable-cells-buffer
-        (-> (loop [q (or (:stable-cells-buffer state) util/empty-queue)]
+        (-> (loop [q (or (:stable-cells-buffer prev-tp-state) util/empty-queue)]
               (if (>= (count q) (:stable-activation-steps spec))
                 (recur (pop q))
                 q))
@@ -999,10 +1028,13 @@
         all-stable-cells (apply set/union stable-cells-buffer)
         depth (:depth spec)
         all-stable-bits (set (cells->bits depth all-stable-cells))]
-    (assoc next-state
-           :out-immediate-ff-bits (cells->bits depth (:active-cells next-state))
-           :out-stable-ff-bits all-stable-bits
-           :stable-cells-buffer stable-cells-buffer)))
+    (map->LayerTPState
+     {:out-stable-ff-bits all-stable-bits
+      :stable-cells-buffer stable-cells-buffer})))
+
+(defn compute-tp-state
+  [layer active-state]
+  (temporal-pooling layer active-state (:tp-state layer)))
 
 (defn compute-distal-state
   [sg active-bits learnable-bits dspec t]
@@ -1019,18 +1051,17 @@
 
 (defrecord LayerOfCells
     [spec rng topology input-topology inh-radius boosts active-duty-cycles overlap-duty-cycles
-     proximal-sg distal-sg apical-sg state distal-state prior-distal-state
+     proximal-sg distal-sg apical-sg state tp-state distal-state prior-distal-state
      apical-state prior-apical-state learn-state]
 
   p/PLayerOfCells
 
   (layer-activate
     [this ff-bits stable-ff-bits]
-    (let [new-state
-          (compute-active-state-and-tp state ff-bits stable-ff-bits
-                                       proximal-sg distal-state apical-state
-                                       boosts topology inh-radius spec)]
-      (assoc this :state new-state)))
+    (let [new-active-state (compute-active-state this ff-bits stable-ff-bits)
+          new-tp-state (compute-tp-state this new-active-state)]
+      (assoc this :state new-active-state
+             :tp-state new-tp-state)))
 
   (layer-learn
     [this]
@@ -1144,9 +1175,9 @@
                                   (p/layer-depth this))))
   (bits-value [_]
     (set/union (:out-immediate-ff-bits state)
-               (:out-stable-ff-bits state)))
+               (:out-stable-ff-bits tp-state)))
   (stable-bits-value [_]
-    (:out-stable-ff-bits state))
+    (:out-stable-ff-bits tp-state))
   (source-of-bit
     [_ i]
     (id->cell (:depth spec) i))
@@ -1159,6 +1190,12 @@
   p/PParameterised
   (params [_]
     spec))
+
+(defn validate-spec!
+  [spec]
+  (assert (not (contains? spec :global-inhibition?))
+          (str ":global-inhibition? now implied by default :spatial-pooling; "
+               "for local algorithm use :spatial-pooling :local-inhibition")))
 
 (defn init-layer-state
   [spec]
@@ -1193,6 +1230,7 @@
         state (assoc empty-active-state :timestep 0)
         learn-state (assoc empty-learn-state :timestep 0)
         distal-state (assoc empty-distal-state :timestep 0)]
+    (validate-spec! spec)
     {:spec spec
      :rng rng
      :topology col-topo

@@ -39,7 +39,7 @@
     (testing info
       (println (str (newline) info))
       (perf-test-50* (demo1d/n-region-model 1 (assoc demo1d/spec
-                                                     :global-inhibition? true
+                                                     :spatial-pooling :standard
                                                      :ff-potential-radius 1.0))
                      (demo1d/input-seq)))))
 

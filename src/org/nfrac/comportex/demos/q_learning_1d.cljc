@@ -45,7 +45,6 @@
    :ff-perm-init-hi 0.45
    ;; chosen for exploration - fresh connections fully boosted > 1.0:
    :max-boost 3.0
-   :global-inhibition? true
    :boost-active-every 1
    :duty-cycle-period 150
    :boost-active-duty-ratio 0.05
