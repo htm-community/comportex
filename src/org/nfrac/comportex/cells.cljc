@@ -216,6 +216,16 @@
                   :learn? true)
    :apical (assoc dendrite-parameter-defaults
                   :learn? false)
+   :ilateral {:max-segments 1
+              :max-synapse-count 22
+              :new-synapse-count 12
+              :stimulus-threshold 1
+              :perm-connected 0.50
+              :perm-init 0.08
+              :perm-inc 0.08
+              :perm-dec 0.01
+              :learn? false
+              }
    :max-boost 1.5
    :duty-cycle-period 1000
    :boost-active-duty-ratio (/ 1.0 200)
@@ -818,6 +828,25 @@
                                   [:punishments :apical] punishments)
            :apical-sg new-sg)))
 
+(defn layer-learn-ilateral
+  [this cols]
+  (let [sg (:ilateral-sg this)
+        dspec (:ilateral (:spec this))
+        ids (map vector cols (repeat 0))
+        matching-segs (into {}
+                            (map (fn [id]
+                                   [id [(conj id 0) 1.0]]))
+                            ids)
+        state {:active-bits cols
+               :learnable-bits cols}
+        [rng* rng] (random/split (:rng this))
+        [new-sg learning] (learn-distal sg state ids matching-segs dspec rng*)]
+    (assoc this
+           :rng rng
+           :learn-state (assoc-in (:learn-state this)
+                                  [:learning :ilateral] learning)
+           :ilateral-sg new-sg)))
+
 (defn layer-learn-proximal
   [this cols]
   (let [sg (:proximal-sg this)
@@ -1051,7 +1080,7 @@
 
 (defrecord LayerOfCells
     [spec rng topology input-topology inh-radius boosts active-duty-cycles overlap-duty-cycles
-     proximal-sg distal-sg apical-sg state tp-state distal-state prior-distal-state
+     proximal-sg distal-sg apical-sg ilateral-sg state tp-state distal-state prior-distal-state
      apical-state prior-apical-state learn-state]
 
   p/PLayerOfCells
@@ -1096,6 +1125,7 @@
         (:learn? (:apical spec)) (layer-learn-apical lc (:apical winner-seg))
         (:punish? (:distal spec)) (layer-punish-lateral)
         (:punish? (:apical spec)) (layer-punish-apical)
+        (:learn? (:ilateral spec)) (layer-learn-ilateral a-cols)
         (:learn? (:proximal spec)) (layer-learn-proximal a-cols)
         true (update-in [:active-duty-cycles] columns/update-duty-cycles
                         (:active-cols state) (:duty-cycle-period spec))
@@ -1227,6 +1257,11 @@
                                                n-apical
                                                (:perm-connected (:apical spec))
                                                true)
+        ilateral-sg (syn/cell-segs-synapse-graph n-cols 1
+                                                 (:max-segments (:ilateral spec))
+                                                 n-cols
+                                                 (:perm-connected (:ilateral spec))
+                                                 true)
         state (assoc empty-active-state :timestep 0)
         learn-state (assoc empty-learn-state :timestep 0)
         distal-state (assoc empty-distal-state :timestep 0)]
@@ -1239,6 +1274,7 @@
      :proximal-sg proximal-sg
      :distal-sg distal-sg
      :apical-sg apical-sg
+     :ilateral-sg ilateral-sg
      :state state
      :learn-state learn-state
      :distal-state distal-state
