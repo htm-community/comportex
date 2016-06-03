@@ -223,16 +223,16 @@
 
 (defn float-overlap-global
   [sg ys spec]
-  (let [mean-y (mean ys)
+  (let [ref-y (:activation-level spec)
         lo-z (:float-overlap-duty-ratio spec)
         hi-z (:float-overlap-duty-ratio-hi spec)
         weaks (keep (fn [[col y]]
-                      (let [z (/ y mean-y)]
+                      (let [z (/ y ref-y)]
                         (when (< z lo-z)
                           (syn/seg-update [col 0 0] :reinforce nil nil))))
                     (map vector (range) ys))
         strongs (keep (fn [[col y]]
-                        (let [z (/ y mean-y)]
+                        (let [z (/ y ref-y)]
                           (when (> z hi-z)
                             (syn/seg-update [col 0 0] :punish nil nil))))
                       (map vector (range) ys))
