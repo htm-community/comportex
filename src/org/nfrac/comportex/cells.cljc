@@ -474,7 +474,7 @@
     (if-let [col (first cols)]
       (let [this-ac (column-active-cells col cell-exc depth
                                          threshold dominance-margin)
-            bursting? (== depth (count this-ac))]
+            bursting? (< (cell-exc (first this-ac) 0) threshold)]
         (recur (next cols)
                (assoc! col-ac col this-ac)
                (reduce conj! ac this-ac)
