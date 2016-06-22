@@ -238,6 +238,7 @@
    :adjust-overlap-every 300
    :float-overlap-every 100
    :inh-radius-every 1000
+   :inh-radius-scale 1.0
    :lateral-synapses? true
    :distal-motor-dimensions [0]
    :distal-topdown-dimensions [0]
@@ -1026,7 +1027,7 @@
         n-on (max 1 (round (* (:activation-level spec) (p/size-of layer))))
         a-cols (-> (best-by-column abs-cell-exc)
                    (inh/inhibit-locally (:topology layer)
-                                        (:inh-radius layer)
+                                        (* (:inh-radius layer) (:inh-radius-scale spec))
                                         (:inhibition-base-distance spec)
                                         n-on)
                    (set))]
