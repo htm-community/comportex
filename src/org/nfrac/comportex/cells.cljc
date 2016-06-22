@@ -207,9 +207,11 @@
               :perm-inc 0.04
               :perm-stable-inc 0.15
               :perm-dec 0.01
+              :perm-punish 0.002
               :perm-connected 0.20
               :perm-init 0.25
               :learn? true
+              :punish? false
               :grow? false
               }
    :distal (assoc dendrite-parameter-defaults
@@ -679,20 +681,6 @@
            (map first))
       nil)))
 
-(defn segment-punishments
-  "To punish segments which predicted activation on cells which did
-  not become active. Ignores any which are still predictive.  Returns
-  a sequence of SegUpdate records."
-  [distal-sg prior-pc pc ac prior-bits pcon stimulus-th]
-  (let [bad-cells (set/difference prior-pc
-                                  pc
-                                  ac)]
-    (for [cell-id bad-cells
-          :let [cell-segs (p/cell-segments distal-sg cell-id)]
-          si (cell-active-segments cell-segs prior-bits stimulus-th pcon)
-          :let [seg-path (conj cell-id si)]]
-      (syn/seg-update seg-path :punish nil nil))))
-
 (defn learning-updates
   "Takes the learning `cells` and maps each to a SegUpdate record,
   which includes the segment path to learn on, together with lists of
@@ -761,13 +749,14 @@
 
 (defn punish-distal
   [sg distal-state prior-distal-state prior-active-cells dspec]
-  (let [punishments (segment-punishments sg
-                                         (:pred-cells prior-distal-state)
-                                         (:pred-cells distal-state)
-                                         prior-active-cells
-                                         (:active-bits prior-distal-state)
-                                         (:perm-connected dspec)
-                                         (:stimulus-threshold dspec))
+  (let [bad-cells (set/difference (:pred-cells prior-distal-state)
+                                  ;; Ignore any which are still predictive.
+                                  (:pred-cells distal-state)
+                                  prior-active-cells)
+        matching-segs (:matching-seg-paths prior-distal-state)
+        punishments (for [cell bad-cells
+                          :let [[seg-path _] (matching-segs cell)]]
+                      (syn/seg-update seg-path :punish nil nil))
         new-sg (if punishments
                  (p/bulk-learn sg punishments (:active-bits prior-distal-state)
                                (:perm-inc dspec) (:perm-punish dspec)
@@ -896,6 +885,37 @@
            :learn-state (assoc-in (:learn-state this)
                                   [:learning :proximal] prox-learning)
            :proximal-sg psg)))
+
+(defn punish-proximal
+  [sg state pspec]
+  (let [matching-segs (:matching-ff-seg-paths state)
+        pred-cells (set (keys matching-segs))
+        active-cells (set (map vector (:active-cols state) (repeat 0)))
+        bad-cells (set/difference pred-cells
+                                  active-cells)
+        punishments (for [cell bad-cells
+                          :let [[seg-path _] (matching-segs cell)]
+                          :when seg-path]
+                      (syn/seg-update seg-path :punish nil nil))
+        new-sg (if punishments
+                 (p/bulk-learn sg punishments
+                               (:in-ff-bits state)
+                               (:perm-inc pspec) (:perm-punish pspec)
+                               (:perm-init pspec))
+                 sg)]
+    [new-sg
+     punishments]))
+
+(defn layer-punish-proximal
+  [this]
+  (let [sg (:proximal-sg this)
+        state (:state this)
+        pspec (:proximal (:spec this))
+        [new-sg punishments] (punish-proximal sg state pspec)]
+    (assoc this
+           :learn-state (assoc-in (:learn-state this)
+                                  [:punishments :proximal] punishments)
+           :proximal-sg new-sg)))
 
 ;;; ## Orchestration
 
@@ -1123,8 +1143,6 @@
                     :rng rng)
         (:learn? (:distal spec)) (layer-learn-lateral lc (:distal winner-seg))
         (:learn? (:apical spec)) (layer-learn-apical lc (:apical winner-seg))
-        (:punish? (:distal spec)) (layer-punish-lateral)
-        (:punish? (:apical spec)) (layer-punish-apical)
         (:learn? (:ilateral spec)) (layer-learn-ilateral a-cols)
         (:learn? (:proximal spec)) (layer-learn-proximal a-cols)
         true (update-in [:active-duty-cycles] columns/update-duty-cycles
@@ -1132,6 +1150,9 @@
         true (update-in [:overlap-duty-cycles] columns/update-duty-cycles
                         (map first (keys (:col-overlaps state)))
                         (:duty-cycle-period spec))
+        (:punish? (:distal spec)) (layer-punish-lateral)
+        (:punish? (:apical spec)) (layer-punish-apical)
+        (:punish? (:proximal spec)) (layer-punish-proximal)
         (zero? (mod timestep (:boost-active-every spec))) (columns/boost-active)
         (zero? (mod timestep (:adjust-overlap-every spec))) (columns/adjust-overlap)
         (zero? (mod timestep (:float-overlap-every spec))) (columns/layer-float-overlap)
@@ -1246,7 +1267,7 @@
                                                 (:max-segments (:proximal spec))
                                                 (p/size input-topo)
                                                 (:perm-connected (:proximal spec))
-                                                false)
+                                                (:grow? (:proximal spec)))
         distal-sg (syn/cell-segs-synapse-graph n-cols depth
                                                (:max-segments (:distal spec))
                                                n-distal
