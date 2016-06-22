@@ -11,7 +11,9 @@
     we may rely on an external timing signal to distinguish repeats.
   - Learn on winner cells only when they become active (even at first level).
     But might revisit this to learn auto-associatively for pattern completion.
-- inhibition radius is now full span of receptive field size, not half of it.
+- Inhibition radius is now full span of receptive field size, not half of it.
+- Do not displace synapses when growing; instead wait for them to be culled.
+- Spec :spatial-pooling :local-inhibition replaces :global-inhibition? true.
 
 ### Added
 - Spec parameter :stable-activation-steps
@@ -19,6 +21,14 @@
 - Can create 2D regions with 3D inputs.
 - Can specify custom spatial pooling function via spec key :spatial-pooling.
 - Adjust overlap based on overlap duty cycle, to compare to NuPIC.
+- Sampling Linear Encoder
+- periodic? option to linear-encoder
+- core/segs-proximal-bit-votes
+- Spec parameter :inh-radius-scale
+- Optional instantaneous lateral synapse graph, eg for learned lateral inhibition.
+- Multimethods for customisation of algorithms, selected by spec keys
+  :spatial-pooling and :temporal-pooling.
+- Adjust overlap by activation frequency. disable by :float-overlap-duty-ratio 0
 
 ### Removed
 - Spec parameters :temporal-pooling-max-exc, -fall, -amp
@@ -28,7 +38,8 @@
 
 ### Fixed
 - coord-distance now uses Chebyshev distance to match neighbours function.
-- local inhibition failed when inhibition-base-distance >= inh-radius.
+- Local inhibition failed when inhibition-base-distance >= inh-radius.
+- Bursting defined by depolarisation; distinguishes bursting when depth=1.
 
 ## [0.0.13] - 2016-01-12
 ### Changed

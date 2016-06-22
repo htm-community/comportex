@@ -68,7 +68,7 @@ REPL with super powers) in
 
 ## Hello
 
-* Get in touch via **HTM Forum** in the categories [HTM Theory](https://discourse.numenta.org/c/htm-theory) or [Comportex](https://discourse.numenta.org/c/htm-hackers/comportex)
+* Get in touch via **HTM Forum** in the categories [HTM Theory](https://discourse.numenta.org/c/htm-theory) or [HTM Hackers](https://discourse.numenta.org/c/htm-hackers)
 * or email or github issues.
 
 
