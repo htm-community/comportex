@@ -120,8 +120,31 @@
   [encoder]
   (->SplatEncoder encoder))
 
+(defn linear-bits
+  "truncates"
+  [x lower upper n-bits n-active]
+  (let [span (double (- upper lower))
+        x (-> x (max lower) (min upper))
+        z (/ (- x lower) span)
+        i (long (* z (- n-bits n-active)))]
+    (range i (+ i n-active))))
+
+(defn periodic-linear-bits
+  "wraps"
+  [x lower upper n-bits n-active]
+  (let [span (double (- upper lower))
+        z (/ (- x lower) span)
+        z (mod z 1.0)
+        i (long (* z n-bits))
+        i-end (+ i n-active)]
+    (concat
+     ;; overflow
+     (when (> i-end n-bits)
+       (range (- i-end n-bits)))
+     (range i (min i-end n-bits)))))
+
 (defrecord LinearEncoder
-    [topo n-active lower upper]
+    [topo n-active lower upper periodic?]
   p/PTopological
   (topology [_]
     topo)
@@ -129,12 +152,10 @@
   (encode
     [_ x]
     (if x
-      (let [n-bits (p/size topo)
-            span (double (- upper lower))
-            x (-> x (max lower) (min upper))
-            z (/ (- x lower) span)
-            i (long (* z (- n-bits n-active)))]
-        (range i (+ i n-active)))
+      (let [n-bits (p/size topo)]
+        (if periodic?
+          (periodic-linear-bits x lower upper n-bits n-active)
+          (linear-bits x lower upper n-bits n-active)))
       (sequence nil)))
   (decode
     [this bit-votes n]
@@ -156,12 +177,15 @@
 
   * `[lower upper]` gives the numeric range to cover. The input number
     will be clamped to this range."
-  [dimensions n-active [lower upper]]
-  (let [topo (topology/make-topology dimensions)]
-    (map->LinearEncoder {:topo topo
-                         :n-active n-active
-                         :lower lower
-                         :upper upper})))
+  ([dimensions n-active [lower upper]]
+   (linear-encoder dimensions n-active [lower upper] false))
+  ([dimensions n-active [lower upper] periodic?]
+   (let [topo (topology/make-topology dimensions)]
+     (map->LinearEncoder {:topo topo
+                          :n-active n-active
+                          :lower lower
+                          :upper upper
+                          :periodic? periodic?}))))
 
 (defrecord CategoryEncoder
     [topo value->index]
