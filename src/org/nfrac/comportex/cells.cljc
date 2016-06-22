@@ -668,20 +668,6 @@
          (distinct)
          (remove seg))))
 
-(defn segment-excess-synapse-source-ids
-  "Given that an additional `grow-n` synapses will be added, checks if
-  the segment will exceed the maximum allowed number of synapses, and
-  if so, returns a list of synapse source ids to remove. These are the
-  ones with lowest permanence."
-  [syns grow-n max-syns]
-  (let [total (+ (count syns) grow-n)
-        excess (- total max-syns)]
-    (if (pos? excess)
-      (->> (sort-by val syns)
-           (take excess)
-           (map first))
-      nil)))
-
 (defn learning-updates
   "Takes the learning `cells` and maps each to a SegUpdate record,
   which includes the segment path to learn on, together with lists of
@@ -715,14 +701,16 @@
                     {}
                     (let [[_ _ si] matching-path]
                       (nth cell-segs si)))
-              grow-n (-> (- new-syns (or exc 0)) (max 0))
+              ;; don't usurp existing synapses, wait for them to be culled
+              ;; (was problem of constantly displacing new synapses)
+              grow-n (-> (- new-syns (or exc 0))
+                         ;; only grow in free space
+                         (min (- max-syns (count seg)))
+                         (max 0))
               [rng* rng] (random/split rng)
               grow-source-ids (segment-new-synapse-source-ids seg learnable-bits
                                                               grow-n rng*)
-              die-source-ids (if new-segment?
-                               (keys replaced-syns)
-                               (segment-excess-synapse-source-ids seg grow-n
-                                                                  max-syns))
+              die-source-ids (when new-segment? (keys replaced-syns))
               seg-path (if new-segment? (conj cell-id new-si) matching-path)]
           (recur (next cells)
                  ;; if not enough learnable sources to grow a new segment, skip it
