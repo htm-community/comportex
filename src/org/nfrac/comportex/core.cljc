@@ -583,21 +583,24 @@
 
 ;;; ## Tracing columns back to senses
 
-(defn cells-proximal-bit-votes
-  "For decoding. Given a set of cells in the layer, returns a map from
-  incoming bit index to the number of connections to that bit from the
-  cells' columns."
-  [lyr cells]
+(defn segs-proximal-bit-votes
+  [lyr seg-paths]
   (let [psg (:proximal-sg lyr)]
-    (->> (map first cells)
-         (reduce (fn [m col]
-                   ;; TODO: other proximal segments
-                   (let [ids (p/sources-connected-to psg [col 0 0])]
+    (->> seg-paths
+         (reduce (fn [m seg-path]
+                   (let [ids (p/sources-connected-to psg seg-path)]
                      (reduce (fn [m id]
                                (assoc! m id (inc (get m id 0))))
                              m ids)))
                  (transient {}))
          (persistent!))))
+
+(defn cells-proximal-bit-votes
+  "For decoding. Given a set of cells in the layer, returns a map from
+  incoming bit index to the number of connections to that bit from the
+  cells' columns."
+  [lyr cells]
+  (segs-proximal-bit-votes lyr (map #(conj % 0) cells)))
 
 (defn predicted-bit-votes
   [rgn]
