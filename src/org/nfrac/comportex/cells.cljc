@@ -1053,6 +1053,7 @@
 (defmethod temporal-pooling :standard
   [layer active-state prev-tp-state]
   (let [spec (:spec layer)
+        ;; here stable means not in a bursting column
         new-stable-cells (:stable-active-cells active-state)
         ;; continuing mini-burst synapses for temporal pooling
         stable-cells-buffer
@@ -1151,13 +1152,12 @@
           widths (distal-sources-widths spec)
           distal-bits (util/align-indices widths
                                           [(if (:lateral-synapses? spec)
-                                             (:out-immediate-ff-bits state)
+                                             (:out-immediate-ff-bits prior-state)
                                              [])
                                            distal-ff-bits])
-          wc (vals (:col-winners learn-state))
           distal-lbits (util/align-indices widths
                                            [(if (:lateral-synapses? spec)
-                                              (cells->bits depth wc)
+                                              (:out-wc-bits learn-state)
                                               [])
                                             distal-ff-bits])
           apical-bits (if (:use-feedback? spec) apical-fb-bits [])

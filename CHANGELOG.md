@@ -35,11 +35,13 @@
 - Spec parameters :activation-level-max, :stable-inbit-frac-threshold
 - State keys :engaged?, :newly-engaged?
 - temporal-pooling-cells protocol function.
+- Spec parameter :global-inhibition?
 
 ### Fixed
 - coord-distance now uses Chebyshev distance to match neighbours function.
 - Local inhibition failed when inhibition-base-distance >= inh-radius.
 - Bursting defined by depolarisation; distinguishes bursting when depth=1.
+- Distal punishment cells were incorrect.
 
 ## [0.0.13] - 2016-01-12
 ### Changed
