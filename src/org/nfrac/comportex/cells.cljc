@@ -781,11 +781,10 @@
            :apical-sg new-sg)))
 
 (defn layer-punish-lateral
-  [this]
+  [this prior-ac]
   (let [sg (:distal-sg this)
         dstate (:distal-state this)
         pdstate (:prior-distal-state this)
-        prior-ac (:prior-active-cells (:learn-state this))
         dspec (:distal (:spec this))
         [new-sg punishments] (punish-distal sg dstate pdstate prior-ac dspec)]
     (assoc this
@@ -794,11 +793,10 @@
            :distal-sg new-sg)))
 
 (defn layer-punish-apical
-  [this]
+  [this prior-ac]
   (let [sg (:apical-sg this)
         dstate (:apical-state this)
         pdstate (:prior-apical-state this)
-        prior-ac (:prior-active-cells (:learn-state this))
         dspec (:apical (:spec this))
         [new-sg punishments] (punish-distal sg dstate pdstate prior-ac dspec)]
     (assoc this
@@ -1134,14 +1132,14 @@
         (:learn? (:apical spec)) (layer-learn-apical lc (:apical winner-seg))
         (:learn? (:ilateral spec)) (layer-learn-ilateral a-cols)
         (:learn? (:proximal spec)) (layer-learn-proximal a-cols)
-        true (update-in [:active-duty-cycles] columns/update-duty-cycles
-                        (:active-cols state) (:duty-cycle-period spec))
-        true (update-in [:overlap-duty-cycles] columns/update-duty-cycles
-                        (map first (keys (:col-overlaps state)))
-                        (:duty-cycle-period spec))
-        (:punish? (:distal spec)) (layer-punish-lateral)
-        (:punish? (:apical spec)) (layer-punish-apical)
+        (:punish? (:distal spec)) (layer-punish-lateral (:prior-active-cells learn-state))
+        (:punish? (:apical spec)) (layer-punish-apical (:prior-active-cells learn-state))
         (:punish? (:proximal spec)) (layer-punish-proximal)
+        true (update :active-duty-cycles columns/update-duty-cycles
+                     a-cols (:duty-cycle-period spec))
+        true (update :overlap-duty-cycles columns/update-duty-cycles
+                     (map first (keys (:col-overlaps state)))
+                     (:duty-cycle-period spec))
         (zero? (mod timestep (:boost-active-every spec))) (columns/boost-active)
         (zero? (mod timestep (:adjust-overlap-every spec))) (columns/adjust-overlap)
         (zero? (mod timestep (:float-overlap-every spec))) (columns/layer-float-overlap)
