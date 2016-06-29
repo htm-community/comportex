@@ -1,5 +1,6 @@
 (ns org.nfrac.comportex.util
-  (:require [clojure.test.check.random :as random])
+  (:require [clojure.test.check.random :as random]
+            [clojure.set :as set])
   (:refer-clojure :exclude [rand rand-int rand-nth shuffle]))
 
 ;; copied from
@@ -326,3 +327,8 @@
              (update-in m [(value-fn x)] (fnil inc 0)))
            (swap! freqs)
            (vary-meta x assoc meta-key)))))
+
+(defn set-similarity
+  [sdr1 sdr2]
+  (/ (count (set/intersection sdr1 sdr2))
+     (max 1 (count sdr1) (count sdr2))))

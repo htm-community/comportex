@@ -181,6 +181,11 @@
   generated minibursts to metabotropic receptors. They might be
   curtailed earlier by a manual break.
 
+  * `transition-similarity` - effective time steps are delayed until
+  the similarity (normalised column overlap) between successive states
+  falls below this level. So 1.0 means every time step is effective -
+  the usual behaviour.
+
   * `random-seed` - the random seed (for reproducible results).
 
   * `spatial-pooling` - keyword to look up a spatial pooling
@@ -250,6 +255,7 @@
    :spontaneous-activation? false
    :dominance-margin 4
    :stable-activation-steps 5
+   :transition-similarity 1.0
    :random-seed 42
    ;; algorithm implementations
    :spatial-pooling :standard
@@ -1088,63 +1094,73 @@
 
 (defrecord LayerOfCells
     [spec rng topology input-topology inh-radius boosts active-duty-cycles overlap-duty-cycles
-     proximal-sg distal-sg apical-sg ilateral-sg state tp-state distal-state prior-distal-state
-     apical-state prior-apical-state learn-state]
+     proximal-sg distal-sg apical-sg ilateral-sg state prior-state tp-state
+     distal-state prior-distal-state apical-state prior-apical-state learn-state]
 
   p/PLayerOfCells
 
   (layer-activate
     [this ff-bits stable-ff-bits]
     (let [new-active-state (compute-active-state this ff-bits stable-ff-bits)
-          new-tp-state (compute-tp-state this new-active-state)]
-      (assoc this :state new-active-state
-             :tp-state new-tp-state)))
+          timestep (:timestep new-active-state)
+          effective? (<= (util/set-similarity (:active-cols new-active-state)
+                                              (:active-cols prior-state))
+                         (:transition-similarity spec))]
+      (-> this
+          (assoc :state new-active-state
+                 :tp-state (if effective?
+                             (compute-tp-state this new-active-state)
+                             tp-state)
+                 :prior-state (if effective?
+                                new-active-state
+                                prior-state))
+          )))
 
   (layer-learn
     [this]
-    (let [a-cols (:active-cols state)
-          col-ac (:col-active-cells state)
-          prior-winners (when-not (:break-winners? learn-state)
-                          (:col-winners learn-state))
-          [rng* rng] (random/split rng)
-          {:keys [col-winners winner-seg]}
-          (select-winner-cells col-ac prior-winners distal-state apical-state
-                               distal-sg apical-sg spec rng*)
-          ;; learning cells are the winning cells, but excluding any
-          ;; continuing winners when temporal pooling
-          winner-cells (vals col-winners)
-          lc (if (seq prior-winners)
-               (remove (set (vals prior-winners)) winner-cells)
-               winner-cells)
-          depth (:depth spec)
-          out-wc-bits (set (cells->bits depth winner-cells))
-          timestep (:timestep state)]
-      (cond->
-          this
-        true (assoc :learn-state (assoc empty-learn-state
-                                        :col-winners col-winners
-                                        :winner-seg winner-seg
-                                        :learning-cells lc
-                                        :out-wc-bits out-wc-bits
-                                        :prior-active-cells (:active-cells state)
-                                        :timestep timestep)
-                    :rng rng)
-        (:learn? (:distal spec)) (layer-learn-lateral lc (:distal winner-seg))
-        (:learn? (:apical spec)) (layer-learn-apical lc (:apical winner-seg))
-        (:learn? (:ilateral spec)) (layer-learn-ilateral a-cols)
-        (:learn? (:proximal spec)) (layer-learn-proximal a-cols)
-        (:punish? (:distal spec)) (layer-punish-lateral (:prior-active-cells learn-state))
-        (:punish? (:apical spec)) (layer-punish-apical (:prior-active-cells learn-state))
-        (:punish? (:proximal spec)) (layer-punish-proximal)
-        true (update :active-duty-cycles columns/update-duty-cycles
-                     a-cols (:duty-cycle-period spec))
-        true (update :overlap-duty-cycles columns/update-duty-cycles
-                     (map first (keys (:col-overlaps state)))
-                     (:duty-cycle-period spec))
-        (zero? (mod timestep (:boost-active-every spec))) (columns/boost-active)
-        (zero? (mod timestep (:adjust-overlap-every spec))) (columns/adjust-overlap)
-        (zero? (mod timestep (:float-overlap-every spec))) (columns/layer-float-overlap)
-        (zero? (mod timestep (:inh-radius-every spec))) (update-inhibition-radius))))
+    (if (< (:timestep prior-state) (:timestep state))
+     this
+     ;; effective transition, based on sufficient difference.
+     (let [a-cols (:active-cols state)
+           col-ac (:col-active-cells state)
+           prior-winners (when-not (:break-winners? learn-state)
+                           (:col-winners learn-state))
+           [rng* rng] (random/split rng)
+           {:keys [col-winners winner-seg]}
+           (select-winner-cells col-ac prior-winners distal-state apical-state
+                                distal-sg apical-sg spec rng*)
+           ;; learning cells are all the winning cells
+           winner-cells (vals col-winners)
+           lc winner-cells
+           depth (:depth spec)
+           out-wc-bits (set (cells->bits depth winner-cells))
+           timestep (:timestep state)]
+       (cond->
+           this
+         true (assoc :learn-state (assoc empty-learn-state
+                                         :col-winners col-winners
+                                         :winner-seg winner-seg
+                                         :learning-cells lc
+                                         :out-wc-bits out-wc-bits
+                                         :prior-active-cells (:active-cells state)
+                                         :timestep timestep)
+                     :rng rng)
+         (:learn? (:distal spec)) (layer-learn-lateral lc (:distal winner-seg))
+         (:learn? (:apical spec)) (layer-learn-apical lc (:apical winner-seg))
+         (:learn? (:ilateral spec)) (layer-learn-ilateral a-cols)
+         (:learn? (:proximal spec)) (layer-learn-proximal a-cols)
+         (:punish? (:distal spec)) (layer-punish-lateral (:prior-active-cells learn-state))
+         (:punish? (:apical spec)) (layer-punish-apical (:prior-active-cells learn-state))
+         (:punish? (:proximal spec)) (layer-punish-proximal)
+         true (update :active-duty-cycles columns/update-duty-cycles
+                      a-cols (:duty-cycle-period spec))
+         true (update :overlap-duty-cycles columns/update-duty-cycles
+                      (map first (keys (:col-overlaps state)))
+                      (:duty-cycle-period spec))
+         (zero? (mod timestep (:boost-active-every spec))) (columns/boost-active)
+         (zero? (mod timestep (:adjust-overlap-every spec))) (columns/adjust-overlap)
+         (zero? (mod timestep (:float-overlap-every spec))) (columns/layer-float-overlap)
+         (zero? (mod timestep (:inh-radius-every spec))) (update-inhibition-radius)))))
 
   (layer-depolarise
     [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]
@@ -1284,6 +1300,7 @@
      :apical-sg apical-sg
      :ilateral-sg ilateral-sg
      :state state
+     :prior-state state
      :learn-state learn-state
      :distal-state distal-state
      :prior-distal-state distal-state

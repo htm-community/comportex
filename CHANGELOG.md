@@ -29,6 +29,7 @@
 - Multimethods for customisation of algorithms, selected by spec keys
   :spatial-pooling and :temporal-pooling.
 - Adjust overlap by activation frequency. disable by :float-overlap-duty-ratio 0
+- Effective time steps by sufficient difference in columns :transition-similarity.
 
 ### Removed
 - Spec parameters :temporal-pooling-max-exc, -fall, -amp
