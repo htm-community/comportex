@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 ### Changed
+
+## [0.0.14] - 2016-07-01
+### Changed
 - No more temporal pooling excitation. Instead, synapses from predicted
   cells excite their target cells over multiple time steps.
 - No more union pooling; activation level is constant.
@@ -72,6 +75,7 @@
 ## [0.0.12] - 2015-12-01
 - Before this I didn't keep a change log.
 
-[Unreleased]: https://github.com/htm-community/comportex/compare/v0.0.13...HEAD
+[Unreleased]: https://github.com/htm-community/comportex/compare/v0.0.14...HEAD
+[0.0.14]: https://github.com/htm-community/comportex/compare/v0.0.13...v0.0.14
 [0.0.13]: https://github.com/htm-community/comportex/compare/v0.0.12...v0.0.13
 [0.0.12]: https://github.com/htm-community/comportex/compare/v0.0.10...v0.0.12
