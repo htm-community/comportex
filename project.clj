@@ -1,4 +1,4 @@
-(defproject org.nfrac/comportex "0.0.14"
+(defproject org.nfrac/comportex "0.0.15-SNAPSHOT"
   :description "Functionally composable cortex, an implementation of Hierarchical Temporal Memory"
   :url "http://github.com/htm-community/comportex/"
   :license {:name "GNU Affero General Public Licence"
