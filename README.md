@@ -37,7 +37,7 @@ algorithms are mainly in `cells`, `synapses` and `inhibition`.
 
 Parameter descriptions can be found on [`org.nfrac.comportex.cells/parameter-defaults`](https://github.com/htm-community/comportex/blob/master/src/org/nfrac/comportex/cells.cljc#L31).
 
-[This blog post](http://floybix.github.io/2014/11/05/htm-protocols/)
+[This blog post](http://floybix.github.io/2014/11/05/htm-protocols)
 has some explanation of the protocols.
 
 
