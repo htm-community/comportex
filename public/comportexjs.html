@@ -1,0 +1,35 @@
+<html>
+    <body>
+        <script src="out/goog/base.js" type="text/javascript"></script>
+        <script src="comportex.js" type="text/javascript"></script>
+        <script type="text/javascript">goog.require("org.nfrac.comportex.js");</script>
+
+        <p>Comportex from Javascript. Look at the js source!</p>
+
+        <pre id="content" />
+
+        <script type="text/javascript">
+        comportex = org.nfrac.comportex.js;
+        out = "";
+        e = comportex.linear_encoder([100], 20, 0, 25);
+        out += "linear encoding bits: \n";
+        out += comportex.encode(e, 10);
+        out += "\n";
+        inputs = [{"value": 1, "index": 0},
+                  {"value": 2, "index": 1},
+                  {"value": 3, "index": 2}];
+        spec = {"column-dimensions": [1000],
+                "proximal": {"stimulus-threshold": 1}};
+        out += "spec: " + JSON.stringify(spec) + "\n";
+        sensor = ["value", e];
+        model = comportex.regions_in_series(1, [spec], {"input": sensor});
+        out += "inval: " + JSON.stringify(inputs[0]) + "\n";
+        model_1 = comportex.htm_step(model, inputs[0]);
+        out += "timestep: " + comportex.timestep(model_1) + "\n";
+        out += "column state freqs: " +
+               JSON.stringify(
+                 comportex.column_state_freqs(comportex.region_seq(model_1)[0]));
+        document.getElementById("content").innerHTML = out;
+        </script>
+    </body>
+</html>
