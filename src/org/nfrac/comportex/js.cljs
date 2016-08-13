@@ -25,6 +25,13 @@
    (array? selector) (mapv js->selector selector)
    :else (throw (js/Error. (str "unknown selector " selector)))))
 
+(defn ->array
+  [v]
+  (let [arr (array)]
+    (doseq [x v]
+      (.push arr x))
+    arr))
+
 ;; .core
 
 ;; ===================================================================
@@ -53,10 +60,42 @@
 (defn ^:export region-seq
   "Returns a js array of regions, each a clojure object."
   [htm]
-  (let [arr (array)]
-    (doseq [x (core/region-seq htm)]
-      (.push arr x))
-    arr))
+  (->array (core/region-seq htm)))
+
+(defn ^:export layer-seq
+  "Returns a js array of layers in a region, each a clojure object.
+   If an HTM model is passed instead, returns layers from all regions flattened
+   into a single array."
+  [rgn-or-htm]
+  (if (:regions rgn-or-htm)
+    (->array (mapcat layer-seq (core/region-seq rgn-or-htm)))
+    (->array (map #(get rgn-or-htm %) (core/layers rgn-or-htm)))))
+
+(defn ^:export bursting-columns
+  "The set of bursting column ids."
+  [lyr]
+  (clj->js (p/bursting-columns lyr)))
+
+(defn ^:export active-columns
+  "The set of active column ids."
+  [lyr]
+  (clj->js (p/active-columns lyr)))
+
+(defn ^:export active-cells
+  "The set of active cell ids."
+  [lyr]
+  (clj->js (p/active-cells lyr)))
+
+(defn ^:export predictive-cells
+  "The set of predictive cell ids derived from the current active
+  cells. If the depolarise phase has not been applied yet, returns
+  nil."
+  [lyr]
+  (clj->js (p/predictive-cells lyr)))
+
+(defn ^:export prior-predictive-cells
+  [lyr]
+  (clj->js (p/prior-predictive-cells lyr)))
 
 ;; ===================================================================
 

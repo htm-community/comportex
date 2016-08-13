@@ -28,7 +28,13 @@
         out += "timestep: " + comportex.timestep(model_1) + "\n";
         out += "column state freqs: " +
                JSON.stringify(
-                 comportex.column_state_freqs(comportex.region_seq(model_1)[0]));
+                 comportex.column_state_freqs(comportex.region_seq(model_1)[0])) +
+               "\n";
+        lyr = comportex.layer_seq(model_1)[0];
+        out += "active columns: " + comportex.active_columns(lyr).sort() + "\n";
+        out += "bursting columns: " + comportex.bursting_columns(lyr).sort() + "\n";
+        out += "active cells: " + JSON.stringify(comportex.active_cells(lyr)) + "\n";
+        out += "predictive cells: " + JSON.stringify(comportex.predictive_cells(lyr)) + "\n";
         document.getElementById("content").innerHTML = out;
         </script>
     </body>
