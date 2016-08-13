@@ -36,6 +36,15 @@
 
 ;; ===================================================================
 
+(defn js->sensors
+  [sensors]
+  (into {} (for [k (js-keys sensors)]
+              (let [[selector encoder] (aget sensors k)]
+                 [(keyword k)
+                  [(js->selector selector)
+                    ;; do not convert encoders
+                   encoder]]))))
+
 (defn ^:export regions-in-series
   "Constructs an HTM network consisting of n regions in a linear
   series. The regions are given keys :rgn-0, :rgn-1, etc. Senses feed
@@ -44,16 +53,14 @@
   Encoders should be passed as clojure objects (as from encoder fns).
   Selectors should be passed as strings or arrays of strings, which
   select the value at that key or nested path of keys in an input value."
-  [n specs sensors]
-  (let [build-region core/sensory-region
-        specs (map js->spec specs)
-        sensors (into {} (for [k (js-keys sensors)]
-                           (let [[selector encoder] (aget sensors k)]
-                             [(keyword k)
-                              [(js->selector selector)
-                               ;; do not convert encoders
-                               encoder]])))]
-    (core/regions-in-series n build-region specs sensors)))
+  ([n specs sensors]
+   (regions-in-series n specs sensors nil))
+  ([n specs main-sensors motor-sensors]
+   (let [build-region core/sensory-region
+         specs (map js->spec specs)
+         main-sensors (js->sensors main-sensors)
+         motor-sensors (js->sensors motor-sensors)]
+     (core/regions-in-series n build-region specs main-sensors motor-sensors))))
 
 ;; ===================================================================
 
