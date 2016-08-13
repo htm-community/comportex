@@ -35,6 +35,8 @@
         out += "bursting columns: " + comportex.bursting_columns(lyr).sort() + "\n";
         out += "active cells: " + JSON.stringify(comportex.active_cells(lyr)) + "\n";
         out += "predictive cells: " + JSON.stringify(comportex.predictive_cells(lyr)) + "\n";
+        out += "spec: \n";
+        out += JSON.stringify(comportex.params(lyr));
         document.getElementById("content").innerHTML = out;
         </script>
     </body>

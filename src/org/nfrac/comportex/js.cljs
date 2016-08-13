@@ -17,6 +17,10 @@
   ;; TODO: handle keyword values such as for :spatial-pooling key
   (js->clj spec :keywordize-keys true))
 
+(defn spec->js
+  [spec]
+  (clj->js spec))
+
 (defn js->selector
   [selector]
   (cond
@@ -119,15 +123,16 @@
   [htm sense-id n-predictions]
   (clj->js (core/predictions htm (keyword sense-id) n-predictions)))
 
-;; protocols
-;; mostly just protocols (ie. interfaces)
-
 (defn ^:export htm-step
   "Compute the next time step. Pass `htm` as a clojure object, but `inval` as
   a js value which will be converted to a clojurescript value, including
   keywordizing keys."
   [htm inval]
   (p/htm-step htm (js->clj inval :keywordize-keys true)))
+
+(defn ^:export params
+  [rgn-or-lyr]
+  (spec->js (p/params rgn-or-lyr)))
 
 (defn ^:export encode
   [encoder x]
