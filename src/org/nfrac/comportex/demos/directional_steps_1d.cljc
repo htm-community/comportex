@@ -17,8 +17,8 @@
    :spatial-pooling :local-inhibition
    :activation-level 0.04
    :boost-active-every 10000
-   :depth 4
-   })
+   :depth 4})
+
 
 (def higher-level-spec
   (util/deep-merge

@@ -15,8 +15,8 @@
 (def surface [0 0.5 1 1.5 2 1.5 1 0.5
               0 1 2 3 4 5 4 3 2
               1 1 1 1 1 1
-              1 2 3 4 5 6 7 8 6 4 2
-              ])
+              1 2 3 4 5 6 7 8 6 4 2])
+
 
 (def initial-inval
   {:x 5
@@ -207,6 +207,4 @@
 
   inval
   (get-in @model [:regions :action :layer-3 :Q-info])
-  (get-in @model [:regions :action :layer-3 :state :active-cols])
-
-  )
+  (get-in @model [:regions :action :layer-3 :state :active-cols]))

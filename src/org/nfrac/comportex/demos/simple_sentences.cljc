@@ -11,8 +11,8 @@
   {:column-dimensions [1000]
    :depth 8
    :distal {:perm-init 0.21}
-   :distal-vs-proximal-weight 0.2
-   })
+   :distal-vs-proximal-weight 0.2})
+
 
 (def higher-level-spec
   (util/deep-merge

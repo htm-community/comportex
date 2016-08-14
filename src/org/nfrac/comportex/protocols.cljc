@@ -38,12 +38,12 @@
 
 (defn region-step
   ([this ff-bits]
-     (region-step this ff-bits #{} #{} #{} #{}))
+   (region-step this ff-bits #{} #{} #{} #{}))
   ([this ff-bits stable-ff-bits distal-ff-bits apical-fb-bits apical-fb-wc-bits]
-     (-> this
-         (region-activate ff-bits stable-ff-bits)
-         (region-learn)
-         (region-depolarise distal-ff-bits apical-fb-bits apical-fb-wc-bits))))
+   (-> this
+       (region-activate ff-bits stable-ff-bits)
+       (region-learn)
+       (region-depolarise distal-ff-bits apical-fb-bits apical-fb-wc-bits))))
 
 (defprotocol PFeedForward
   "A feed-forward input source with a bit set representation. Could be
@@ -197,16 +197,16 @@
   "Returns the coordinates away from `coord` at distances
   `inner-r` (exclusive) out to `outer-r` (inclusive) ."
   ([topo coord radius]
-     (neighbours* topo coord radius 0))
+   (neighbours* topo coord radius 0))
   ([topo coord outer-r inner-r]
-     (neighbours* topo coord outer-r inner-r)))
+   (neighbours* topo coord outer-r inner-r)))
 
 (defn neighbours-indices
   "Same as `neighbours` but taking and returning indices instead of
    coordinates."
   ([topo idx radius]
-     (neighbours-indices topo idx radius 0))
+   (neighbours-indices topo idx radius 0))
   ([topo idx outer-r inner-r]
-     (->> (neighbours* topo (coordinates-of-index topo idx)
-                       outer-r inner-r)
-          (map (partial index-of-coordinates topo)))))
+   (->> (neighbours* topo (coordinates-of-index topo idx)
+                     outer-r inner-r)
+        (map (partial index-of-coordinates topo)))))

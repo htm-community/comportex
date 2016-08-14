@@ -12,8 +12,8 @@
   (let [e (enc/category-encoder [10] [:a :b :c])]
     (is (= :a (:value (first (p/decode e (frequencies (p/encode e :a)) 1)))))
     (is (= :b (:value (first (p/decode e (frequencies (p/encode e :b)) 1)))))
-    (is (= :c (:value (first (p/decode e (frequencies (p/encode e :c)) 1))))))
-  )
+    (is (= :c (:value (first (p/decode e (frequencies (p/encode e :c)) 1)))))))
+
 
 (deftest coordinate-encoder-test
   (let [radius 80
@@ -30,5 +30,4 @@
     (is (> (overlap (bitsets 30) (bitsets 10))
            (overlap (bitsets 30) (bitsets 90))))
     (is (> (overlap (bitsets 90) (bitsets 30))
-           (overlap (bitsets 90) (bitsets 270))))
-    ))
+           (overlap (bitsets 90) (bitsets 270))))))

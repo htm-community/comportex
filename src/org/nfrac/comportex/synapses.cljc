@@ -57,8 +57,8 @@
                      (if (and (<= p 0.0) cull-zeros?)
                        (conj cull id) cull)))))
         ;; finished loop
-        [up promote down demote cull]
-        ))))
+        [up promote down demote cull]))))
+
 
 (defn- never [_] false)
 (defn- always [_] true)
@@ -87,9 +87,9 @@
                  (transient {}))
          (persistent!)
          (reduce-kv (fn [m id exc]
-                   (if (>= exc stimulus-threshold)
-                     (assoc! m id exc)
-                     m))
+                     (if (>= exc stimulus-threshold)
+                       (assoc! m id exc)
+                       m))
                  (transient {}))
          (persistent!)))
   (bulk-learn

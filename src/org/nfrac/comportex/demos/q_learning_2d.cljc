@@ -197,6 +197,4 @@
 
   inval
   (get-in @model [:regions :action :layer-3 :Q-info])
-  (get-in @model [:regions :action :layer-3 :state :active-cols])
-
-  )
+  (get-in @model [:regions :action :layer-3 :state :active-cols]))

@@ -187,8 +187,8 @@
                     (dissoc :layer-3 :layer-4))
         l3 (cells/layer-of-cells l3-spec)]
     (map->SensoriMotorRegion
-    {:layer-3 l3
-     :layer-4 l4})))
+     {:layer-3 l3
+      :layer-4 l4})))
 
 (defrecord SenseNode
     [topo bits sensory? motor?]
@@ -262,21 +262,21 @@
   If i is an index into the feed-forward field, type is :ff-deps, if i
   is an index into the feed-back field, type is :fb-deps."
   ([htm rgn-id i type]
-     (source-of-incoming-bit htm rgn-id i type p/ff-topology))
+   (source-of-incoming-bit htm rgn-id i type p/ff-topology))
   ([htm rgn-id i type topology-fn]
-     (let [senses (:senses htm)
-           regions (:regions htm)
-           node-ids (get-in htm [type rgn-id])]
-       (loop [node-ids node-ids
-              offset 0]
-         (when-let [node-id (first node-ids)]
-           (let [node (or (senses node-id)
-                          (regions node-id))
-                 width (long (p/size (topology-fn node)))]
-             (if (< i (+ offset width))
-               [node-id (- i offset)]
-               (recur (next node-ids)
-                      (+ offset width)))))))))
+   (let [senses (:senses htm)
+         regions (:regions htm)
+         node-ids (get-in htm [type rgn-id])]
+     (loop [node-ids node-ids
+            offset 0]
+       (when-let [node-id (first node-ids)]
+         (let [node (or (senses node-id)
+                        (regions node-id))
+               width (long (p/size (topology-fn node)))]
+           (if (< i (+ offset width))
+             [node-id (- i offset)]
+             (recur (next node-ids)
+                    (+ offset width)))))))))
 
 (defn source-of-distal-bit
   "Returns [src-id src-lyr-id j] where src-id may be a region key or
@@ -492,8 +492,8 @@
         ff-dag (graph/directed-graph all-ids ff-deps)
         strata (graph/dependency-list ff-dag)
         fb-deps (->> (graph/reverse-graph ff-dag)
-                         :neighbors
-                         (util/remap seq))
+                     :neighbors
+                     (util/remap seq))
         ;; sensors may appear with same key in both main- and motor-
         sm (->> (merge-with merge
                             (util/remap (fn [[_ e]]
@@ -566,20 +566,20 @@
   Argument `layer-fn` is called on the region to obtain a layer of
   cells; if omitted it defaults to the output layer."
   ([rgn]
-     (column-state-freqs rgn (last (layers rgn))))
+   (column-state-freqs rgn (last (layers rgn))))
   ([rgn layer-fn]
-     (let [lyr (layer-fn rgn)
-           a-cols (p/active-columns lyr)
-           ppc (p/prior-predictive-cells lyr)
-           pp-cols (into #{} (map first ppc))
-           hit-cols (set/intersection pp-cols a-cols)
-           col-states (merge (zipmap pp-cols (repeat :predicted))
-                             (zipmap a-cols (repeat :active))
-                             (zipmap hit-cols (repeat :active-predicted)))]
-       (-> {:active 0, :predicted 0, :active-predicted 0}
-           (merge (frequencies (vals col-states)))
-           (assoc :timestep (p/timestep rgn)
-                  :size (p/size (p/topology rgn)))))))
+   (let [lyr (layer-fn rgn)
+         a-cols (p/active-columns lyr)
+         ppc (p/prior-predictive-cells lyr)
+         pp-cols (into #{} (map first ppc))
+         hit-cols (set/intersection pp-cols a-cols)
+         col-states (merge (zipmap pp-cols (repeat :predicted))
+                           (zipmap a-cols (repeat :active))
+                           (zipmap hit-cols (repeat :active-predicted)))]
+     (-> {:active 0, :predicted 0, :active-predicted 0}
+         (merge (frequencies (vals col-states)))
+         (assoc :timestep (p/timestep rgn)
+                :size (p/size (p/topology rgn)))))))
 
 ;;; ## Tracing columns back to senses
 

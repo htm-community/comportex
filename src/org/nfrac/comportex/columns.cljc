@@ -238,9 +238,9 @@
                       (map vector (range) ys))
         pcon (:perm-connected (:proximal spec))]
     (p/bulk-learn sg (concat weaks strongs)
-                  (constantly true) (* 0.1 pcon) (* 0.1 pcon) 0)
-    )
-  )
+                  (constantly true) (* 0.1 pcon) (* 0.1 pcon) 0)))
+
+
 
 (defn layer-float-overlap
   [lyr]

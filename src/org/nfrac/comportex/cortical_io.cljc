@@ -168,6 +168,5 @@
                      (handle (request-similar-terms api-key bits n))
                      :cljs ;; cljs - asynchronous
                      {:channel
-                     (go
-                      (handle (<! (request-similar-terms api-key bits n))))}))
-                ))))))))
+                      (go
+                       (handle (<! (request-similar-terms api-key bits n))))}))))))))))

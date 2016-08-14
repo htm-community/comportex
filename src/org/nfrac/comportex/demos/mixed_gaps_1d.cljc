@@ -16,8 +16,8 @@
    :ff-potential-radius 1.0
    :proximal {:perm-inc 0.10
               :perm-dec 0.01}
-   :duty-cycle-period 100000
-   })
+   :duty-cycle-period 100000})
+
 
 (def higher-level-spec
   (util/deep-merge

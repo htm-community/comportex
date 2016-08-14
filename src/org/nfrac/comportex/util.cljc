@@ -27,14 +27,14 @@
 
 (defn round
   ([x]
-     (Math/round (double x)))
+   (Math/round (double x)))
   ([x n]
-     (let [z (Math/pow 10.0 n)]
-       (-> x
-           (* z)
-           (round)
-           (/ z)
-           (double)))))
+   (let [z (Math/pow 10.0 n)]
+     (-> x
+         (* z)
+         (round)
+         (/ z)
+         (double)))))
 
 (defn mean
   [xs]
@@ -151,23 +151,23 @@
    with many values per key. `f` is a function taking 2 arguments, the
    key and value."
   ([f kvs]
-     (group-by-maps f kvs {}))
+   (group-by-maps f kvs {}))
   ([f kvs init-m]
-     (->> kvs
+   (->> kvs
           ;; create a transient map of transient maps
-          (reduce (fn [m [k v]]
-                    (let [g (f k v)
-                          items (get m g (transient init-m))]
-                      (assoc! m g (assoc! items k v))))
-                  (transient {}))
+        (reduce (fn [m [k v]]
+                  (let [g (f k v)
+                        items (get m g (transient init-m))]
+                    (assoc! m g (assoc! items k v))))
+                (transient {}))
           ;; make the outer map persistent (can't seq it)
-          (persistent!)
+        (persistent!)
           ;; make the inner maps persistent within a transient outer map
-          (reduce (fn [m [g items]]
-                    (assoc! m g (persistent! items)))
-                  (transient {}))
+        (reduce (fn [m [g items]]
+                  (assoc! m g (persistent! items)))
+                (transient {}))
           ;; make the outer map persistent
-          (persistent!))))
+        (persistent!))))
 
 (defn update-each!
   "Transforms a transient map or vector `m` applying function `f` to
@@ -278,12 +278,12 @@
   Lazily concat all results."
   ([widths]
      ;; reserving arity -- this could become a transducer
-     :not-implemented)
+   :not-implemented)
   ([widths collcoll]
-     (let [[leftmost & others] collcoll
-           offs (reductions + widths)]
-       (concat leftmost
-               (mapcat #(map (partial + %) %2) offs others)))))
+   (let [[leftmost & others] collcoll
+         offs (reductions + widths)]
+     (concat leftmost
+             (mapcat #(map (partial + %) %2) offs others)))))
 
 (defn unalign-indices
   "Partition a sorted seq of indices into `(count widths)` seqs of unshifted

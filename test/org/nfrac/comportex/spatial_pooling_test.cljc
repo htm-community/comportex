@@ -34,8 +34,8 @@
            :duty-cycle-period 600
            :depth 1
            :distal {:max-segments 1}
-           :lateral-synapses? false
-           })
+           :lateral-synapses? false})
+
 
 (def sensor
   [[]

@@ -14,8 +14,8 @@
    :proximal {:stimulus-threshold 3}
    :spatial-pooling :local-inhibition
    :activation-level 0.015
-   :distal-vs-proximal-weight 1.0
-   })
+   :distal-vs-proximal-weight 1.0})
+
 
 (def higher-level-spec
   (merge spec
@@ -25,9 +25,9 @@
 (defn split-sentences
   [text]
   (->> (str/split (str/trim text) #"[^\w]*[\.\!\?]+[^\w]*")
-       (mapv #(str/split % #"[^\w']+"))
+       (mapv #(str/split % #"[^\w']+"))))
        ;(mapv #(conj % "."))
-       ))
+
 
 (defn n-region-model
   [api-key cache n]
@@ -99,6 +99,4 @@
   (close! preload-c)
   (close! input-c)
   (close! preloader)
-  (close! stepper)
-
-  )
+  (close! stepper))

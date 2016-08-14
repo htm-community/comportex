@@ -121,8 +121,8 @@
       1 (one-d-topology w)
       2 (two-d-topology w h)
       3 (three-d-topology w h d)
-      4 (three-d-topology w h (* d q))
-      )))
+      4 (three-d-topology w h (* d q)))))
+
 
 (def empty-topology
   (make-topology [0]))
@@ -177,21 +177,21 @@
 
   It's best to hand-pick compatible topologies if topology matters."
   ([]
-     [0])
+   [0])
   ([& all-dims]
-     (reduce (fn [dims1 dims2]
-               (let [[lower higher] (->> [dims1 dims2]
-                                         (map #(if (empty? %) [0] %))
-                                         (sort-by count))
-                     disparity (- (count higher) (count lower))
+   (reduce (fn [dims1 dims2]
+             (let [[lower higher] (->> [dims1 dims2]
+                                       (map #(if (empty? %) [0] %))
+                                       (sort-by count))
+                   disparity (- (count higher) (count lower))
                      ;; match all dimensions except x
-                     [to-match must-already-match] (->> (rest higher)
-                                                        (split-at disparity))]
-                 (if-let [compatible (when (= (vec (rest lower))
-                                              (vec must-already-match))
-                                       (reduce split-first-dimension lower
-                                               (reverse to-match)))]
+                   [to-match must-already-match] (->> (rest higher)
+                                                      (split-at disparity))]
+               (if-let [compatible (when (= (vec (rest lower))
+                                            (vec must-already-match))
+                                     (reduce split-first-dimension lower
+                                             (reverse to-match)))]
                    ;; now that everything except x matches, sum the xs
-                   (update-in higher [0] + (first compatible))
-                   (recur (squash-last-dimension higher) lower))))
-             all-dims)))
+                 (update-in higher [0] + (first compatible))
+                 (recur (squash-last-dimension higher) lower))))
+           all-dims)))

@@ -81,8 +81,8 @@
    :perm-connected 0.20
    :perm-init 0.16
    :punish? true
-   :learn? true
-   })
+   :learn? true})
+
 
 (def parameter-defaults
   "Default parameter specification map.
@@ -217,8 +217,8 @@
               :perm-init 0.25
               :learn? true
               :punish? false
-              :grow? false
-              }
+              :grow? false}
+
    :distal (assoc dendrite-parameter-defaults
                   :learn? true)
    :apical (assoc dendrite-parameter-defaults
@@ -231,8 +231,8 @@
               :perm-init 0.08
               :perm-inc 0.08
               :perm-dec 0.01
-              :learn? false
-              }
+              :learn? false}
+
    :max-boost 1.5
    :duty-cycle-period 1000
    :boost-active-duty-ratio (/ 1.0 200)
@@ -259,8 +259,8 @@
    :random-seed 42
    ;; algorithm implementations
    :spatial-pooling :standard
-   :temporal-pooling :standard
-   })
+   :temporal-pooling :standard})
+
 
 ;; TODO decide on defaults (reliability vs speed), provide alternatives?
 (def better-parameter-defaults
@@ -272,8 +272,8 @@
                         :max-synapse-count 32
                         :new-synapse-count 20
                         :stimulus-threshold 13
-                        :learn-threshold 10
-                        )))
+                        :learn-threshold 10)))
+
 
 ;;; ## Synapse tracing
 
@@ -475,8 +475,8 @@
          col-ac (transient {}) ;; active cells by column
          ac (transient #{}) ;; active cells
          sac (transient #{}) ;; stable active cells
-         b-cols (transient #{}) ;; bursting columns
-         ]
+         b-cols (transient #{})] ;; bursting columns
+
     (if-let [col (first cols)]
       (let [this-ac (column-active-cells col cell-exc depth
                                          threshold dominance-margin)
@@ -490,8 +490,8 @@
       {:col-active-cells (persistent! col-ac)
        :active-cells (persistent! ac)
        :stable-active-cells (persistent! sac)
-       :burst-cols (persistent! b-cols)}
-      )))
+       :burst-cols (persistent! b-cols)})))
+
 
 ;;; ## Learning
 
@@ -541,8 +541,8 @@
             (if (seq partial-matches)
               (apply max-key second partial-matches)
               ;; * otherwise - no distal matches
-              nil
-              )))
+              nil)))
+
         apical-match
         (cond
           ;; * if there is already a distal match
@@ -565,12 +565,12 @@
               (if (seq partial-matches)
                 (apply max-key second partial-matches)
                 ;; * otherwise - no apical matches
-                nil
-                )))
+                nil)))
+
           ;; * otherwise - no matching apical segments
           :else
-          nil
-          )
+          nil)
+
         distal-match
         (cond
           ;; * if already have it, nothing to do
@@ -928,7 +928,7 @@
 
 (defrecord LayerLearnState
     [col-winners winner-seg learning-cells learning punishments
-    prior-active-cells timestep])
+     prior-active-cells timestep])
 
 (defrecord LayerDistalState
     [active-bits learnable-bits cell-exc pred-cells matching-seg-paths timestep])
@@ -1053,8 +1053,8 @@
       {:in-ff-bits ff-bits
        :in-stable-ff-bits stable-ff-bits
        :out-immediate-ff-bits (cells->bits depth (:active-cells cell-info))
-       :timestep (inc (:timestep (:state layer)))
-       }))))
+       :timestep (inc (:timestep (:state layer)))}))))
+
 
 (defmethod temporal-pooling :standard
   [layer active-state prev-tp-state]
@@ -1113,8 +1113,8 @@
                              tp-state)
                  :prior-state (if effective?
                                 new-active-state
-                                prior-state))
-          )))
+                                prior-state)))))
+
 
   (layer-learn
     [this]
@@ -1306,8 +1306,8 @@
      :prior-distal-state distal-state
      :boosts (vec (repeat n-cols 1.0))
      :active-duty-cycles (vec (repeat n-cols (:activation-level spec)))
-     :overlap-duty-cycles (vec (repeat n-cols (:activation-level spec)))
-     }))
+     :overlap-duty-cycles (vec (repeat n-cols (:activation-level spec)))}))
+
 
 (defn layer-of-cells
   [spec]

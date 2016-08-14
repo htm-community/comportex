@@ -41,8 +41,8 @@ the three little pigs.
    :lateral-synapses? true
    :distal-vs-proximal-weight 0.0
    :use-feedback? true
-   :apical {:learn? true}
-   })
+   :apical {:learn? true}})
+
 
 (def higher-level-spec
   (util/deep-merge
@@ -61,8 +61,8 @@ the three little pigs.
    :value (get-in sentences [0 0 0])
    :action {:next-letter-saccade -1
             :next-word-saccade -1
-            :next-sentence-saccade -1}
-   })
+            :next-sentence-saccade -1}})
+
 
 (defn next-position
   [[i j k] action]
@@ -111,8 +111,8 @@ the three little pigs.
                          :rgn-1 higher-level-spec}
                         {:input letter-sensor}
                         {:letter-motor letter-motor-sensor
-                         :word-motor word-motor-sensor}
-                        )))
+                         :word-motor word-motor-sensor})))
+
 
 (defn htm-step-with-action-selection
   [world-c control-c]
@@ -120,8 +120,8 @@ the three little pigs.
     ;; TODO: on next release of core.async, replace this go block with
     (let [inval (if-let [xf (poll! control-c)]
                   (xf inval)
-                  inval)
-          ]))
+                  inval)]))
+
   (go
     (loop []
       (if-let [xf (<! control-c)]
@@ -193,8 +193,8 @@ the three little pigs.
                     {:next-word-saccade -1
                      :next-letter-saccade -1
                      :word-bursting? false
-                     :sentence-bursting? false}
-                    )
+                     :sentence-bursting? false})
+
           ;; next-letter-saccade represents starting a word (-1) or continuing (1)
           ;; that is all that rgn-0 knows.
           action (merge {:next-word-saccade 0
@@ -220,8 +220,8 @@ the three little pigs.
         (and end-of-word? (not word-burst?))
         (update-in [:regions :rgn-0] p/break :syns)
         (and end-of-word? (not word-burst?))
-        (update-in [:regions :rgn-1] p/break :winners)
-        ))))
+        (update-in [:regions :rgn-1] p/break :winners)))))
+
 
 (comment
   (require '[clojure.core.async :refer [chan put! <!!]])
@@ -231,5 +231,4 @@ the three little pigs.
   (def in (initial-inval (parse-sentences test-text)))
   (def mo (two-region-model))
   (def mo2 (step mo in))
-  (def in2 (<!! world-c))
-  )
+  (def in2 (<!! world-c)))
