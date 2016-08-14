@@ -7,7 +7,7 @@
             [clojure.set :as set]
             #?(:clj [clojure.test :as t
                      :refer (is deftest testing run-tests)]
-               :cljs [cemerick.cljs.test :as t
+               :cljs [cljs.test :as t
                       :refer-macros (is deftest testing run-tests)])))
 
 (def numb-bits 127)

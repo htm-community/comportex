@@ -3,7 +3,7 @@
              :refer [combined-dimensions]]
             #?(:clj [clojure.test :as t
                      :refer (is deftest testing run-tests)]
-               :cljs [cemerick.cljs.test :as t
+               :cljs [cljs.test :as t
                       :refer-macros (is deftest testing run-tests)])))
 
 (deftest combined-dimensions-test
