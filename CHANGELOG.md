@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 ### Changed
+- The parameter specification map now referred to as params instead of spec.
+  To avoid confusion with `clojure.spec` where specs define function usage.
+  The breaking part of this is renaming key :spec to :params in LayerOfCells.
 
 ### Added
 - minimal Javascript API in new `js` namespace.
