@@ -2,6 +2,8 @@
 /lib
 /classes
 /checkouts
+public/out
+public/comportex.js
 pom.xml
 pom.xml.asc
 *.jar

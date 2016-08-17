@@ -60,10 +60,26 @@ REPL with super powers) in
 [Sanity](https://github.com/htm-community/sanity/).
 
 
+### Demos
+
+A list of demos can be found in `src/org/nfrac/comportex/demos/` and, again, remember that they can also be run with Sanity.
+
+
+### Javascript API
+
+A minimal Javascript API is included, and a small demo which shows how to use it. First, compile to javascript:
+
+```
+lein cljsbuild once
+```
+Then load `public/comportexjs.html` in your browser.
+
+
 ## Related projects
 
 * [Sanity](https://github.com/htm-community/sanity/)
 * [NuPIC](https://github.com/numenta/nupic/)
+* [nab-comportex](https://github.com/floybix/nab-comportex)
 
 
 ## Hello
