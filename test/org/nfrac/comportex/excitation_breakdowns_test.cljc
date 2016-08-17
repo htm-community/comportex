@@ -3,10 +3,8 @@
             [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
-            #?(:clj [clojure.test :as t
-                     :refer (is deftest testing run-tests)]
-               :cljs [cljs.test :as t
-                      :refer-macros (is deftest testing run-tests)])))
+            [clojure.test :as t
+             :refer (is deftest testing run-tests)]))
 
 (def bit-width 200)
 (def n-on-bits 20)

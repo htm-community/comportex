@@ -5,10 +5,8 @@
             [org.nfrac.comportex.util :as util]
             [clojure.test.check.random :as random]
             [clojure.set :as set]
-            #?(:clj [clojure.test :as t
-                     :refer (is deftest testing run-tests)]
-               :cljs [cljs.test :as t
-                      :refer-macros (is deftest testing run-tests)])))
+            [clojure.test :as t
+             :refer (is deftest testing run-tests)]))
 
 (def numb-bits 127)
 (def numb-on-bits 21)

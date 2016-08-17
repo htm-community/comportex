@@ -2,10 +2,8 @@
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [clojure.set :as set]
-            #?(:clj [clojure.test :as t
-                     :refer (is deftest testing run-tests)]
-               :cljs [cljs.test :as t
-                      :refer-macros (is deftest testing run-tests)])))
+            [clojure.test :as t
+             :refer (is deftest testing run-tests)]))
 
 
 (deftest encode-decode-test

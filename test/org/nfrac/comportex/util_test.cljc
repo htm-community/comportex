@@ -1,10 +1,8 @@
 (ns org.nfrac.comportex.util-test
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.util :as util]
-            #?(:clj [clojure.test :as t
-                     :refer (is deftest testing run-tests)]
-               :cljs [cljs.test :as t
-                      :refer-macros (is deftest testing run-tests)])))
+            [clojure.test :as t
+             :refer (is deftest testing run-tests)]))
 
 
 (def aligned-values
