@@ -37,7 +37,7 @@
    :action {:dx 0
             :dy 0}})
 
-(def spec
+(def params
   {:column-dimensions [30 30]
    :depth 4
    :distal-punish? true
@@ -46,7 +46,7 @@
    :ff-potential-radius 0.15
    :ff-init-frac 0.5})
 
-(def action-spec
+(def action-params
   {:column-dimensions [4 10]
    :activation-level 0.20
    :ff-potential-radius 1
@@ -136,8 +136,8 @@
     (core/region-network {:rgn-1 [:input :motor]
                           :action [:rgn-1]}
                          (constantly core/sensory-region)
-                         {:rgn-1 (assoc spec :lateral-synapses? false)
-                          :action action-spec}
+                         {:rgn-1 (assoc params :lateral-synapses? false)
+                          :action action-params}
                          {:input sensor}
                          {:input sensor
                           :motor msensor})))

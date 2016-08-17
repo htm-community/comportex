@@ -10,11 +10,11 @@
 (def max-vel 5)
 (def radius 15)
 
-(def spec
+(def params
   {:column-dimensions [20 50]
    :depth 8})
 
-(def higher-level-spec
+(def higher-level-params
   {:column-dimensions [20 20]
    :proximal {:max-segments 5}})
 
@@ -65,8 +65,8 @@
 
 (defn n-region-model
   ([n]
-   (n-region-model n spec))
-  ([n spec]
+   (n-region-model n params))
+  ([n params]
    (core/regions-in-series n core/sensory-region
-                           (list* spec (repeat higher-level-spec))
+                           (list* params (repeat higher-level-params))
                            {:input sensor})))

@@ -7,16 +7,16 @@
 (def bit-width 500)
 (def n-on-bits 25)
 
-(def spec
+(def params
   {:column-dimensions [1000]
    :depth 8
    :distal {:perm-init 0.21}
    :distal-vs-proximal-weight 0.2})
 
 
-(def higher-level-spec
+(def higher-level-params
   (util/deep-merge
-   spec
+   params
    {:column-dimensions [800]
     :proximal {:max-segments 5}}))
 
@@ -31,8 +31,8 @@
 
 (defn n-region-model
   ([n]
-   (n-region-model n spec))
-  ([n spec]
+   (n-region-model n params))
+  ([n params]
    (core/regions-in-series n core/sensory-region
-                           (list* spec (repeat higher-level-spec))
+                           (list* params (repeat higher-level-params))
                            {:input random-sensor})))

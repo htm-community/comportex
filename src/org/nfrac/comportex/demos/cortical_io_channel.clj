@@ -7,7 +7,7 @@
             [clojure.core.async :as async
              :refer [chan <!! >!! thread close!]]))
 
-(def spec
+(def params
   {:column-dimensions [40 40]
    :ff-init-frac 0.15
    :ff-potential-radius 1.0
@@ -17,8 +17,8 @@
    :distal-vs-proximal-weight 1.0})
 
 
-(def higher-level-spec
-  (merge spec
+(def higher-level-params
+  (merge params
          {:column-dimensions [20 20]
           :proximal {:max-segments 5}}))
 
@@ -32,7 +32,7 @@
 (defn n-region-model
   [api-key cache n]
   (core/regions-in-series n core/sensory-region
-                          (list* spec (repeat higher-level-spec))
+                          (list* params (repeat higher-level-params))
                           {:input (cortical-io-encoder api-key cache)}))
 
 (comment

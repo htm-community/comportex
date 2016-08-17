@@ -34,12 +34,12 @@
   [:value
    (enc/unique-encoder [bit-width] n-on-bits)])
 
-(def spec
+(def params
   {})
 
 (defn model
   []
-  (core/regions-in-series 2 core/sensory-region (repeat spec)
+  (core/regions-in-series 2 core/sensory-region (repeat params)
                           {:input sensor}))
 
 (deftest exc-bd-test

@@ -31,12 +31,12 @@
   [[]
    (enc/category-encoder [bit-width] items)])
 
-(def spec
+(def params
   {})
 
 (defn model
   []
-  (core/regions-in-series 1 core/sensory-region [spec] {:input sensor}))
+  (core/regions-in-series 1 core/sensory-region [params] {:input sensor}))
 
 (deftest sm-test
   (let [[warmups continued] (split-at 500 (input-seq))

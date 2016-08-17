@@ -32,7 +32,7 @@ the three little pigs.
          (mapv #(str/split % #"[^\w']+"))
          (mapv #(mapv vec %)))))
 
-(def spec
+(def params
   {:column-dimensions [1000]
    :depth 8
    :proximal {:perm-stable-inc 0.15
@@ -44,9 +44,9 @@ the three little pigs.
    :apical {:learn? true}})
 
 
-(def higher-level-spec
+(def higher-level-params
   (util/deep-merge
-   spec
+   params
    {:column-dimensions [800]
     :stable-inbit-frac-threshold 0.5
     :ff-init-frac 0.05
@@ -102,13 +102,13 @@ the three little pigs.
 
 (defn two-region-model
   ([]
-   (two-region-model spec))
-  ([spec]
+   (two-region-model params))
+  ([params]
    (core/region-network {:rgn-0 [:input :letter-motor]
                          :rgn-1 [:rgn-0 :word-motor]}
                         (constantly core/sensory-region)
-                        {:rgn-0 spec
-                         :rgn-1 higher-level-spec}
+                        {:rgn-0 params
+                         :rgn-1 higher-level-params}
                         {:input letter-sensor}
                         {:letter-motor letter-motor-sensor
                          :word-motor word-motor-sensor})))

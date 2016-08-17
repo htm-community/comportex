@@ -10,7 +10,7 @@
 (def numb-max 15)
 (def numb-domain [0 numb-max])
 
-(def spec
+(def params
   {:column-dimensions [1000]
    :ff-init-frac 0.2
    :ff-potential-radius 1.0
@@ -19,9 +19,9 @@
    :duty-cycle-period 100000})
 
 
-(def higher-level-spec
+(def higher-level-params
   (util/deep-merge
-   spec
+   params
    {:column-dimensions [400]
     :proximal {:max-segments 5}}))
 
@@ -79,8 +79,8 @@
 
 (defn n-region-model
   ([n]
-   (n-region-model n spec))
-  ([n spec]
+   (n-region-model n params))
+  ([n params]
    (core/regions-in-series n core/sensory-region
-                           (list* spec (repeat higher-level-spec))
+                           (list* params (repeat higher-level-params))
                            {:input block-sensor})))

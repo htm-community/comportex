@@ -29,7 +29,7 @@
        (map first)
        (rest)))
 
-(def spec {:column-dimensions [1000]
+(def params {:column-dimensions [1000]
            :ff-potential-radius 0.5
            :duty-cycle-period 600
            :depth 1
@@ -44,7 +44,7 @@
 
 (defn model
   []
-  (core/regions-in-series 1 core/sensory-region [spec]
+  (core/regions-in-series 1 core/sensory-region [params]
                           {:input sensor}))
 
 (deftest sp-test
