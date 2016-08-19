@@ -25,179 +25,312 @@
             [org.nfrac.comportex.util :as util
              :refer [count-filter remap round]]
             [clojure.test.check.random :as random]
-            [clojure.set :as set]))
+            [clojure.set :as set]
+            [clojure.spec :as s]))
+
+(s/def ::max-segments
+  #_"maximum number of dendrites segments per cell (or column for proximal)."
+  (s/int-in 1 10000))
+
+(s/def ::max-synapse-count
+  #_"maximum number of synapses per segment."
+  (s/int-in 1 10000))
+
+(s/def ::new-synapse-count
+  #_"number of synapses created on a new dendrite segment."
+  (s/int-in 1 10000))
+
+(s/def ::stimulus-threshold
+  #_"minimum number of active synapses on a segment for it to become active."
+  (s/int-in 0 100))
+
+(s/def ::learn-threshold
+  #_"minimum number of active synapses on a segment for it to be reinforced and
+  extended if it is the best matching."
+  (s/int-in 0 10000))
+
+(s/def ::perm-inc
+  #_"amount by which to increase synapse permanence to active sources when
+  reinforcing a segment."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::perm-dec
+  #_"amount by which to decrease synapse permanence to inactive sources when
+  reinforcing a segment."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::perm-connected
+  #_"permanence value at which a synapse is functionally connected."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::perm-init
+  #_"initial permanence value for new synapses on segments."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::perm-stable-inc
+  #_"amount by which to increase synapse permanence to stable (predicted)
+  sources when reinforcing a segment."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::perm-punish
+  #_"amount by which to decrease synapse permanence when punishing segments in
+  case of failed prediction."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::punish?
+  #_"whether to reduce synapse permanence on segments incorrectly predicting
+  their own activation."
+  boolean?)
+
+(s/def ::learn?
+  #_"whether to apply learning rules to synapses. If false, they are static."
+  boolean?)
+
+(s/def ::synapse-graph-params
+  #_"A parameter set for one synapse graph, that is typically the proximal
+  dendrites, distal dendrites, or apical dendrites in one layer."
+  (s/keys :req-un [::max-segments
+                   ::max-synapse-count
+                   ::new-synapse-count
+                   ::stimulus-threshold
+                   ::learn-threshold
+                   ::perm-inc
+                   ::perm-dec
+                   ::perm-punish
+                   ::perm-connected
+                   ::perm-init
+                   ::punish?
+                   ::learn?]))
 
 (def dendrite-parameter-defaults
   "Default parameters for distal dendrite segments. The
   same parameters are also used for proximal segments, but with
-  different default values.
-
-  * `max-segments` - maximum number of dendrites segments per cell (or
-  column for proximal dendrites).
-
-  * `max-synapse-count` - maximum number of synapses per segment.
-
-  * `new-synapse-count` - number of synapses on a new dendrite
-  segment.
-
-  * `stimulus-threshold` - minimum number of active synapses on a
-  segment for it to become active.
-
-  * `learn-threshold` - minimum number of active synapses on a segment
-  for it to be reinforced and extended if it is the best matching.
-
-  * `perm-inc` - amount by which to increase synapse permanence to
-  active sources when reinforcing a segment.
-
-  * `perm-stable-inc` - amount by which to increase a synapse
-  permanence to stable (predicted) sources.
-
-  * `perm-dec` - amount by which to decrease synapse permanence to
-  inactive sources when reinforcing a segment.
-
-  * `perm-punish` - amount by which to decrease synapse permanence
-  when punishing segments in case of failed prediction.
-
-  * `perm-connected` - permanence value at which a synapse is
-  functionally connected. Permanence values are defined to be between
-  0 and 1.
-
-  * `perm-init` - permanence value for new synapses on segments.
-
-  * `punish?` - whether to reduce synapse permanence on segments
-  incorrectly predicting activation.
-
-  * `learn?` - whether to reinforce and grow synapses.
-"
+  different default values."
   {:max-segments 5
    :max-synapse-count 22
    :new-synapse-count 12
    :stimulus-threshold 9
    :learn-threshold 7
    :perm-inc 0.05
-   :perm-stable-inc 0.05
    :perm-dec 0.01
    :perm-punish 0.002
    :perm-connected 0.20
    :perm-init 0.16
+   :perm-stable-inc 0.05
    :punish? true
    :learn? true})
 
+(s/def ::input-dimensions
+  #_"size of input bit grid as a vector, one dimensional `[size]`,
+  two dimensional `[width height]`, etc."
+  (s/coll-of (s/int-in 1 1e7) :kind vector? :min-count 1 :max-count 3))
+
+(s/def ::column-dimensions
+  #_"size of column field as a vector, one dimensional `[size]`,
+  or two dimensional `[width height]`"
+  (s/coll-of (s/int-in 1 1e7) :kind vector? :min-count 1 :max-count 2))
+
+(s/def ::depth
+  #_"number of cells per column. Value 1 gives first-order sequence memory."
+  (s/int-in 1 1e5))
+
+(s/def ::ff-potential-radius
+  #_"range of potential feed-forward synapse connections, as a fraction of the
+  longest single dimension in the input space."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::ff-init-frac
+  #_"fraction of inputs within radius of a column that will be initialised with
+  proximal synapses."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::ff-perm-init-hi
+  #_"highest initial permanence value on proximal synapses."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::ff-perm-init-lo
+  #_"lowest initial permanence value on proximal synapses."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::proximal
+  #_"parameters for proximal dendrite segments."
+  (s/merge ::synapse-graph-params
+           (s/keys :req-un [::perm-stable-inc
+                            ::grow?])))
+
+(s/def ::distal
+  #_"parameters for distal dendrite segments."
+  ::synapse-graph-params)
+
+(s/def ::apical
+  #_"parameters for apical dendrite segments."
+  ::synapse-graph-params)
+
+;; homeostasis-params
+
+(s/def ::max-boost
+  #_"ceiling on the column boosting factor used to increase activation frequency."
+  (s/and number? #(>= % 1)))
+
+(s/def ::duty-cycle-period
+  #_"number of time steps to average over when updating duty cycles and (thereby)
+  column boosting measures."
+  (s/and number? #(>= % 1)))
+
+(s/def ::boost-active-duty-ratio
+  #_"when a column's activation frequency is below this proportion of the
+  highest of its neighbours, its boost factor is increased."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::adjust-overlap-duty-ratio
+  #_"when a column's overlap frequency differs from any of its neighbours by at
+  least this fraction, its permanences are adjusted."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::float-overlap-duty-ratio
+  #_""
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::boost-active-every
+  #_"number of time steps between recalculating column boosting factors."
+  (s/and int? pos?))
+
+(s/def ::adjust-overlap-every
+  #_"number of time steps between adjusting column permanences to stabilise
+  overlap frequencies."
+  (s/and int? pos?))
+
+(s/def ::float-overlap-every
+  #_"number of time steps between adjusting column permanences to stabilise
+  activation frequencies."
+  (s/and int? pos?))
+
+(s/def ::homeostasis-params
+  #_"The subset of parameters used in homeostasis algorithms."
+  (s/keys :req-un [::max-boost
+                   ::duty-cycle-period
+                   ::boost-active-duty-ratio
+                   ::adjust-overlap-duty-ratio
+                   ::float-overlap-duty-ratio
+                   ::float-overlap-duty-ratio-hi
+                   ::boost-active-every
+                   ::adjust-overlap-every
+                   ::float-overlap-every]))
+
+(s/def ::inh-radius-every
+  #_"number of time steps between recalculating the effective inhibition radius."
+  (s/and int? pos?))
+
+(s/def ::lateral-synapses?
+  #_"whether distal synapses can connect laterally to other cells in the layer."
+  boolean?)
+
+(s/def ::use-feedback?
+  #_"whether distal synapses can connect to top-down feedback cells."
+  boolean?)
+
+(s/def ::distal-motor-dimensions
+  #_"defines bit field available for feed-forward motor input to distal synapses."
+  (s/coll-of (s/int-in 0 1e7) :kind vector? :min-count 1 :max-count 2))
+
+(s/def ::distal-topdown-dimensions
+  #_"defines bit field available for top-down feedback to distal synapses."
+  (s/coll-of (s/int-in 0 1e7) :kind vector? :min-count 1 :max-count 2))
+
+(s/def ::activation-level
+  #_"fraction of columns that can be active; inhibition kicks in to reduce it to
+  this level."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::inhibition-base-distance
+  #_"the distance in columns within which a cell will always inhibit neighbouring
+  cells with lower excitation. Used by `:spatial-pooling :local-inhibition`."
+  (s/int-in 0 1000))
+
+(s/def ::distal-vs-proximal-weight
+  #_"scaling to apply to the number of active distal synapses (on the winning
+  segment) before adding to the number of active proximal synapses, when
+  selecting active columns. Set to zero to disable ``prediction-assisted''
+  activation."
+  (s/and number? #(>= % 0)))
+
+(s/def ::apical-bias-frac
+  #_"probability of choosing a winner cell according to apical excitation when
+  otherwise the choice would have been random. Generates similarity between
+  cases in similar contexts."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::spontaneous-activation?
+  #_"if true, cells may become active with sufficient distal synapse excitation,
+  even in the absence of any proximal synapse excitation."
+  boolean?)
+
+(s/def ::dominance-margin
+  #_"an amount of excitation (generally measured in number of active synapses) by
+  which one cell must exceed all others in the column to be considered dominant.
+  And therefore to inhibit all other cells in the column."
+  (s/and number? pos?))
+
+(s/def ::stable-activation-steps
+  #_"number of time steps that synapses remain active from cells whose activation
+  was predicted and thus generated minibursts to metabotropic receptors. They
+  might be curtailed earlier by a manual break."
+  (s/int-in 0 1e6))
+
+(s/def ::transition-similarity
+  #_"effective time steps are delayed until the similarity (normalised column
+  overlap) between successive states falls below this level. So 1.0 means every
+  time step is effective - the usual behaviour."
+  (s/double-in :min 0.0 :max 1.0))
+
+(s/def ::random-seed
+  #_"the random seed (for reproducible results)."
+  int?)
+
+(s/def ::spatial-pooling
+  #_"keyword to look up a spatial pooling implementation of the multimethod
+  `org.nfrac.comportex.cells/spatial-pooling`. An alternative is
+  `:local-inhibition`, implemented in this namespace."
+  keyword?)
+
+(s/def ::temporal-pooling
+  #_"keyword to look up a temporal pooling implementation of the multimethod
+  #`org.nfrac.comportex.cells/temporal-pooling`."
+  keyword?)
+
+(s/def ::params
+  #_"A standard parameter set for a layer."
+  (-> (s/keys :req-un [::input-dimensions
+                       ::column-dimensions
+                       ::depth
+                       ::ff-potential-radius
+                       ::ff-init-frac
+                       ::ff-perm-init-hi
+                       ::ff-perm-init-lo
+                       ::proximal
+                       ::distal
+                       ::apical
+                       ::inh-radius-every
+                       ::lateral-synapses?
+                       ::use-feedback?
+                       ::distal-motor-dimensions
+                       ::distal-topdown-dimensions
+                       ::activation-level
+                       ::inhibition-base-distance
+                       ::distal-vs-proximal-weight
+                       ::apical-bias-frac
+                       ::spontaneous-activation?
+                       ::dominance-margin
+                       ::stable-activation-steps
+                       ::transition-similarity
+                       ::random-seed
+                       ::spatial-pooling
+                       ::temporal-pooling])
+      (s/merge ::homeostasis-params)))
 
 (def parameter-defaults
-  "Default parameter specification map.
-
-  * `input-dimensions` - size of input bit grid as a vector, one
-  dimensional `[size]`, two dimensional `[width height]`, etc.
-
-  * `column-dimensions` - size of column field as a vector, one
-  dimensional `[size]` or two dimensional `[width height]`.
-
-  * `ff-potential-radius` - range of potential feed-forward synapse
-  connections, as a fraction of the longest single dimension in the
-  input space.
-
-  * `ff-init-frac` - fraction of inputs within radius that will be
-  part of the initially connected set.
-
-  * `ff-perm-init-hi` - highest initial permanence value on new synapses.
-
-  * `ff-perm-init-lo` - lowest initial permanence value on new synapses.
-
-  * `proximal` - map of parameters for proximal dendrite segments,
-  see `dendrite-parameter-defaults`.
-
-  *  `distal` - map of parameters for distal dendrite segments,
-  see `dendrite-parameter-defaults`.
-
-  *  `apical` - map of parameters for apical dendrite segments,
-  see `dendrite-parameter-defaults`. Ignored unless :use-feedback?
-
-  * `max-boost` - ceiling on the column boosting factor used to
-  increase activation frequency.
-
-  * `duty-cycle-period` - number of time steps to average over when
-  updating duty cycles and (thereby) column boosting measures.
-
-  * `boost-active-duty-ratio` - when a column's activation frequency
-  is below this proportion of the _highest_ of its neighbours, its
-  boost factor is increased.
-
-  * `adjust-overlap-duty-ratio` - when a column's overlap frequency
-  differs from any of its neighbours by at least this fraction, its
-  permanences are adjusted.
-
-  *  `boost-active-every` - number of time steps between recalculating
-  column boosting factors.
-
-  *  `adjust-overlap-every` - number of time steps between adjusting
-  column permanences to stabilise overlap frequencies.
-
-  * `inh-radius-every` - number of time steps between recalculating
-  the effective inhibition radius.
-
-  * `lateral-synapses?` - whether distal synapses can connect
-  laterally to other cells in this layer.
-
-  * `use-feedback?` - whether distal synapses can connect to top-down
-  feedback cells.
-
-  * `distal-motor-dimensions` - defines bit field available for
-  feed-forward motor input to distal synapses.
-
-  * `distal-topdown-dimensions` - defines bit field available for
-  top-down feedback to distal synapses.
-
-  * `depth` - number of cells per column.
-
-  * `activation-level` - fraction of columns that can be
-  active (either locally or globally); inhibition kicks in to reduce
-  it to this level.
-
-  * `inhibition-base-distance` - the distance in columns within which
-  a cell *will always* inhibit neighbouring cells with lower
-  excitation. Used by `:spatial-pooling :local-inhibition`.
-
-  * `distal-vs-proximal-weight` - scaling to apply to the number of
-  active distal synapses (on the winning segment) before adding to the
-  number of active proximal synapses, when selecting active
-  columns. Set to zero to disable ``prediction-assisted'' activation.
-
-  * `apical-bias-frac` - probability of choosing a winner cell
-  according to apical excitation when otherwise the choice would have
-  been random. Generates similarity between cases in similar contexts.
-
-  * `spontaneous-activation?` - if true, cells may become active with
-  sufficient distal synapse excitation, even in the absence of any
-  proximal synapse excitation.
-
-  * `dominance-margin` - an amount of excitation (generally measured
-  in number of active synapses) by which one cell must exceed all
-  others in the column to be considered dominant. And therefore to
-  inhibit all other cells in the column.
-
-  * `stable-activation-steps` - number of time steps that synapses
-  remain active from cells whose activation was predicted and thus
-  generated minibursts to metabotropic receptors. They might be
-  curtailed earlier by a manual break.
-
-  * `transition-similarity` - effective time steps are delayed until
-  the similarity (normalised column overlap) between successive states
-  falls below this level. So 1.0 means every time step is effective -
-  the usual behaviour.
-
-  * `random-seed` - the random seed (for reproducible results).
-
-  * `spatial-pooling` - keyword to look up a spatial pooling
-  implementation of the multimethod
-  `org.nfrac.comportex.cells/spatial-pooling`.
-  An alternative is `:local-inhibition`, implemented in this namespace.
-
-  * `temporal-pooling` - keyword to look up a temporal pooling
-  implementation of the multimethod
-  `org.nfrac.comportex.cells/temporal-pooling`.
-"
-  {:input-dimensions [:define-me!]
+  "Default parameter set for a layer."
+  {:input-dimensions [1]
    :column-dimensions [1000]
    :depth 5
    :ff-potential-radius 1.0
@@ -218,7 +351,6 @@
               :learn? true
               :punish? false
               :grow? false}
-
    :distal (assoc dendrite-parameter-defaults
                   :learn? true)
    :apical (assoc dendrite-parameter-defaults
@@ -232,7 +364,6 @@
               :perm-inc 0.08
               :perm-dec 0.01
               :learn? false}
-
    :max-boost 1.5
    :duty-cycle-period 1000
    :boost-active-duty-ratio (/ 1.0 200)
@@ -1245,7 +1376,7 @@
   (params [_]
     params))
 
-(defn validate-params!
+(defn check-param-deprecations
   [params]
   (assert (not (contains? params :global-inhibition?))
           (str ":global-inhibition? now implied by default :spatial-pooling; "
@@ -1254,6 +1385,7 @@
 (defn init-layer-state
   [params]
   (let [params (util/deep-merge parameter-defaults params)
+        _ (s/assert* ::params params)
         input-topo (topology/make-topology (:input-dimensions params))
         col-topo (topology/make-topology (:column-dimensions params))
         n-cols (p/size col-topo)
@@ -1289,7 +1421,7 @@
         state (assoc empty-active-state :timestep 0)
         learn-state (assoc empty-learn-state :timestep 0)
         distal-state (assoc empty-distal-state :timestep 0)]
-    (validate-params! params)
+    (check-param-deprecations params)
     {:params params
      :rng rng
      :topology col-topo
@@ -1307,7 +1439,6 @@
      :boosts (vec (repeat n-cols 1.0))
      :active-duty-cycles (vec (repeat n-cols (:activation-level params)))
      :overlap-duty-cycles (vec (repeat n-cols (:activation-level params)))}))
-
 
 (defn layer-of-cells
   [params]
