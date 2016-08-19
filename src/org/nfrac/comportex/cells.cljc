@@ -193,17 +193,17 @@
 
 (s/def ::boost-active-every
   #_"number of time steps between recalculating column boosting factors."
-  (s/and int? pos?))
+  pos-int?)
 
 (s/def ::adjust-overlap-every
   #_"number of time steps between adjusting column permanences to stabilise
   overlap frequencies."
-  (s/and int? pos?))
+  pos-int?)
 
 (s/def ::float-overlap-every
   #_"number of time steps between adjusting column permanences to stabilise
   activation frequencies."
-  (s/and int? pos?))
+  pos-int?)
 
 (s/def ::homeostasis-params
   #_"The subset of parameters used in homeostasis algorithms."
@@ -219,7 +219,7 @@
 
 (s/def ::inh-radius-every
   #_"number of time steps between recalculating the effective inhibition radius."
-  (s/and int? pos?))
+  pos-int?)
 
 (s/def ::lateral-synapses?
   #_"whether distal synapses can connect laterally to other cells in the layer."
@@ -451,16 +451,6 @@
                   (and (>= p pcon)
                        (active-bits id)))
                 syns))
-
-(defn cell-active-segments
-  "Returns a seq of the segment indexes in the cell with activation at
-  or above the activation threshold `th`, only considering synapses
-  with permanence values at or above `pcon`."
-  [cell-segs active-bits th pcon]
-  (keep-indexed (fn [si syns]
-                  (let [act (segment-activation syns active-bits pcon)]
-                    (when (>= act th) si)))
-                cell-segs))
 
 (defn best-matching-segment
   "Finds the segment in the cell having the most active synapses, as
@@ -1049,20 +1039,95 @@
          (inh/inhibition-radius (:proximal-sg layer) (:topology layer)
                                 (:input-topology layer))))
 
-(defrecord LayerActiveState
-    [in-ff-bits in-stable-ff-bits
-     col-overlaps matching-ff-seg-paths stable-active-cells
-     active-cols burst-cols col-active-cells active-cells timestep])
+;;; ## Specs
 
-(defrecord LayerTPState
-    [out-stable-ff-bits])
+(s/def ::bits (s/every nat-int? :distinct true))
+(s/def ::bits-set (s/every nat-int? :kind set?))
+(s/def ::column-id nat-int?)
+(s/def ::cell-id (s/tuple nat-int? nat-int?))
+(s/def ::seg-path (s/tuple nat-int? nat-int? nat-int?))
+(s/def ::excitation-amt (s/and number? #(>= % 0)))
+(s/def ::cell-seg-exc
+  (s/map-of ::cell-id (s/cat :seg ::seg-path, :exc ::excitation-amt)))
+(s/def ::timestep nat-int?)
 
-(defrecord LayerLearnState
-    [col-winners winner-seg learning-cells learning punishments
-     prior-active-cells timestep])
+(s/def ::in-ff-bits ::bits)
+(s/def ::in-stable-ff-bits ::bits)
+(s/def ::active-cols (s/coll-of ::column-id :kind set?))
+(s/def ::burst-cols ::active-cols)
+(s/def ::active-cells (s/coll-of ::cell-id :kind set?))
+(s/def ::stable-active-cells ::active-cells)
+(s/def ::col-active-cells (s/map-of ::column-id (s/coll-of ::cell-id)))
+(s/def ::matching-ff-seg-paths ::cell-seg-exc)
+(s/def ::col-overlaps (s/every-kv ::column-id ::excitation-amt))
 
-(defrecord LayerDistalState
-    [active-bits learnable-bits cell-exc pred-cells matching-seg-paths timestep])
+(s/def ::spatial-pooling-return
+  (s/keys :req-un [::active-cols
+                   ::matching-ff-seg-paths
+                   ::col-overlaps]))
+
+(s/def ::active-state
+  #_"Represents the activation of cells in a layer; that state which is volatile
+  across time steps."
+  (s/keys :req-un [::matching-ff-seg-paths
+                   ::active-cols
+                   ::active-cells
+                   ::timestamp]
+          :opt-un [::in-ff-bits
+                   ::in-stable-ff-bits
+                   ::burst-cols
+                   ::col-active-cells
+                   ::stable-active-cells
+                   ::col-overlaps]))
+
+(s/def ::out-stable-ff-bits ::bits)
+
+(s/def ::tp-state
+  #_"Represents temporal pooling state; the information about activation of
+  cells which persists across many time steps."
+  (s/keys :req-un [::out-stable-ff-bits]))
+
+(s/def ::col-winners (s/map-of ::column-id ::cell-id))
+(s/def ::winner-seg (s/map-of #{:distal :apical} ::cell-seg-exc))
+(s/def ::learning-cells (s/coll-of ::cell-id))
+(s/def ::learning-updates (s/map-of ::cell-id ::syn/seg-update))
+(s/def ::learning (s/map-of #{:proximal :distal :apical :ilateral}
+                            ::learning-updates))
+(s/def ::punishments (s/map-of #{:proximal :distal :apical :ilateral}
+                               (s/coll-of ::syn/seg-update)))
+(s/def ::prior-active-cells ::active-cells)
+
+(s/def ::learn-state
+  #_"Represents the changes due to learning in one time step, and information
+  used in the learning process."
+  (s/keys :req-un [::learning-cells
+                   ::prior-active-cells
+                   ::timestep]
+          :opt-un [::col-winners
+                   ::winner-seg
+                   ::learning
+                   ::punishments]))
+
+(s/def ::active-bits ::bits-set)
+(s/def ::learnable-bits ::bits-set)
+(s/def ::cell-exc (s/map-of ::cell-id ::excitation-amt))
+(s/def ::pred-cells (s/every ::cell-id :kind set?))
+(s/def ::matching-seg-paths ::cell-seg-exc)
+
+(s/def ::distal-state
+  #_"Represents the activation state of a synapse graph, e.g. the distal
+  segments, or apical segments, of cells in one layer."
+  (s/keys :req-un [::active-bits
+                   ::learnable-bits
+                   ::cell-exc
+                   ::pred-cells
+                   ::matching-seg-paths
+                   ::timestep]))
+
+(defrecord LayerActiveState [])
+(defrecord LayerTPState [])
+(defrecord LayerLearnState [])
+(defrecord LayerDistalState [])
 
 (def empty-active-state
   (map->LayerActiveState
@@ -1072,15 +1137,13 @@
 
 (def empty-learn-state
   (map->LayerLearnState
-   {:col-winners {}
-    :learning-cells #{}
-    :learning {}
-    :punishments {}
+   {:learning-cells #{}
     :prior-active-cells #{}}))
 
 (def empty-distal-state
   (map->LayerDistalState
    {:active-bits #{}
+    :learnable-bits #{}
     :cell-exc {}
     :pred-cells #{}
     :matching-seg-paths {}}))
@@ -1222,6 +1285,35 @@
       :matching-seg-paths seg-paths
       :pred-cells pc
       :timestep t})))
+
+(s/def ::rng #(satisfies? random/IRandom %))
+(s/def ::state ::active-state)
+(s/def ::prior-state ::active-state)
+(s/def ::prior-distal-state ::distal-state)
+(s/def ::apical-state ::distal-state)
+(s/def ::prior-apical-state ::distal-state)
+
+(s/def ::layer-of-cells
+  (s/keys :req-un [::params
+                   ::rng
+                   ::topology
+                   ::input-topology
+                   ::proximal-sg
+                   ::distal-sg
+                   ::apical-sg
+                   ::ilateral-sg
+                   ::state
+                   ::prior-state
+                   ::tp-state
+                   ::distal-state
+                   ::prior-distal-state
+                   ::apical-state
+                   ::prior-apical-state
+                   ::learn-state
+                   ::inh-radius
+                   ::boosts
+                   ::active-duty-cycles
+                   ::overlap-duty-cycles]))
 
 (defrecord LayerOfCells
     [params rng topology input-topology inh-radius boosts active-duty-cycles overlap-duty-cycles
@@ -1446,3 +1538,5 @@
    (init-layer-state params)
    (map->LayerOfCells)
    (update-inhibition-radius)))
+
+(s/fdef layer-of-cells :ret ::layer-of-cells)

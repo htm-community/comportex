@@ -1,6 +1,16 @@
 (ns org.nfrac.comportex.synapses
   (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.util :as util :refer [getx]]))
+            [org.nfrac.comportex.util :as util :refer [getx]]
+            [clojure.spec :as s]))
+
+(s/def ::operation #{:learn :punish :reinforce})
+(s/def ::grow-sources (s/coll-of nat-int?))
+(s/def ::die-sources (s/coll-of nat-int?))
+(s/def ::seg-update
+  (s/keys :req-un [::target-id
+                   ::operation]
+          :opt-un [::grow-sources
+                   ::die-sources]))
 
 (defrecord SegUpdate [target-id operation grow-sources die-sources])
 
