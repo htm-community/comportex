@@ -28,11 +28,11 @@
        (rest)))
 
 (def params {:column-dimensions [1000]
-           :ff-potential-radius 0.5
-           :duty-cycle-period 600
-           :depth 1
-           :distal {:max-segments 1}
-           :lateral-synapses? false})
+             :ff-potential-radius 0.5
+             :duty-cycle-period 600
+             :depth 1
+             :distal {:max-segments 1}
+             :lateral-synapses? false})
 
 
 (def sensor

@@ -8,6 +8,8 @@
    * `si` -- a segment id, an integer index in the cell.
    * `cell-id` -- a vector `[col ci]`.
    * `seg-path` -- a vector `[col ci si]`.
+   * `fully-matching-seg-paths` -- maps cell-id to seg-path, meeting stimulus-threshold.
+   * `matching-seg-paths` -- same but includes partial matches, meeting learn-threshold.
    * `pcon` -- the connected threshold of synaptic permanence.
    * `ff-bits` -- the set of indices of active bits/cells on proximal dendrites.
    * `ac` -- the set of ids of active cells.
@@ -620,10 +622,10 @@
   "Returns [winner-cell [distal-seg-path exc] [apical-seg-path exc]]
   giving the best matching existing segments to learn on, if any."
   [ac distal-state apical-state distal-sg apical-sg params rng]
-  (let [full-matching-distal (:matching-seg-paths distal-state)
-        full-matching-apical (:matching-seg-paths apical-state)
-        d-full-matches (keep full-matching-distal ac)
-        a-full-matches (keep full-matching-apical ac)
+  (let [fully-matching-distal (:fully-matching-seg-paths distal-state)
+        fully-matching-apical (:fully-matching-seg-paths apical-state)
+        d-full-matches (keep fully-matching-distal ac)
+        a-full-matches (keep fully-matching-apical ac)
         distal-bits (:active-bits distal-state)
         apical-bits (:active-bits apical-state)
         min-distal (:learn-threshold (:distal params))
@@ -670,7 +672,7 @@
           ;; ==> select best apical segment on that cell
           distal-match*
           (let [cell-id (pop (first distal-match*))]
-            (if-let [full-match (full-matching-apical cell-id)]
+            (if-let [full-match (fully-matching-apical cell-id)]
               full-match
               (best-partial-apical-segment cell-id)))
           ;; * if multiple matching distal segments / cells
@@ -704,7 +706,7 @@
           (let [cell-id (if apical-match
                           (pop (first apical-match))
                           (util/rand-nth rng ac))
-                match (full-matching-distal cell-id)]
+                match (fully-matching-distal cell-id)]
             (assert match "fully active distal, if any, should equal active cells")
             match)
           :else
@@ -869,9 +871,9 @@
                                   ;; Ignore any which are still predictive.
                                   (:pred-cells distal-state)
                                   prior-active-cells)
-        matching-segs (:matching-seg-paths prior-distal-state)
+        fully-matching-segs (:fully-matching-seg-paths prior-distal-state)
         punishments (for [cell bad-cells
-                          :let [[seg-path _] (matching-segs cell)]]
+                          :let [[seg-path _] (fully-matching-segs cell)]]
                       (syn/seg-update seg-path :punish nil nil))
         new-sg (if punishments
                  (p/bulk-learn sg punishments (:active-bits prior-distal-state)
@@ -957,12 +959,12 @@
         pparams (:proximal (:params this))
         min-prox (:learn-threshold pparams)
         active-bits (:in-ff-bits state)
-        full-matching-segs (:matching-ff-seg-paths state)
+        fully-matching-segs (:fully-matching-ff-seg-paths state)
         ids (map vector cols (repeat 0))
         matching-segs
         (persistent!
          (reduce (fn [m id]
-                   (if-let [full-match (full-matching-segs id)]
+                   (if-let [full-match (fully-matching-segs id)]
                      (assoc! m id full-match)
                      (let [cell-segs (p/cell-segments sg id)
                            [match-si exc seg] (best-matching-segment
@@ -1002,13 +1004,13 @@
 
 (defn punish-proximal
   [sg state pparams]
-  (let [matching-segs (:matching-ff-seg-paths state)
-        pred-cells (set (keys matching-segs))
+  (let [fully-matching-segs (:fully-matching-ff-seg-paths state)
+        pred-cells (set (keys fully-matching-segs))
         active-cells (set (map vector (:active-cols state) (repeat 0)))
         bad-cells (set/difference pred-cells
                                   active-cells)
         punishments (for [cell bad-cells
-                          :let [[seg-path _] (matching-segs cell)]
+                          :let [[seg-path _] (fully-matching-segs cell)]
                           :when seg-path]
                       (syn/seg-update seg-path :punish nil nil))
         new-sg (if punishments
@@ -1058,18 +1060,18 @@
 (s/def ::active-cells (s/coll-of ::cell-id :kind set?))
 (s/def ::stable-active-cells ::active-cells)
 (s/def ::col-active-cells (s/map-of ::column-id (s/coll-of ::cell-id)))
-(s/def ::matching-ff-seg-paths ::cell-seg-exc)
+(s/def ::fully-matching-ff-seg-paths ::cell-seg-exc)
 (s/def ::col-overlaps (s/every-kv ::column-id ::excitation-amt))
 
 (s/def ::spatial-pooling-return
   (s/keys :req-un [::active-cols
-                   ::matching-ff-seg-paths
+                   ::fully-matching-ff-seg-paths
                    ::col-overlaps]))
 
 (s/def ::active-state
   #_"Represents the activation of cells in a layer; that state which is volatile
   across time steps."
-  (s/keys :req-un [::matching-ff-seg-paths
+  (s/keys :req-un [::fully-matching-ff-seg-paths
                    ::active-cols
                    ::active-cells
                    ::timestamp]
@@ -1112,7 +1114,7 @@
 (s/def ::learnable-bits ::bits-set)
 (s/def ::cell-exc (s/map-of ::cell-id ::excitation-amt))
 (s/def ::pred-cells (s/every ::cell-id :kind set?))
-(s/def ::matching-seg-paths ::cell-seg-exc)
+(s/def ::fully-matching-seg-paths ::cell-seg-exc)
 
 (s/def ::distal-state
   #_"Represents the activation state of a synapse graph, e.g. the distal
@@ -1121,7 +1123,7 @@
                    ::learnable-bits
                    ::cell-exc
                    ::pred-cells
-                   ::matching-seg-paths
+                   ::fully-matching-seg-paths
                    ::timestep]))
 
 (defrecord LayerActiveState [])
@@ -1133,7 +1135,7 @@
   (map->LayerActiveState
    {:active-cells #{}
     :active-cols #{}
-    :matching-ff-seg-paths {}}))
+    :fully-matching-ff-seg-paths {}}))
 
 (def empty-learn-state
   (map->LayerLearnState
@@ -1146,14 +1148,14 @@
     :learnable-bits #{}
     :cell-exc {}
     :pred-cells #{}
-    :matching-seg-paths {}}))
+    :fully-matching-seg-paths {}}))
 
 (defmulti spatial-pooling
   "Spatial pooling: choosing a column representation.
   Returns keys
 
   * :active-cols
-  * :matching-ff-seg-paths
+  * :fully-matching-ff-seg-paths
   * :col-overlaps
   "
   (fn [layer ff-bits stable-ff-bits fb-cell-exc]
@@ -1190,7 +1192,7 @@
                    (inh/inhibit-globally n-on)
                    (set))]
     {:active-cols a-cols
-     :matching-ff-seg-paths ff-seg-paths
+     :fully-matching-ff-seg-paths ff-seg-paths
      :col-overlaps raw-col-exc}))
 
 (defmethod spatial-pooling :local-inhibition
@@ -1218,7 +1220,7 @@
                                         n-on)
                    (set))]
     {:active-cols a-cols
-     :matching-ff-seg-paths ff-seg-paths
+     :fully-matching-ff-seg-paths ff-seg-paths
      :col-overlaps raw-col-exc}))
 
 (defn compute-active-state
@@ -1282,7 +1284,7 @@
      {:active-bits (set active-bits)
       :learnable-bits (set learnable-bits)
       :cell-exc cell-exc
-      :matching-seg-paths seg-paths
+      :fully-matching-seg-paths seg-paths
       :pred-cells pc
       :timestep t})))
 
