@@ -1049,8 +1049,7 @@
 (s/def ::cell-id (s/tuple nat-int? nat-int?))
 (s/def ::seg-path (s/tuple nat-int? nat-int? nat-int?))
 (s/def ::excitation-amt (s/and number? #(>= % 0)))
-(s/def ::cell-seg-exc
-  (s/map-of ::cell-id (s/cat :seg ::seg-path, :exc ::excitation-amt)))
+(s/def ::seg-exc (s/cat :seg ::seg-path, :exc ::excitation-amt))
 (s/def ::timestep nat-int?)
 
 (s/def ::in-ff-bits ::bits)
@@ -1060,8 +1059,8 @@
 (s/def ::active-cells (s/coll-of ::cell-id :kind set?))
 (s/def ::stable-active-cells ::active-cells)
 (s/def ::col-active-cells (s/map-of ::column-id (s/coll-of ::cell-id)))
-(s/def ::fully-matching-ff-seg-paths ::cell-seg-exc)
-(s/def ::col-overlaps (s/every-kv ::column-id ::excitation-amt))
+(s/def ::fully-matching-ff-seg-paths (s/map-of ::cell-id ::seg-exc))
+(s/def ::col-overlaps (s/every-kv (s/tuple ::column-id #{0}) ::excitation-amt))
 
 (s/def ::spatial-pooling-return
   (s/keys :req-un [::active-cols
@@ -1074,7 +1073,7 @@
   (s/keys :req-un [::fully-matching-ff-seg-paths
                    ::active-cols
                    ::active-cells
-                   ::timestamp]
+                   ::timestep]
           :opt-un [::in-ff-bits
                    ::in-stable-ff-bits
                    ::burst-cols
@@ -1087,10 +1086,11 @@
 (s/def ::tp-state
   #_"Represents temporal pooling state; the information about activation of
   cells which persists across many time steps."
-  (s/keys :req-un [::out-stable-ff-bits]))
+  (s/keys :opt-un [::out-stable-ff-bits]))
 
 (s/def ::col-winners (s/map-of ::column-id ::cell-id))
-(s/def ::winner-seg (s/map-of #{:distal :apical} ::cell-seg-exc))
+(s/def ::winner-seg (s/map-of #{:distal :apical}
+                              (s/map-of ::cell-id (s/nilable ::seg-exc))))
 (s/def ::learning-cells (s/coll-of ::cell-id))
 (s/def ::learning-updates (s/map-of ::cell-id ::syn/seg-update))
 (s/def ::learning (s/map-of #{:proximal :distal :apical :ilateral}
@@ -1114,7 +1114,7 @@
 (s/def ::learnable-bits ::bits-set)
 (s/def ::cell-exc (s/map-of ::cell-id ::excitation-amt))
 (s/def ::pred-cells (s/every ::cell-id :kind set?))
-(s/def ::fully-matching-seg-paths ::cell-seg-exc)
+(s/def ::fully-matching-seg-paths (s/map-of ::cell-id ::seg-exc))
 
 (s/def ::distal-state
   #_"Represents the activation state of a synapse graph, e.g. the distal
@@ -1136,6 +1136,10 @@
    {:active-cells #{}
     :active-cols #{}
     :fully-matching-ff-seg-paths {}}))
+
+(def empty-tp-state
+  (map->LayerTPState
+   {}))
 
 (def empty-learn-state
   (map->LayerLearnState
@@ -1317,8 +1321,121 @@
                    ::active-duty-cycles
                    ::overlap-duty-cycles]))
 
+(defn layer-activate-impl
+  [layer ff-bits stable-ff-bits]
+  (let [new-active-state (compute-active-state layer ff-bits stable-ff-bits)
+        timestep (:timestep new-active-state)
+        {:keys [params prior-state tp-state]} layer
+        effective? (<= (util/set-similarity (:active-cols new-active-state)
+                                            (:active-cols prior-state))
+                       (:transition-similarity params))]
+    (-> layer
+        (assoc :state new-active-state
+               :tp-state (if effective?
+                           (compute-tp-state layer new-active-state)
+                           tp-state)
+               :prior-state (if effective?
+                              new-active-state
+                              prior-state)))))
+
+(s/fdef layer-activate-impl
+        :args (s/cat :layer ::layer-of-cells
+                     :ff-bits ::bits
+                     :stable-ff-bits ::bits)
+        :fn (s/and #(= (p/timestep (:ret %))
+                       (inc (p/timestep (-> % :args :layer)))))
+        :ret ::layer-of-cells)
+
+(defn layer-learn-impl
+  [layer]
+  (if (< (:timestep (:prior-state layer)) (:timestep (:state layer)))
+    layer
+    ;; effective transition, based on sufficient difference.
+    (let [{:keys [params state learn-state distal-state apical-state rng
+                  distal-sg apical-sg]} layer
+          a-cols (:active-cols state)
+          col-ac (:col-active-cells state)
+          prior-winners (when-not (:break-winners? learn-state)
+                          (:col-winners learn-state))
+          [rng* rng] (random/split rng)
+          {:keys [col-winners winner-seg]}
+          (select-winner-cells col-ac prior-winners distal-state apical-state
+                               distal-sg apical-sg params rng*)
+          ;; learning cells are all the winning cells
+          winner-cells (vals col-winners)
+          lc winner-cells
+          depth (:depth params)
+          out-wc-bits (set (cells->bits depth winner-cells))
+          timestep (:timestep state)]
+      (cond->
+       layer
+       true (assoc :learn-state (assoc empty-learn-state
+                                       :col-winners col-winners
+                                       :winner-seg winner-seg
+                                       :learning-cells lc
+                                       :out-wc-bits out-wc-bits
+                                       :prior-active-cells (:active-cells state)
+                                       :timestep timestep)
+                   :rng rng)
+       (:learn? (:distal params)) (layer-learn-lateral lc (:distal winner-seg))
+       (:learn? (:apical params)) (layer-learn-apical lc (:apical winner-seg))
+       (:learn? (:ilateral params)) (layer-learn-ilateral a-cols)
+       (:learn? (:proximal params)) (layer-learn-proximal a-cols)
+       (:punish? (:distal params)) (layer-punish-lateral (:prior-active-cells learn-state))
+       (:punish? (:apical params)) (layer-punish-apical (:prior-active-cells learn-state))
+       (:punish? (:proximal params)) (layer-punish-proximal)
+       true (update :active-duty-cycles columns/update-duty-cycles
+                    a-cols (:duty-cycle-period params))
+       true (update :overlap-duty-cycles columns/update-duty-cycles
+                    (map first (keys (:col-overlaps state)))
+                    (:duty-cycle-period params))
+       (zero? (mod timestep (:boost-active-every params))) (columns/boost-active)
+       (zero? (mod timestep (:adjust-overlap-every params))) (columns/adjust-overlap)
+       (zero? (mod timestep (:float-overlap-every params))) (columns/layer-float-overlap)
+       (zero? (mod timestep (:inh-radius-every params))) (update-inhibition-radius)))))
+
+(s/fdef layer-learn-impl
+        :args (s/cat :layer ::layer-of-cells)
+        :ret ::layer-of-cells)
+
+(defn layer-depolarise-impl
+  [layer distal-ff-bits apical-fb-bits apical-fb-wc-bits]
+  (let [{:keys [params prior-state learn-state distal-state apical-state
+                distal-sg apical-sg]} layer
+        depth (:depth params)
+        widths (distal-sources-widths params)
+        distal-bits (util/align-indices widths
+                                        [(if (:lateral-synapses? params)
+                                           (:out-immediate-ff-bits prior-state)
+                                           [])
+                                         distal-ff-bits])
+        distal-lbits (util/align-indices widths
+                                         [(if (:lateral-synapses? params)
+                                            (:out-wc-bits learn-state)
+                                            [])
+                                          distal-ff-bits])
+        apical-bits (if (:use-feedback? params) apical-fb-bits [])
+        apical-lbits (if (:use-feedback? params) apical-fb-wc-bits [])
+        timestep (p/timestep layer)]
+   (assoc layer
+     :prior-distal-state distal-state
+     :prior-apical-state apical-state
+     :distal-state (compute-distal-state distal-sg distal-bits distal-lbits
+                                         (:distal params) timestep)
+     :apical-state (compute-distal-state apical-sg apical-bits apical-lbits
+                                         (:apical params) timestep))))
+
+(s/fdef layer-depolarise-impl
+        :args (s/cat :layer ::layer-of-cells
+                     :distal-ff-bits ::bits
+                     :apical-fb-bits ::bits
+                     :apical-fb-wc-bits ::bits)
+        :fn (s/and #(= (-> % :ret :distal-state :timestep)
+                       (-> % :args :layer :state :timestep)))
+        :ret ::layer-of-cells)
+
 (defrecord LayerOfCells
-    [params rng topology input-topology inh-radius boosts active-duty-cycles overlap-duty-cycles
+    [params rng topology
      proximal-sg distal-sg apical-sg ilateral-sg state prior-state tp-state
      distal-state prior-distal-state apical-state prior-apical-state learn-state]
 
@@ -1326,90 +1443,15 @@
 
   (layer-activate
     [this ff-bits stable-ff-bits]
-    (let [new-active-state (compute-active-state this ff-bits stable-ff-bits)
-          timestep (:timestep new-active-state)
-          effective? (<= (util/set-similarity (:active-cols new-active-state)
-                                              (:active-cols prior-state))
-                         (:transition-similarity params))]
-      (-> this
-          (assoc :state new-active-state
-                 :tp-state (if effective?
-                             (compute-tp-state this new-active-state)
-                             tp-state)
-                 :prior-state (if effective?
-                                new-active-state
-                                prior-state)))))
-
+    (layer-activate-impl this ff-bits stable-ff-bits))
 
   (layer-learn
     [this]
-    (if (< (:timestep prior-state) (:timestep state))
-     this
-     ;; effective transition, based on sufficient difference.
-     (let [a-cols (:active-cols state)
-           col-ac (:col-active-cells state)
-           prior-winners (when-not (:break-winners? learn-state)
-                           (:col-winners learn-state))
-           [rng* rng] (random/split rng)
-           {:keys [col-winners winner-seg]}
-           (select-winner-cells col-ac prior-winners distal-state apical-state
-                                distal-sg apical-sg params rng*)
-           ;; learning cells are all the winning cells
-           winner-cells (vals col-winners)
-           lc winner-cells
-           depth (:depth params)
-           out-wc-bits (set (cells->bits depth winner-cells))
-           timestep (:timestep state)]
-       (cond->
-           this
-         true (assoc :learn-state (assoc empty-learn-state
-                                         :col-winners col-winners
-                                         :winner-seg winner-seg
-                                         :learning-cells lc
-                                         :out-wc-bits out-wc-bits
-                                         :prior-active-cells (:active-cells state)
-                                         :timestep timestep)
-                     :rng rng)
-         (:learn? (:distal params)) (layer-learn-lateral lc (:distal winner-seg))
-         (:learn? (:apical params)) (layer-learn-apical lc (:apical winner-seg))
-         (:learn? (:ilateral params)) (layer-learn-ilateral a-cols)
-         (:learn? (:proximal params)) (layer-learn-proximal a-cols)
-         (:punish? (:distal params)) (layer-punish-lateral (:prior-active-cells learn-state))
-         (:punish? (:apical params)) (layer-punish-apical (:prior-active-cells learn-state))
-         (:punish? (:proximal params)) (layer-punish-proximal)
-         true (update :active-duty-cycles columns/update-duty-cycles
-                      a-cols (:duty-cycle-period params))
-         true (update :overlap-duty-cycles columns/update-duty-cycles
-                      (map first (keys (:col-overlaps state)))
-                      (:duty-cycle-period params))
-         (zero? (mod timestep (:boost-active-every params))) (columns/boost-active)
-         (zero? (mod timestep (:adjust-overlap-every params))) (columns/adjust-overlap)
-         (zero? (mod timestep (:float-overlap-every params))) (columns/layer-float-overlap)
-         (zero? (mod timestep (:inh-radius-every params))) (update-inhibition-radius)))))
+    (layer-learn-impl this))
 
   (layer-depolarise
     [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]
-    (let [depth (:depth params)
-          widths (distal-sources-widths params)
-          distal-bits (util/align-indices widths
-                                          [(if (:lateral-synapses? params)
-                                             (:out-immediate-ff-bits prior-state)
-                                             [])
-                                           distal-ff-bits])
-          distal-lbits (util/align-indices widths
-                                           [(if (:lateral-synapses? params)
-                                              (:out-wc-bits learn-state)
-                                              [])
-                                            distal-ff-bits])
-          apical-bits (if (:use-feedback? params) apical-fb-bits [])
-          apical-lbits (if (:use-feedback? params) apical-fb-wc-bits [])]
-      (assoc this
-        :prior-distal-state distal-state
-        :prior-apical-state apical-state
-        :distal-state (compute-distal-state distal-sg distal-bits distal-lbits
-                                            (:distal params) (:timestep state))
-        :apical-state (compute-distal-state apical-sg apical-bits apical-lbits
-                                            (:apical params) (:timestep state)))))
+    (layer-depolarise-impl this distal-ff-bits apical-fb-bits apical-fb-wc-bits))
 
   (layer-depth [_]
     (:depth params))
@@ -1530,6 +1572,9 @@
      :learn-state learn-state
      :distal-state distal-state
      :prior-distal-state distal-state
+     :apical-state distal-state
+     :prior-apical-state distal-state
+     :tp-state empty-tp-state
      :boosts (vec (repeat n-cols 1.0))
      :active-duty-cycles (vec (repeat n-cols (:activation-level params)))
      :overlap-duty-cycles (vec (repeat n-cols (:activation-level params)))}))

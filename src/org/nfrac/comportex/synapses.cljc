@@ -4,8 +4,8 @@
             [clojure.spec :as s]))
 
 (s/def ::operation #{:learn :punish :reinforce})
-(s/def ::grow-sources (s/coll-of nat-int?))
-(s/def ::die-sources (s/coll-of nat-int?))
+(s/def ::grow-sources (s/nilable (s/every nat-int?)))
+(s/def ::die-sources (s/nilable (s/every nat-int?)))
 (s/def ::seg-update
   (s/keys :req-un [::target-id
                    ::operation]
