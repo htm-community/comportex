@@ -569,8 +569,9 @@
    (column-state-freqs rgn (last (layers rgn))))
   ([rgn layer-fn]
    (let [lyr (layer-fn rgn)
-         a-cols (p/active-columns lyr)
-         ppc (p/prior-predictive-cells lyr)
+         lstate (p/layer-state lyr)
+         a-cols (:active-columns lstate)
+         ppc (:prior-predictive-cells lstate)
          pp-cols (into #{} (map first ppc))
          hit-cols (set/intersection pp-cols a-cols)
          col-states (merge (zipmap pp-cols (repeat :predicted))
@@ -605,7 +606,7 @@
 (defn predicted-bit-votes
   [rgn]
   (let [lyr (get rgn (first (layers rgn)))
-        pc (p/predictive-cells lyr)]
+        pc (:predictive-cells (p/layer-state lyr))]
     (cells-proximal-bit-votes lyr pc)))
 
 (defn ff-base
@@ -629,7 +630,7 @@
 (defn predictions
   ([htm sense-id n-predictions]
    (predictions
-    htm sense-id n-predictions p/predictive-cells))
+    htm sense-id n-predictions (comp :predictive-cells p/layer-state)))
   ([htm sense-id n-predictions cells-fn]
    (let [sense-width (-> (get-in htm [:senses sense-id])
                          p/ff-topology

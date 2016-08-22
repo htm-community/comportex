@@ -1,4 +1,27 @@
-(ns org.nfrac.comportex.protocols)
+(ns org.nfrac.comportex.protocols
+  (:require [clojure.spec :as s]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Common specs
+
+(s/def ::bits (s/every nat-int? :distinct true))
+(s/def ::bits-set (s/every nat-int? :kind set?))
+(s/def ::column-id nat-int?)
+(s/def ::cell-id (s/tuple nat-int? nat-int?))
+(s/def ::seg-path (s/tuple nat-int? nat-int? nat-int?))
+(s/def ::excitation-amt (s/and number? #(>= % 0)))
+(s/def ::timestep nat-int?)
+
+(defmulti layer-spec ::layer-type)
+(s/def ::layer-of-cells (s/multi-spec layer-spec ::layer-type))
+(s/def ::layer-type keyword?)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Hierarchy
+
+(defprotocol PTemporal
+  (timestep [this]))
 
 (defprotocol PHTM
   "A network of regions and senses, forming Hierarchical Temporal Memory."
@@ -67,30 +90,88 @@
   (ff-motor-topology [this])
   (motor-bits-value [this]))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Layer of cells
+
 (defprotocol PLayerOfCells
-  (layer-activate [this ff-bits stable-ff-bits])
-  (layer-learn [this])
-  (layer-depolarise [this distal-ff-bits apical-fb-bits apical-fb-wc-bits])
-  (layer-depth [this]
-    "Number of cells per column.")
-  (bursting-columns [this]
-    "The set of bursting column ids.")
-  (active-columns [this]
-    "The set of active column ids.")
-  (active-cells [this]
-    "The set of active cell ids.")
-  (winner-cells [this]
-    "The set of winning cell ids, one in each active column. These are
-    only _learning_ cells when they turn on, but are always
-    _learnable_.")
-  (predictive-cells [this]
-    "The set of predictive cell ids derived from the current active
-    cells. If the depolarise phase has not been applied yet, returns
-    nil.")
-  (prior-predictive-cells [this]
-    "The set of predictive cell ids from the previous timestep,
-    i.e. their prediction can be compared to the current active
-    cells."))
+  (layer-activate* [this ff-bits stable-ff-bits])
+  (layer-learn* [this])
+  (layer-depolarise* [this distal-ff-bits apical-fb-bits apical-fb-wc-bits])
+  (layer-state* [this])
+  (layer-depth* [this]))
+
+(defn layer-activate
+  [this ff-bits stable-ff-bits]
+  (layer-activate* this ff-bits stable-ff-bits))
+
+(s/fdef layer-activate
+        :args (s/cat :layer ::layer-of-cells
+                     :ff-bits ::bits
+                     :stable-ff-bits ::bits)
+        :fn (s/and #(= (timestep (:ret %))
+                       (inc (timestep (-> % :args :layer)))))
+        :ret ::layer-of-cells)
+
+(defn layer-learn
+  [this]
+  (layer-learn* this))
+
+(s/fdef layer-learn
+        :args (s/cat :layer ::layer-of-cells)
+        :ret ::layer-of-cells)
+
+(defn layer-depolarise
+  [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]
+  (layer-depolarise* this distal-ff-bits apical-fb-bits apical-fb-wc-bits))
+
+(s/fdef layer-depolarise
+        :args (s/cat :layer ::layer-of-cells
+                     :distal-ff-bits ::bits
+                     :apical-fb-bits ::bits
+                     :apical-fb-wc-bits ::bits)
+        :ret ::layer-of-cells)
+
+(defn layer-state
+  "The current information content of a layer, including the sets of active and
+  predicted cells. This is a generic view to work with different implementations."
+  [layer]
+  (layer-state* layer))
+
+(s/def ::active-columns (s/coll-of ::column-id :kind set?))
+(s/def ::bursting-columns ::active-columns)
+(s/def ::active-cells (s/coll-of ::cell-id :kind set?))
+(s/def ::winner-cells
+  #_"The set of winning cell ids, one in each active column. These are
+  only _learning_ cells when they turn on, but are always _learnable_."
+  ::active-cells)
+(s/def ::predictive-cells
+  #_"The set of predictive cell ids derived from the current active
+  cells. Can be nil if the depolarise phase has not been applied yet."
+  (s/nilable ::active-cells))
+(s/def ::prior-predictive-cells
+  #_"The set of predictive cell ids from the previous timestep,
+  i.e. their prediction can be compared to the current active cells."
+  ::active-cells)
+(s/def ::layer-state
+  (s/keys :req-un [::active-columns
+                   ::bursting-columns
+                   ::active-cells
+                   ::winner-cells
+                   ::predictive-cells
+                   ::prior-predictive-cells]))
+
+(s/fdef layer-state
+        :ret ::layer-state)
+
+(defn layer-depth
+  "Number of cells per column."
+  [this]
+  (layer-depth* this))
+
+(s/fdef layer-depth :ret pos-int?)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Synapse graphs
 
 (defprotocol PSynapseGraph
   "The synaptic connections from a set of sources to a set of targets.
@@ -115,6 +196,9 @@
   (cell-segments [this cell-id]
     "A vector of segments on the cell, each being a synapse map."))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Sensors and Encoders
+
 (defprotocol PSense
   "Sense nodes need to extend this together with PFeedForward."
   (sense-activate [this bits]))
@@ -138,6 +222,9 @@
      index to a number of votes, typically the number of synapse
      connections from predictive cells."))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Etc
+
 (defprotocol PRestartable
   (restart [this]
     "Returns this model (or model component) reverted to its initial
@@ -157,9 +244,6 @@
       pooling in any higher layers (not `this` layer).
     * :winners, allows new winner cells to be chosen in continuing
       columns."))
-
-(defprotocol PTemporal
-  (timestep [this]))
 
 (defprotocol PParameterised
   (params [this]

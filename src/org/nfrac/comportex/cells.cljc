@@ -1043,24 +1043,16 @@
 
 ;;; ## Specs
 
-(s/def ::bits (s/every nat-int? :distinct true))
-(s/def ::bits-set (s/every nat-int? :kind set?))
-(s/def ::column-id nat-int?)
-(s/def ::cell-id (s/tuple nat-int? nat-int?))
-(s/def ::seg-path (s/tuple nat-int? nat-int? nat-int?))
-(s/def ::excitation-amt (s/and number? #(>= % 0)))
-(s/def ::seg-exc (s/cat :seg ::seg-path, :exc ::excitation-amt))
-(s/def ::timestep nat-int?)
-
-(s/def ::in-ff-bits ::bits)
-(s/def ::in-stable-ff-bits ::bits)
-(s/def ::active-cols (s/coll-of ::column-id :kind set?))
+(s/def ::active-cols ::p/active-columns)
 (s/def ::burst-cols ::active-cols)
-(s/def ::active-cells (s/coll-of ::cell-id :kind set?))
-(s/def ::stable-active-cells ::active-cells)
-(s/def ::col-active-cells (s/map-of ::column-id (s/coll-of ::cell-id)))
-(s/def ::fully-matching-ff-seg-paths (s/map-of ::cell-id ::seg-exc))
-(s/def ::col-overlaps (s/every-kv (s/tuple ::column-id #{0}) ::excitation-amt))
+(s/def ::seg-exc (s/cat :seg ::p/seg-path, :exc ::p/excitation-amt))
+
+(s/def ::in-ff-bits ::p/bits)
+(s/def ::in-stable-ff-bits ::p/bits)
+(s/def ::stable-active-cells ::p/active-cells)
+(s/def ::col-active-cells (s/map-of ::p/column-id (s/coll-of ::p/cell-id)))
+(s/def ::fully-matching-ff-seg-paths (s/map-of ::p/cell-id ::seg-exc))
+(s/def ::col-overlaps (s/every-kv (s/tuple ::p/column-id #{0}) ::p/excitation-amt))
 
 (s/def ::spatial-pooling-return
   (s/keys :req-un [::active-cols
@@ -1072,8 +1064,8 @@
   across time steps."
   (s/keys :req-un [::fully-matching-ff-seg-paths
                    ::active-cols
-                   ::active-cells
-                   ::timestep]
+                   ::p/active-cells
+                   ::p/timestep]
           :opt-un [::in-ff-bits
                    ::in-stable-ff-bits
                    ::burst-cols
@@ -1081,40 +1073,40 @@
                    ::stable-active-cells
                    ::col-overlaps]))
 
-(s/def ::out-stable-ff-bits ::bits)
+(s/def ::out-stable-ff-bits ::p/bits)
 
 (s/def ::tp-state
   #_"Represents temporal pooling state; the information about activation of
   cells which persists across many time steps."
   (s/keys :opt-un [::out-stable-ff-bits]))
 
-(s/def ::col-winners (s/map-of ::column-id ::cell-id))
+(s/def ::col-winners (s/map-of ::p/column-id ::p/cell-id))
 (s/def ::winner-seg (s/map-of #{:distal :apical}
-                              (s/map-of ::cell-id (s/nilable ::seg-exc))))
-(s/def ::learning-cells (s/coll-of ::cell-id))
-(s/def ::learning-updates (s/map-of ::cell-id ::syn/seg-update))
+                              (s/map-of ::p/cell-id (s/nilable ::seg-exc))))
+(s/def ::learning-cells (s/coll-of ::p/cell-id))
+(s/def ::learning-updates (s/map-of ::p/cell-id ::syn/seg-update))
 (s/def ::learning (s/map-of #{:proximal :distal :apical :ilateral}
                             ::learning-updates))
 (s/def ::punishments (s/map-of #{:proximal :distal :apical :ilateral}
                                (s/coll-of ::syn/seg-update)))
-(s/def ::prior-active-cells ::active-cells)
+(s/def ::prior-active-cells ::p/active-cells)
 
 (s/def ::learn-state
   #_"Represents the changes due to learning in one time step, and information
   used in the learning process."
   (s/keys :req-un [::learning-cells
                    ::prior-active-cells
-                   ::timestep]
+                   ::p/timestep]
           :opt-un [::col-winners
                    ::winner-seg
                    ::learning
                    ::punishments]))
 
-(s/def ::active-bits ::bits-set)
-(s/def ::learnable-bits ::bits-set)
-(s/def ::cell-exc (s/map-of ::cell-id ::excitation-amt))
-(s/def ::pred-cells (s/every ::cell-id :kind set?))
-(s/def ::fully-matching-seg-paths (s/map-of ::cell-id ::seg-exc))
+(s/def ::active-bits ::p/bits-set)
+(s/def ::learnable-bits ::p/bits-set)
+(s/def ::cell-exc (s/map-of ::p/cell-id ::p/excitation-amt))
+(s/def ::pred-cells (s/every ::p/cell-id :kind set?))
+(s/def ::fully-matching-seg-paths (s/map-of ::p/cell-id ::seg-exc))
 
 (s/def ::distal-state
   #_"Represents the activation state of a synapse graph, e.g. the distal
@@ -1124,7 +1116,7 @@
                    ::cell-exc
                    ::pred-cells
                    ::fully-matching-seg-paths
-                   ::timestep]))
+                   ::p/timestep]))
 
 (defrecord LayerActiveState [])
 (defrecord LayerTPState [])
@@ -1299,7 +1291,7 @@
 (s/def ::apical-state ::distal-state)
 (s/def ::prior-apical-state ::distal-state)
 
-(s/def ::layer-of-cells
+(defmethod p/layer-spec ::standard-layer [_]
   (s/keys :req-un [::params
                    ::rng
                    ::topology
@@ -1337,14 +1329,6 @@
                :prior-state (if effective?
                               new-active-state
                               prior-state)))))
-
-(s/fdef layer-activate-impl
-        :args (s/cat :layer ::layer-of-cells
-                     :ff-bits ::bits
-                     :stable-ff-bits ::bits)
-        :fn (s/and #(= (p/timestep (:ret %))
-                       (inc (p/timestep (-> % :args :layer)))))
-        :ret ::layer-of-cells)
 
 (defn layer-learn-impl
   [layer]
@@ -1394,10 +1378,6 @@
        (zero? (mod timestep (:float-overlap-every params))) (columns/layer-float-overlap)
        (zero? (mod timestep (:inh-radius-every params))) (update-inhibition-radius)))))
 
-(s/fdef layer-learn-impl
-        :args (s/cat :layer ::layer-of-cells)
-        :ret ::layer-of-cells)
-
 (defn layer-depolarise-impl
   [layer distal-ff-bits apical-fb-bits apical-fb-wc-bits]
   (let [{:keys [params prior-state learn-state distal-state apical-state
@@ -1425,15 +1405,6 @@
      :apical-state (compute-distal-state apical-sg apical-bits apical-lbits
                                          (:apical params) timestep))))
 
-(s/fdef layer-depolarise-impl
-        :args (s/cat :layer ::layer-of-cells
-                     :distal-ff-bits ::bits
-                     :apical-fb-bits ::bits
-                     :apical-fb-wc-bits ::bits)
-        :fn (s/and #(= (-> % :ret :distal-state :timestep)
-                       (-> % :args :layer :state :timestep)))
-        :ret ::layer-of-cells)
-
 (defrecord LayerOfCells
     [params rng topology
      proximal-sg distal-sg apical-sg ilateral-sg state prior-state tp-state
@@ -1441,41 +1412,38 @@
 
   p/PLayerOfCells
 
-  (layer-activate
+  (layer-activate*
     [this ff-bits stable-ff-bits]
     (layer-activate-impl this ff-bits stable-ff-bits))
 
-  (layer-learn
+  (layer-learn*
     [this]
     (layer-learn-impl this))
 
-  (layer-depolarise
+  (layer-depolarise*
     [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]
     (layer-depolarise-impl this distal-ff-bits apical-fb-bits apical-fb-wc-bits))
 
-  (layer-depth [_]
+  (layer-state*
+   [_]
+   {:active-columns (:active-cols state)
+    :bursting-columns (:burst-cols state)
+    :active-cells (:active-cells state)
+    :winner-cells (set (vals (:col-winners learn-state)))
+    :predictive-cells (when (== (:timestep state)
+                                (:timestep distal-state))
+                        (:pred-cells distal-state))
+    :prior-predictive-cells (let [t-1 (dec (:timestep state))]
+                              (cond
+                                ;; after depolarise phase has run
+                                (== t-1 (:timestep prior-distal-state))
+                                (:pred-cells prior-distal-state)
+                                ;; before depolarise phase has run
+                                (== t-1 (:timestep distal-state))
+                                (:pred-cells distal-state)))})
+
+  (layer-depth* [_]
     (:depth params))
-  (bursting-columns [_]
-    (:burst-cols state))
-  (active-columns [_]
-    (:active-cols state))
-  (active-cells [_]
-    (:active-cells state))
-  (winner-cells [_]
-    (set (vals (:col-winners learn-state))))
-  (predictive-cells [_]
-    (when (== (:timestep state)
-              (:timestep distal-state))
-      (:pred-cells distal-state)))
-  (prior-predictive-cells [_]
-    (let [t-1 (dec (:timestep state))]
-      (cond
-        ;; after depolarise phase has run
-        (== t-1 (:timestep prior-distal-state))
-        (:pred-cells prior-distal-state)
-        ;; before depolarise phase has run
-        (== t-1 (:timestep distal-state))
-        (:pred-cells distal-state))))
 
   p/PInterruptable
   (break [this mode]
@@ -1558,7 +1526,8 @@
         learn-state (assoc empty-learn-state :timestep 0)
         distal-state (assoc empty-distal-state :timestep 0)]
     (check-param-deprecations params)
-    {:params params
+    {::p/layer-type ::standard-layer
+     :params params
      :rng rng
      :topology col-topo
      :input-topology input-topo
@@ -1586,4 +1555,4 @@
    (map->LayerOfCells)
    (update-inhibition-radius)))
 
-(s/fdef layer-of-cells :ret ::layer-of-cells)
+(s/fdef layer-of-cells :ret ::p/layer-of-cells)
