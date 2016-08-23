@@ -6,7 +6,10 @@
             [org.nfrac.comportex.topology-test]
             [clojure.spec.test :as stest]
             [clojure.test :as t
-             :refer (is deftest testing run-tests)]))
+             :refer (is deftest testing run-tests)]
+            [org.nfrac.comportex.repl]))
+
+(org.nfrac.comportex.repl/truncate-large-data-structures)
 
 (stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.cells))
 

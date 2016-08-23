@@ -10,12 +10,19 @@
 (s/def ::cell-id (s/tuple nat-int? nat-int?))
 (s/def ::seg-path (s/tuple nat-int? nat-int? nat-int?))
 (s/def ::excitation-amt (s/and number? #(>= % 0)))
+(s/def ::seg-exc (s/every-kv ::seg-path ::excitation-amt))
 (s/def ::timestep nat-int?)
+
+(s/def ::permanence (s/double-in :min 0.0 :max 1.0 :NaN? false))
+(s/def ::segment (s/every-kv nat-int? ::permanence))
 
 (defmulti layer-spec ::layer-type)
 (s/def ::layer-of-cells (s/multi-spec layer-spec ::layer-type))
 (s/def ::layer-type keyword?)
 
+(defmulti synapse-graph-spec ::synapse-graph-type)
+(s/def ::synapse-graph (s/multi-spec synapse-graph-spec ::synapse-graph-type))
+(s/def ::synapse-graph-type keyword?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Hierarchy

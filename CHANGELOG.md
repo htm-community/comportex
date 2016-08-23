@@ -5,7 +5,7 @@
 - The parameter specification map now referred to as params instead of spec.
   To avoid confusion with `clojure.spec` where specs define function usage.
   The breaking part of this is renaming key :spec to :params in LayerOfCells.
-- within layer, state key :matching-seg-paths is now :fully-matching-seg-paths.
+- within layer, state key :matching-seg-paths is now :fully-matching-segs.
 - protocols namespace functions active-columns, bursting-columns, active-cells,
   winner-cells, predictive-cells and prior-predictive-cells replaced with just
   layer-state, which returns all the above under keys of the same names.

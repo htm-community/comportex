@@ -145,7 +145,8 @@
 (defn empty-synapse-graph
   [n-targets n-sources pcon cull-zeros?]
   (map->SynapseGraph
-   {:syns-by-target (vec (repeat n-targets {}))
+   {::p/synapse-graph-type ::int-sg
+    :syns-by-target (vec (repeat n-targets {}))
     :targets-by-source (vec (repeat n-sources #{}))
     :pcon pcon
     :cull-zeros? cull-zeros?}))
@@ -161,10 +162,14 @@
                     (transient (vec (repeat n-sources #{})))
                     syns-by-target))]
     (map->SynapseGraph
-     {:syns-by-target syns-by-target
+     {::p/synapse-graph-type ::int-sg
+      :syns-by-target syns-by-target
       :targets-by-source targets-by-source
       :pcon pcon
       :cull-zeros? cull-zeros?})))
+
+(defmethod p/synapse-graph-spec ::int-sg [_]
+  (s/keys :req-un [])) ;; TODO
 
 ;;; ## Dendrite segments
 
@@ -229,7 +234,8 @@
   (let [n-targets (* n-cols depth max-segs)
         int-sg (empty-synapse-graph n-targets n-sources pcon cull-zeros?)]
     (map->CellSegmentsSynapseGraph
-     {:int-sg int-sg
+     {::p/synapse-graph-type ::seg-sg
+      :int-sg int-sg
       :depth depth
       :max-segs max-segs})))
 
@@ -251,6 +257,10 @@
                                     (map-indexed vector syns-by-col)))
         int-sg (synapse-graph int-syns-by-target n-sources pcon cull-zeros?)]
     (map->CellSegmentsSynapseGraph
-     {:int-sg int-sg
+     {::p/synapse-graph-type ::seg-sg
+      :int-sg int-sg
       :depth 1
       :max-segs max-segs})))
+
+(defmethod p/synapse-graph-spec ::seg-sg [_]
+  (s/keys :req-un [])) ;; TODO
