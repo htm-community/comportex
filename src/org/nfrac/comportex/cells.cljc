@@ -29,56 +29,60 @@
              :refer [count-filter remap round]]
             [clojure.test.check.random :as random]
             [clojure.set :as set]
-            [clojure.spec :as s]))
+            [clojure.spec :as s]
+            [clojure.spec.gen :as gen]))
 
 (s/def ::max-segments
   #_"maximum number of dendrites segments per cell (or column for proximal)."
-  (s/int-in 1 10000))
+  (-> (s/int-in 1 1e6)
+      (s/with-gen #(s/gen (s/int-in 1 10)))))
 
 (s/def ::max-synapse-count
   #_"maximum number of synapses per segment."
-  (s/int-in 1 10000))
+  (s/int-in 1 1e6))
 
 (s/def ::new-synapse-count
   #_"number of synapses created on a new dendrite segment."
-  (s/int-in 1 10000))
+  (s/int-in 1 1e6))
 
 (s/def ::stimulus-threshold
   #_"minimum number of active synapses on a segment for it to become active."
-  (s/int-in 0 100))
+  (-> (s/int-in 0 1000)
+      (s/with-gen #(s/gen (s/int-in 0 4)))))
 
 (s/def ::learn-threshold
   #_"minimum number of active synapses on a segment for it to be reinforced and
   extended if it is the best matching."
-  (s/int-in 0 10000))
+  (-> (s/int-in 1 10000)
+      (s/with-gen #(s/gen (s/int-in 1 40)))))
 
 (s/def ::perm-inc
   #_"amount by which to increase synapse permanence to active sources when
   reinforcing a segment."
-  (s/double-in :min 0.0 :max 1.0))
+  ::p/permanence)
 
 (s/def ::perm-dec
   #_"amount by which to decrease synapse permanence to inactive sources when
   reinforcing a segment."
-  (s/double-in :min 0.0 :max 1.0))
+  ::p/permanence)
 
 (s/def ::perm-connected
   #_"permanence value at which a synapse is functionally connected."
-  (s/double-in :min 0.0 :max 1.0))
+  ::p/permanence)
 
 (s/def ::perm-init
   #_"initial permanence value for new synapses on segments."
-  (s/double-in :min 0.0 :max 1.0))
+  ::p/permanence)
 
 (s/def ::perm-stable-inc
   #_"amount by which to increase synapse permanence to stable (predicted)
   sources when reinforcing a segment."
-  (s/double-in :min 0.0 :max 1.0))
+  ::p/permanence)
 
 (s/def ::perm-punish
   #_"amount by which to decrease synapse permanence when punishing segments in
   case of failed prediction."
-  (s/double-in :min 0.0 :max 1.0))
+  ::p/permanence)
 
 (s/def ::punish?
   #_"whether to reduce synapse permanence on segments incorrectly predicting
@@ -126,34 +130,44 @@
 (s/def ::input-dimensions
   #_"size of input bit grid as a vector, one dimensional `[size]`,
   two dimensional `[width height]`, etc."
-  (s/coll-of (s/int-in 1 1e7) :kind vector? :min-count 1 :max-count 3))
+  (s/coll-of (s/int-in 1 1e7) :kind vector? :min-count 1 :max-count 3
+             :gen (fn []
+                    (s/gen (s/and (s/coll-of (s/int-in 1 2048) :kind vector?
+                                             :min-count 1 :max-count 3)
+                                  #(<= (reduce * %) 2048))))))
 
 (s/def ::column-dimensions
   #_"size of column field as a vector, one dimensional `[size]`,
   or two dimensional `[width height]`"
-  (s/coll-of (s/int-in 1 1e7) :kind vector? :min-count 1 :max-count 2))
+  (s/coll-of (s/int-in 1 1e7) :kind vector? :min-count 1 :max-count 2
+             :gen (fn []
+                    (s/gen (s/and (s/coll-of (s/int-in 1 2048) :kind vector?
+                                             :min-count 1 :max-count 2)
+                                  #(<= (reduce * %) 2048))))))
 
 (s/def ::depth
   #_"number of cells per column. Value 1 gives first-order sequence memory."
-  (s/int-in 1 1e5))
+  (-> (s/int-in 1 1e5)
+      (s/with-gen #(s/gen (s/int-in 1 8)))))
 
 (s/def ::ff-potential-radius
   #_"range of potential feed-forward synapse connections, as a fraction of the
   longest single dimension in the input space."
-  (s/double-in :min 0.0 :max 1.0))
+  (s/double-in :min 1/10000 :max 1.0 :NaN? false))
 
 (s/def ::ff-init-frac
   #_"fraction of inputs within radius of a column that will be initialised with
   proximal synapses."
-  (s/double-in :min 0.0 :max 1.0))
+  (s/double-in :min 0.0 :max 1.0 :NaN? false))
 
-(s/def ::ff-perm-init-hi
-  #_"highest initial permanence value on proximal synapses."
-  (s/double-in :min 0.0 :max 1.0))
+(s/def ::ff-perm-init
+  #_"range of initial permanence values on proximal synapses."
+  (s/and (s/tuple ::p/permanence ::p/permanence)
+         (fn [[lo hi]] (<= lo hi))))
 
-(s/def ::ff-perm-init-lo
-  #_"lowest initial permanence value on proximal synapses."
-  (s/double-in :min 0.0 :max 1.0))
+(s/def ::grow?
+  #_"whether to grow new synapses on segments, like on the usual distal segments."
+  boolean?)
 
 (s/def ::proximal
   #_"parameters for proximal dendrite segments."
@@ -173,7 +187,7 @@
 
 (s/def ::max-boost
   #_"ceiling on the column boosting factor used to increase activation frequency."
-  (s/and number? #(>= % 1)))
+  (s/and ::p/excitation-amt #(>= % 1)))
 
 (s/def ::duty-cycle-period
   #_"number of time steps to average over when updating duty cycles and (thereby)
@@ -183,16 +197,19 @@
 (s/def ::boost-active-duty-ratio
   #_"when a column's activation frequency is below this proportion of the
   highest of its neighbours, its boost factor is increased."
-  (s/double-in :min 0.0 :max 1.0))
+  (s/double-in :min 0.0 :max 1.0 :NaN? false))
 
 (s/def ::adjust-overlap-duty-ratio
   #_"when a column's overlap frequency differs from any of its neighbours by at
   least this fraction, its permanences are adjusted."
-  (s/double-in :min 0.0 :max 1.0))
+  (s/double-in :min 0.0 :max 1.0 :NaN? false))
 
 (s/def ::float-overlap-duty-ratio
   #_""
-  (s/double-in :min 0.0 :max 1.0))
+  (s/double-in :min 0.0 :max 1.0 :NaN? false))
+
+(s/def ::float-overlap-duty-ratio-hi
+  (s/double-in :min 1.0 :max 1e6 :NaN? false))
 
 (s/def ::boost-active-every
   #_"number of time steps between recalculating column boosting factors."
@@ -234,34 +251,38 @@
 
 (s/def ::distal-motor-dimensions
   #_"defines bit field available for feed-forward motor input to distal synapses."
-  (s/coll-of (s/int-in 0 1e7) :kind vector? :min-count 1 :max-count 2))
+  (s/coll-of (s/int-in 0 1e7) :kind vector? :min-count 1 :max-count 2
+             :gen (fn []
+                    (s/gen (s/and (s/coll-of (s/int-in 1 1024) :kind vector?
+                                   :min-count 1 :max-count 2))
+                           #(<= (reduce * %) 1024)))))
 
 (s/def ::distal-topdown-dimensions
   #_"defines bit field available for top-down feedback to distal synapses."
-  (s/coll-of (s/int-in 0 1e7) :kind vector? :min-count 1 :max-count 2))
+  ::distal-motor-dimensions)
 
 (s/def ::activation-level
   #_"fraction of columns that can be active; inhibition kicks in to reduce it to
   this level."
-  (s/double-in :min 0.0 :max 1.0))
+  (s/double-in :min 1/10000 :max 1.0 :NaN? false))
 
 (s/def ::inhibition-base-distance
   #_"the distance in columns within which a cell will always inhibit neighbouring
   cells with lower excitation. Used by `:spatial-pooling :local-inhibition`."
-  (s/int-in 0 1000))
+  (s/int-in 0 1e5))
 
 (s/def ::distal-vs-proximal-weight
   #_"scaling to apply to the number of active distal synapses (on the winning
   segment) before adding to the number of active proximal synapses, when
   selecting active columns. Set to zero to disable ``prediction-assisted''
   activation."
-  (s/and number? #(>= % 0)))
+  (s/double-in :min 0.0 :max 1e6 :NaN? false))
 
 (s/def ::apical-bias-frac
   #_"probability of choosing a winner cell according to apical excitation when
   otherwise the choice would have been random. Generates similarity between
   cases in similar contexts."
-  (s/double-in :min 0.0 :max 1.0))
+  (s/double-in :min 0.0 :max 1.0 :NaN? false))
 
 (s/def ::spontaneous-activation?
   #_"if true, cells may become active with sufficient distal synapse excitation,
@@ -272,7 +293,7 @@
   #_"an amount of excitation (generally measured in number of active synapses) by
   which one cell must exceed all others in the column to be considered dominant.
   And therefore to inhibit all other cells in the column."
-  (s/and number? pos?))
+  ::p/excitation-amt)
 
 (s/def ::stable-activation-steps
   #_"number of time steps that synapses remain active from cells whose activation
@@ -284,7 +305,7 @@
   #_"effective time steps are delayed until the similarity (normalised column
   overlap) between successive states falls below this level. So 1.0 means every
   time step is effective - the usual behaviour."
-  (s/double-in :min 0.0 :max 1.0))
+  (s/double-in :min 0.0 :max 1.0 :NaN? false))
 
 (s/def ::random-seed
   #_"the random seed (for reproducible results)."
@@ -294,12 +315,14 @@
   #_"keyword to look up a spatial pooling implementation of the multimethod
   `org.nfrac.comportex.cells/spatial-pooling`. An alternative is
   `:local-inhibition`, implemented in this namespace."
-  keyword?)
+  (-> keyword?
+      (s/with-gen #(s/gen #{:standard :local-inhibition}))))
 
 (s/def ::temporal-pooling
   #_"keyword to look up a temporal pooling implementation of the multimethod
   #`org.nfrac.comportex.cells/temporal-pooling`."
-  keyword?)
+  (-> keyword?
+      (s/with-gen #(s/gen #{:standard}))))
 
 (s/def ::params
   #_"A standard parameter set for a layer."
@@ -308,8 +331,7 @@
                        ::depth
                        ::ff-potential-radius
                        ::ff-init-frac
-                       ::ff-perm-init-hi
-                       ::ff-perm-init-lo
+                       ::ff-perm-init
                        ::proximal
                        ::distal
                        ::apical
@@ -338,8 +360,7 @@
    :depth 5
    :ff-potential-radius 1.0
    :ff-init-frac 0.25
-   :ff-perm-init-hi 0.25
-   :ff-perm-init-lo 0.10
+   :ff-perm-init [0.10 0.25]
    :proximal {:max-segments 1
               :max-synapse-count 300
               :new-synapse-count 12
@@ -410,7 +431,8 @@
 
 ;;; ## Specs
 
-(s/def ::rng #(satisfies? random/IRandom %))
+(s/def ::rng (-> #(satisfies? random/IRandom %)
+                 (s/with-gen #(gen/fmap random/make-random (gen/int)))))
 
 (s/def ::active-cols ::p/active-columns)
 (s/def ::burst-cols ::active-cols)
@@ -480,6 +502,47 @@
                    ::pred-cells
                    ::fully-matching-segs
                    ::p/timestep]))
+
+(s/def ::proximal-sg ::p/synapse-graph)
+(s/def ::distal-sg ::p/synapse-graph)
+(s/def ::apical-sg ::p/synapse-graph)
+(s/def ::ilateral-sg ::p/synapse-graph)
+(s/def ::state ::active-state)
+(s/def ::prior-state ::active-state)
+(s/def ::prior-distal-state ::distal-state)
+(s/def ::apical-state ::distal-state)
+(s/def ::prior-apical-state ::distal-state)
+
+(declare layer-of-cells)
+
+(s/def ::layer-of-cells
+  (->
+   (s/keys :req [::p/layer-type]
+           :req-un [::params
+                    ::rng
+                    ::topology
+                    ::input-topology
+                    ::proximal-sg
+                    ::distal-sg
+                    ::apical-sg
+                    ::ilateral-sg
+                    ::state
+                    ::prior-state
+                    ::tp-state
+                    ::distal-state
+                    ::prior-distal-state
+                    ::apical-state
+                    ::prior-apical-state
+                    ::learn-state
+                    ::inh-radius
+                    ::boosts
+                    ::active-duty-cycles
+                    ::overlap-duty-cycles])
+   ;; this only generates fresh (empty) layers; see ./generators ns.
+   (s/with-gen #(gen/fmap layer-of-cells (s/gen ::params)))))
+
+(defmethod p/layer-spec ::standard-layer [_]
+  ::layer-of-cells)
 
 ;;; ## Synapse tracing
 
@@ -580,7 +643,7 @@
                      :pcon ::perm-connected)
         :ret (s/cat :seg-index (s/nilable nat-int?)
                     :exc ::p/excitation-amt
-                    :syns :p/segment))
+                    :syns ::p/segment))
 
 (defn best-segment-excitations-and-paths
   "Finds the most excited dendrite segment for each cell. Returns two maps,
@@ -940,7 +1003,7 @@
                      :max-segs ::max-segments
                      :max-syns ::max-synapse-count)
         :ret (s/cat :seg-index nat-int?
-                    :syns (s/nilable :p/segment)))
+                    :syns (s/nilable ::p/segment)))
 
 (defn segment-new-synapse-source-ids
   "Returns a collection of up to n ids chosen from the learnable
@@ -957,9 +1020,9 @@
 (s/fdef segment-new-synapse-source-ids
         :args (s/cat :seg ::p/segment
                      :learnable-bits (s/coll-of nat-int? :distinct true :kind vector?)
-                     :n nat-int?
+                     :n (s/int-in 0 1e7)
                      :rng ::rng)
-        :ret (s/coll-of nat-int? :distinct true))
+        :ret (s/nilable (s/coll-of nat-int? :distinct true)))
 
 (defn learning-updates
   "Takes the learning `cells` and maps each to a SegUpdate record,
@@ -1237,6 +1300,7 @@
          (inh/inhibition-radius (:proximal-sg layer) (:topology layer)
                                 (:input-topology layer))))
 
+;; these are records only so as to work with repl/truncate-large-data-structures
 (defrecord LayerActiveState [])
 (defrecord LayerTPState [])
 (defrecord LayerLearnState [])
@@ -1274,7 +1338,7 @@
         :args (s/cat :layer ::p/layer-of-cells
                      :ff-bits ::p/bits
                      :stable-ff-bits ::p/bits
-                     :fb-cell-exc ::cell-exc)
+                     :fb-cell-exc (-> ::cell-exc (s/with-gen #(gen/return {}))))
         :ret (s/keys :req-un [::active-cols
                               ::fully-matching-ff-segs
                               ::col-overlaps]))
@@ -1372,7 +1436,7 @@
        :timestep (inc (:timestep (:state layer)))}))))
 
 (s/fdef compute-active-state
-        :args (s/cat :layer ::p/layer-of-cells
+        :args (s/cat :layer ::layer-of-cells
                      :ff-bits ::p/bits
                      :stable-ff-bits ::p/bits)
         :ret ::active-state)
@@ -1420,38 +1484,6 @@
                      :dparams ::synapse-graph-params
                      :t ::p/timestep)
         :ret ::distal-state)
-
-(s/def ::proximal-sg ::p/synapse-graph)
-(s/def ::distal-sg ::p/synapse-graph)
-(s/def ::apical-sg ::p/synapse-graph)
-(s/def ::ilateral-sg ::p/synapse-graph)
-(s/def ::state ::active-state)
-(s/def ::prior-state ::active-state)
-(s/def ::prior-distal-state ::distal-state)
-(s/def ::apical-state ::distal-state)
-(s/def ::prior-apical-state ::distal-state)
-
-(defmethod p/layer-spec ::standard-layer [_]
-  (s/keys :req-un [::params
-                   ::rng
-                   ::topology
-                   ::input-topology
-                   ::proximal-sg
-                   ::distal-sg
-                   ::apical-sg
-                   ::ilateral-sg
-                   ::state
-                   ::prior-state
-                   ::tp-state
-                   ::distal-state
-                   ::prior-distal-state
-                   ::apical-state
-                   ::prior-apical-state
-                   ::learn-state
-                   ::inh-radius
-                   ::boosts
-                   ::active-duty-cycles
-                   ::overlap-duty-cycles]))
 
 (defn layer-activate-impl
   [layer ff-bits stable-ff-bits]
@@ -1695,4 +1727,4 @@
    (map->LayerOfCells)
    (update-inhibition-radius)))
 
-(s/fdef layer-of-cells :ret ::p/layer-of-cells)
+(s/fdef layer-of-cells :ret ::layer-of-cells)

@@ -12,6 +12,7 @@
 (org.nfrac.comportex.repl/truncate-large-data-structures)
 
 (stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.cells))
+(stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.protocols))
 
 (run-tests 'org.nfrac.comportex.spatial-pooling-test
            'org.nfrac.comportex.sequence-memory-test

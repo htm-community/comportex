@@ -24,7 +24,8 @@
                 :compiler {:output-dir "public/out"
                            :output-to "public/comportex.js"}}}}
 
-  :profiles {:dev {:dependencies [[criterium "0.4.4"]]
+  :profiles {:dev {:dependencies [[com.gfredericks/test.chuck "0.2.7"]
+                                  [criterium "0.4.4"]]
                    ;:plugins [[lein-marginalia "0.9.0"]]
                    :cljsbuild {:builds
                                {:main
@@ -37,4 +38,6 @@
                                  {:compiler
                                   {:optimizations :advanced
                                    :source-map "public/comportex.js.map"}}}}}
-             :repl {:source-paths ["dev" "src"]}})
+             :repl {:source-paths ["dev" "src"]}}
+
+ :monkeypatch-clojure-test false)

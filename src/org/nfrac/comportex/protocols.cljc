@@ -1,20 +1,25 @@
 (ns org.nfrac.comportex.protocols
-  (:require [clojure.spec :as s]))
+  (:require [clojure.spec :as s]
+            [clojure.spec.gen :as gen]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Common specs
 
-(s/def ::bits (s/every nat-int? :distinct true))
-(s/def ::bits-set (s/every nat-int? :kind set?))
-(s/def ::column-id nat-int?)
-(s/def ::cell-id (s/tuple nat-int? nat-int?))
-(s/def ::seg-path (s/tuple nat-int? nat-int? nat-int?))
-(s/def ::excitation-amt (s/and number? #(>= % 0)))
+(s/def ::bit (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
+(s/def ::bits (s/every ::bit :distinct true))
+(s/def ::bits-set (s/every ::bit :kind set?))
+(s/def ::column-id (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
+(s/def ::cell-index (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 32)))))
+(s/def ::cell-id (s/tuple ::column-id ::cell-index))
+(s/def ::seg-path (s/tuple ::column-id ::cell-index ::cell-index))
+(s/def ::excitation-amt (-> (s/and number? #(<= 0 % 1e12)
+                                   #(not (Double/isNaN %)))
+                            (s/with-gen #(s/gen (s/int-in 0 500)))))
 (s/def ::seg-exc (s/every-kv ::seg-path ::excitation-amt))
 (s/def ::timestep nat-int?)
 
 (s/def ::permanence (s/double-in :min 0.0 :max 1.0 :NaN? false))
-(s/def ::segment (s/every-kv nat-int? ::permanence))
+(s/def ::segment (s/every-kv ::bit ::permanence))
 
 (defmulti layer-spec ::layer-type)
 (s/def ::layer-of-cells (s/multi-spec layer-spec ::layer-type))
@@ -111,10 +116,14 @@
   [this ff-bits stable-ff-bits]
   (layer-activate* this ff-bits stable-ff-bits))
 
+(s/def ::layer-activate-args
+  #_"Args spec for layer-activate, external to allow generator override."
+  (s/cat :layer ::layer-of-cells
+         :ff-bits ::bits
+         :stable-ff-bits ::bits))
+
 (s/fdef layer-activate
-        :args (s/cat :layer ::layer-of-cells
-                     :ff-bits ::bits
-                     :stable-ff-bits ::bits)
+        :args ::layer-activate-args
         :fn (s/and #(= (timestep (:ret %))
                        (inc (timestep (-> % :args :layer)))))
         :ret ::layer-of-cells)
@@ -168,6 +177,7 @@
                    ::prior-predictive-cells]))
 
 (s/fdef layer-state
+        :args (s/cat :layer ::layer-of-cells)
         :ret ::layer-state)
 
 (defn layer-depth

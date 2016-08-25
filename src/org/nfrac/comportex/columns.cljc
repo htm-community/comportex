@@ -18,11 +18,10 @@
    dimension, and of those, `ff-init-frac` are chosen from a
    uniform random distribution.
 
-   Initial permanence values are uniformly distributed between
-   `ff-perm-init-lo` and `ff-perm-init-hi`."
+   Initial permanence values are uniformly distributed in the range of
+   `ff-perm-init`."
   [topo itopo params rng]
-  (let [p-hi (:ff-perm-init-hi params)
-        p-lo (:ff-perm-init-lo params)
+  (let [[p-lo p-hi] (:ff-perm-init params)
         global? (>= (:ff-potential-radius params) 1.0)
         ;; radius in input space, fraction of longest dimension
         radius (long (* (:ff-potential-radius params)
