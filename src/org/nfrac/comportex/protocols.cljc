@@ -21,6 +21,18 @@
 (s/def ::permanence (s/double-in :min 0.0 :max 1.0 :NaN? false))
 (s/def ::segment (s/every-kv ::bit ::permanence))
 
+(s/def ::operation #{:learn :punish :reinforce})
+(s/def ::grow-sources (s/nilable ::bits))
+(s/def ::die-sources (s/nilable ::bits))
+(s/def ::seg-update
+  (s/keys :req-un [::target-id
+                   ::operation]
+          :opt-un [::grow-sources
+                   ::die-sources]))
+
+(s/def ::n-synapse-targets (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
+(s/def ::n-synapse-sources (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
+
 (defmulti layer-spec ::layer-type)
 (s/def ::layer-of-cells (s/multi-spec layer-spec ::layer-type))
 (s/def ::layer-type keyword?)
@@ -30,10 +42,17 @@
 (s/def ::synapse-graph-type keyword?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Hierarchy
+;;; Util
 
 (defprotocol PTemporal
   (timestep [this]))
+
+(defprotocol PParameterised
+  (params [this]
+    "A parameter set as map with keyword keys."))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Hierarchy
 
 (defprotocol PHTM
   "A network of regions and senses, forming Hierarchical Temporal Memory."
@@ -117,10 +136,16 @@
   (layer-activate* this ff-bits stable-ff-bits))
 
 (s/def ::layer-activate-args
-  #_"Args spec for layer-activate, external to allow generator override."
-  (s/cat :layer ::layer-of-cells
-         :ff-bits ::bits
-         :stable-ff-bits ::bits))
+  #_"Args spec for layer-activate, given an id here to allow generator override."
+  (s/and
+   (s/cat :layer ::layer-of-cells
+          :ff-bits ::bits
+          :stable-ff-bits ::bits)
+   (fn [v]
+     (let [par (params (:layer v))
+           n-in (reduce * (:input-dimensions par))]
+       (and (every? #(< % n-in) (:ff-bits v))
+            (every? (set (:ff-bits v)) (:stable-ff-bits v)))))))
 
 (s/fdef layer-activate
         :args ::layer-activate-args
@@ -204,10 +229,42 @@
     "Computes a map of target ids to their degree of excitation -- the
     number of sources in `active-sources` they are connected to -- excluding
     any below `stimulus-threshold`.")
-  (bulk-learn [this seg-updates active-sources pinc pdec pinit]
+  (bulk-learn* [this seg-updates active-sources pinc pdec pinit]
     "Applies learning updates to a batch of targets. `seg-updates` is
     a sequence of SegUpdate records, one for each target dendrite
     segment."))
+
+(defn bulk-learn
+  [this seg-updates active-sources pinc pdec pinit]
+  (bulk-learn* this seg-updates active-sources pinc pdec pinit))
+
+(defn valid-seg-update?
+  [upd sg]
+  (let [n (::n-synapse-sources sg)
+        syns (in-synapses sg (:target-id upd))]
+    (and (map? syns)
+         (every? #(< % n) (:grow-sources upd))
+         (every? #(< % n) (:die-sources upd))
+         (not-any? #(contains? syns %) (:grow-sources upd))
+         (every? #(contains? syns %) (:die-sources upd)))))
+
+(s/def ::bulk-learn-args
+  #_"Args spec for bulk-learn, given an id here to allow generator override."
+  (s/and
+   (s/cat :sg ::synapse-graph
+          :seg-updates (s/and (s/every ::seg-update)
+                              #(->> (map :target-id %) (apply distinct? nil)))
+          :active-sources (s/or :set ::bits-set
+                                :fn (s/fspec :args (s/cat :bit ::bit)))
+          :pinc ::permanence
+          :pdec ::permanence
+          :pinit ::permanence)
+   (fn [v]
+     (every? #(valid-seg-update? % (:sg v)) (:seg-updates v)))))
+
+(s/fdef bulk-learn
+        :args ::bulk-learn-args
+        :ret ::synapse-graph)
 
 (defprotocol PSegments
   (cell-segments [this cell-id]
@@ -261,10 +318,6 @@
       pooling in any higher layers (not `this` layer).
     * :winners, allows new winner cells to be chosen in continuing
       columns."))
-
-(defprotocol PParameterised
-  (params [this]
-    "A parameter set as map with keyword keys."))
 
 (defprotocol PTopological
   (topology [this]))

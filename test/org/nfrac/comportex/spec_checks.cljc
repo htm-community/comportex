@@ -1,7 +1,7 @@
 (ns org.nfrac.comportex.spec-checks
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.cells :as cells]
-            [org.nfrac.comportex.generators :refer [fancy-gens]]
+            [org.nfrac.comportex.fancy-generators :refer [fancy-gens]]
             [clojure.spec.test :as stest]
             [clojure.test.check.clojure-test :as ctcc]
             [clojure.test :as t
@@ -13,8 +13,12 @@
 (alter-var-root #'ctcc/*report-shrinking* (constantly true))
 (alter-var-root #'ctcc/*report-trials* (constantly ctcc/trial-report-periodic))
 
-(def opts {:clojure.spec.test.check/opts {:num-tests 50}
+(alias 'stc 'clojure.spec.test.check)
+(def opts {::stc/opts {:num-tests 50}
            :gen fancy-gens})
+
+(stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.cells))
+(stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.protocols))
 
 (deftest cells-light-fns-test
   (-> `[cells/segment-activation
@@ -39,7 +43,7 @@
         cells/punish-distal
         cells/compute-distal-state
         cells/layer-learn-proximal]
-      (stest/check opts)
+      (stest/check (assoc-in opts [::stc/opts :num-tests] 50))
       (stest/summarize-results)))
 
 ;; requires layer-of-cells generator
@@ -48,5 +52,5 @@
    `[p/layer-activate]
      ;cells/spatial-pooling
      ;cells/temporal-pooling]
-   (stest/check opts)
+   (stest/check (assoc-in opts [::stc/opts :num-tests] 200))
    (stest/summarize-results)))

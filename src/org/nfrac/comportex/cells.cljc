@@ -68,7 +68,7 @@
 
 (s/def ::perm-connected
   #_"permanence value at which a synapse is functionally connected."
-  ::p/permanence)
+  (s/and ::p/permanence pos?))
 
 (s/def ::perm-init
   #_"initial permanence value for new synapses on segments."
@@ -253,7 +253,7 @@
   #_"defines bit field available for feed-forward motor input to distal synapses."
   (s/coll-of (s/int-in 0 1e7) :kind vector? :min-count 1 :max-count 2
              :gen (fn []
-                    (s/gen (s/and (s/coll-of (s/int-in 1 1024) :kind vector?
+                    (s/gen (s/and (s/coll-of (s/int-in 1 512) :kind vector?
                                    :min-count 1 :max-count 2))
                            #(<= (reduce * %) 1024)))))
 
@@ -299,7 +299,7 @@
   #_"number of time steps that synapses remain active from cells whose activation
   was predicted and thus generated minibursts to metabotropic receptors. They
   might be curtailed earlier by a manual break."
-  (s/int-in 0 1e6))
+  (s/int-in 1 1e6))
 
 (s/def ::transition-similarity
   #_"effective time steps are delayed until the similarity (normalised column
@@ -438,8 +438,8 @@
 (s/def ::burst-cols ::active-cols)
 (s/def ::best-seg (s/cat :seg ::p/seg-path, :exc ::p/excitation-amt))
 
-(s/def ::in-ff-bits ::p/bits)
-(s/def ::in-stable-ff-bits ::p/bits)
+(s/def ::in-ff-bits ::p/bits-set)
+(s/def ::in-stable-ff-bits ::p/bits-set)
 (s/def ::stable-active-cells ::p/active-cells)
 (s/def ::col-active-cells (s/map-of ::p/column-id (s/coll-of ::p/cell-id)))
 (s/def ::fully-matching-ff-segs (s/every-kv ::p/cell-id ::best-seg))
@@ -468,22 +468,22 @@
 
 (s/def ::col-winners (s/map-of ::p/column-id ::p/cell-id))
 (s/def ::winner-seg (s/map-of #{:distal :apical} ::matching-segs))
-(s/def ::learning-cells (s/coll-of ::p/cell-id))
-(s/def ::learning-updates (s/map-of ::p/cell-id ::syn/seg-update))
+(s/def ::learning-cells (s/nilable (s/coll-of ::p/cell-id)))
+(s/def ::learning-updates (s/map-of ::p/cell-id ::p/seg-update))
 (s/def ::learning (s/map-of #{:proximal :distal :apical :ilateral}
                             ::learning-updates))
 (s/def ::punishments (s/map-of #{:proximal :distal :apical :ilateral}
-                               (s/coll-of ::syn/seg-update)))
+                               (s/coll-of ::p/seg-update)))
 (s/def ::prior-active-cells ::p/active-cells)
 
 (s/def ::learn-state
   #_"Represents the changes due to learning in one time step, and information
   used in the learning process."
-  (s/keys :req-un [::learning-cells
-                   ::prior-active-cells
+  (s/keys :req-un [::prior-active-cells
                    ::p/timestep]
           :opt-un [::col-winners
                    ::winner-seg
+                   ::learning-cells
                    ::learning
                    ::punishments]))
 
@@ -608,7 +608,7 @@
 (s/fdef segment-activation
         :args (s/cat :syns ::p/segment
                      :active-bits ::p/bits-set
-                     :pcon ::perm-connected)
+                     :pcon ::p/permanence) ;; can be zero here
         :ret nat-int?)
 
 (defn best-matching-segment
@@ -640,7 +640,7 @@
         :args (s/cat :segs (s/every ::p/segment)
                      :active-bits ::p/bits-set
                      :min-act ::learn-threshold
-                     :pcon ::perm-connected)
+                     :pcon ::p/permanence) ;; can be zero here
         :ret (s/cat :seg-index (s/nilable nat-int?)
                     :exc ::p/excitation-amt
                     :syns ::p/segment))
@@ -722,7 +722,10 @@
                      :distal-weight ::distal-vs-proximal-weight
                      :spontaneous-activation? ::spontaneous-activation?
                      :depth ::depth)
-        :ret ::cell-exc)
+        :ret ::cell-exc
+        ;; check that every column in col-exc appears in result
+        :fn (fn [v] (every? (->> v :ret keys (map first) (set))
+                            (->> v :args :col-exc keys (map first)))))
 
 (defn column-active-cells
   "Returns a sequence of cell ids to become active in the column.
@@ -1080,7 +1083,7 @@
         (persistent! m)))))
 
 (s/fdef learning-updates
-        :args (s/cat :cells (s/coll-of ::p/cell-id)
+        :args (s/cat :cells (s/nilable (s/coll-of ::p/cell-id))
                      :matching-segs ::matching-segs
                      :sg ::p/synapse-graph
                      :learnable-bits (s/nilable ::p/bits)
@@ -1090,7 +1093,7 @@
                                               ::new-synapse-count
                                               ::max-synapse-count
                                               ::max-segments]))
-        :ret (s/map-of ::p/cell-id ::syn/seg-update))
+        :ret (s/map-of ::p/cell-id ::p/seg-update))
 
 (defn learn-distal
   [sg distal-state cells matching-segs dparams rng]
@@ -1108,12 +1111,12 @@
 (s/fdef learn-distal
         :args (s/cat :sg ::p/synapse-graph
                      :distal-state ::distal-state
-                     :cells (s/coll-of ::p/cell-id)
+                     :cells (s/nilable (s/coll-of ::p/cell-id))
                      :matching-segs ::matching-segs
                      :dparams ::synapse-graph-params
                      :rng ::rng)
         :ret (s/cat :new-sg ::p/synapse-graph
-                    :learning (s/map-of ::p/cell-id ::syn/seg-update)))
+                    :learning (s/map-of ::p/cell-id ::p/seg-update)))
 
 (defn punish-distal
   [sg distal-state prior-distal-state prior-active-cells dparams]
@@ -1140,7 +1143,7 @@
                      :prior-active-cells (s/coll-of ::p/cell-id :kind set?)
                      :dparams ::synapse-graph-params)
         :ret (s/cat :new-sg ::p/synapse-graph
-                    :punishments (s/every ::syn/seg-update)))
+                    :punishments (s/every ::p/seg-update)))
 
 (defn layer-learn-lateral
   [this cells matching-segs]
@@ -1430,8 +1433,8 @@
      (merge
       sp-info
       cell-info
-      {:in-ff-bits ff-bits
-       :in-stable-ff-bits stable-ff-bits
+      {:in-ff-bits (set ff-bits)
+       :in-stable-ff-bits (set stable-ff-bits)
        :out-immediate-ff-bits (cells->bits depth (:active-cells cell-info))
        :timestep (inc (:timestep (:state layer)))}))))
 

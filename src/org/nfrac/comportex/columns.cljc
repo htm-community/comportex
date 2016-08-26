@@ -140,11 +140,13 @@
 (defn boost-factor
   "y is the duty cycle value."
   [y neighbour-max crit-ratio max-boost]
-  (let [crit-y (double (* neighbour-max crit-ratio))
-        maxb max-boost]
-    (-> (- maxb (* (- maxb 1)
-                   (/ y crit-y)))
-        (max 1.0))))
+  (if (zero? neighbour-max)
+    max-boost
+    (let [crit-y (double (* neighbour-max crit-ratio))
+          maxb max-boost]
+      (-> (- maxb (* (- maxb 1)
+                     (/ y crit-y)))
+          (max 1.0)))))
 
 (defn boost-factors-global
   [ys params]
@@ -194,7 +196,7 @@
                        (syn/seg-update [col 0 0] :reinforce nil nil)))
                    (map vector (range) ys))
         pcon (:perm-connected (:proximal params))]
-    (p/bulk-learn sg upds (constantly true) (* 0.1 pcon) 0 0)))
+    (p/bulk-learn sg upds (constantly true) (* 0.1 pcon) 0.0 0.0)))
 
 (defn adjust-overlap-local
   [sg ys topo inh-radius params]
@@ -237,7 +239,7 @@
                       (map vector (range) ys))
         pcon (:perm-connected (:proximal params))]
     (p/bulk-learn sg (concat weaks strongs)
-                  (constantly true) (* 0.1 pcon) (* 0.1 pcon) 0)))
+                  (constantly true) (* 0.1 pcon) (* 0.1 pcon) 0.0)))
 
 
 
