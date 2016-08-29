@@ -1,5 +1,7 @@
 (ns org.nfrac.comportex.topology
-  (:require [org.nfrac.comportex.protocols :as p]))
+  (:require [org.nfrac.comportex.protocols :as p]
+            [clojure.spec :as s]
+            [clojure.spec.gen :as gen]))
 
 (defn- abs
   [x]

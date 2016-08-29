@@ -136,8 +136,7 @@
 (defn empty-synapse-graph
   [n-targets n-sources pcon cull-zeros?]
   (map->SynapseGraph
-   {::p/synapse-graph-type ::int-sg
-    ::p/n-synapse-targets n-targets
+   {::p/n-synapse-targets n-targets
     ::p/n-synapse-sources n-sources
     :syns-by-target (vec (repeat n-targets {}))
     :targets-by-source (vec (repeat n-sources #{}))
@@ -155,15 +154,14 @@
                     (transient (vec (repeat n-sources #{})))
                     syns-by-target))]
     (map->SynapseGraph
-     {::p/synapse-graph-type ::int-sg
-      ::p/n-synapse-targets (count syns-by-target)
+     {::p/n-synapse-targets (count syns-by-target)
       ::p/n-synapse-sources n-sources
       :syns-by-target syns-by-target
       :targets-by-source targets-by-source
       :pcon pcon
       :cull-zeros? cull-zeros?})))
 
-(defmethod p/synapse-graph-spec ::int-sg [_]
+(defmethod p/synapse-graph-spec SynapseGraph [_]
   (s/keys :req [::p/n-synapse-targets
                 ::p/n-synapse-sources]
           :req-un [])) ;; TODO
@@ -206,7 +204,7 @@
               (vals exc-m))))
   (bulk-learn*
     [this seg-updates active-sources pinc pdec pinit]
-    (update-in this [:int-sg] p/bulk-learn*
+    (update-in this [:int-sg] p/bulk-learn
                (map (fn [seg-up]
                       (assoc seg-up :target-id
                              (seg-uidx depth max-segs (:target-id seg-up))))
@@ -231,8 +229,7 @@
   (let [n-targets (* n-cols depth max-segs)
         int-sg (empty-synapse-graph n-targets n-sources pcon cull-zeros?)]
     (map->CellSegmentsSynapseGraph
-     {::p/synapse-graph-type ::seg-sg
-      ::p/n-synapse-targets n-targets
+     {::p/n-synapse-targets n-targets
       ::p/n-synapse-sources n-sources
       :pcon pcon
       :int-sg int-sg
@@ -257,15 +254,14 @@
                                     (map-indexed vector syns-by-col)))
         int-sg (synapse-graph int-syns-by-target n-sources pcon cull-zeros?)]
     (map->CellSegmentsSynapseGraph
-     {::p/synapse-graph-type ::seg-sg
-      ::p/n-synapse-targets n-targets
+     {::p/n-synapse-targets n-targets
       ::p/n-synapse-sources n-sources
       :pcon pcon
       :int-sg int-sg
       :depth 1
       :max-segs max-segs})))
 
-(defmethod p/synapse-graph-spec ::seg-sg [_]
+(defmethod p/synapse-graph-spec CellSegmentsSynapseGraph [_]
   (s/keys :req [::p/n-synapse-targets
                 ::p/n-synapse-sources]
           :req-un [])) ;; TODO

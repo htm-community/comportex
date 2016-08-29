@@ -517,8 +517,7 @@
 
 (s/def ::layer-of-cells
   (->
-   (s/keys :req [::p/layer-type]
-           :req-un [::params
+   (s/keys :req-un [::params
                     ::rng
                     ::topology
                     ::input-topology
@@ -540,9 +539,6 @@
                     ::overlap-duty-cycles])
    ;; this only generates fresh (empty) layers; see ./generators ns.
    (s/with-gen #(gen/fmap layer-of-cells (s/gen ::params)))))
-
-(defmethod p/layer-spec ::standard-layer [_]
-  ::layer-of-cells)
 
 ;;; ## Synapse tracing
 
@@ -1264,6 +1260,11 @@
                                   [:learning :proximal] prox-learning)
            :proximal-sg psg)))
 
+(s/fdef layer-learn-proximal
+        :args (s/cat :layer ::layer-of-cells
+                     :cols (s/coll-of ::p/column-id))
+        :ret ::layer-of-cells)
+
 (defn punish-proximal
   [sg state pparams]
   (let [fully-matching-segs (:fully-matching-ff-segs state)
@@ -1663,8 +1664,8 @@
 
 (defn init-layer-state
   [params]
-  (let [params (util/deep-merge parameter-defaults params)
-        _ (s/assert* ::params params)
+  (let [params (->> (util/deep-merge parameter-defaults params)
+                    (s/assert ::params))
         input-topo (topology/make-topology (:input-dimensions params))
         col-topo (topology/make-topology (:column-dimensions params))
         n-cols (p/size col-topo)
@@ -1701,8 +1702,7 @@
         learn-state (assoc empty-learn-state :timestep 0)
         distal-state (assoc empty-distal-state :timestep 0)]
     (check-param-deprecations params)
-    {::p/layer-type ::standard-layer
-     :params params
+    {:params params
      :rng rng
      :topology col-topo
      :input-topology input-topo
@@ -1731,3 +1731,6 @@
    (update-inhibition-radius)))
 
 (s/fdef layer-of-cells :ret ::layer-of-cells)
+
+(defmethod p/layer-spec LayerOfCells [_]
+  ::layer-of-cells)

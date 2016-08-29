@@ -11,7 +11,8 @@
                  [clj-http "3.1.0"]
                  [cljs-http "0.1.41"]]
 
-  :jvm-opts ^:replace ["-server" "-Xmx2500m"]
+  :jvm-opts ^:replace ["-server" "-Xmx2500m"
+                       "-Dclojure.spec.check-asserts=true"]
 
   :plugins [[lein-cljsbuild "1.1.3"]]
 

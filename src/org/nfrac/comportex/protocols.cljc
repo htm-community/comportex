@@ -17,10 +17,15 @@
                             (s/with-gen #(s/gen (s/int-in 0 500)))))
 (s/def ::seg-exc (s/every-kv ::seg-path ::excitation-amt))
 (s/def ::timestep nat-int?)
+(s/def ::dimensions
+  (s/coll-of nat-int? :kind vector? :min-count 1 :max-count 3
+             :gen (fn []
+                    (s/gen (s/and (s/coll-of (s/int-in 0 2048) :kind vector?
+                                             :min-count 1 :max-count 3)
+                                  #(<= (reduce * %) 2048))))))
 
 (s/def ::permanence (s/double-in :min 0.0 :max 1.0 :NaN? false))
 (s/def ::segment (s/every-kv ::bit ::permanence))
-
 (s/def ::operation #{:learn :punish :reinforce})
 (s/def ::grow-sources (s/nilable ::bits))
 (s/def ::die-sources (s/nilable ::bits))
@@ -29,17 +34,6 @@
                    ::operation]
           :opt-un [::grow-sources
                    ::die-sources]))
-
-(s/def ::n-synapse-targets (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
-(s/def ::n-synapse-sources (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
-
-(defmulti layer-spec ::layer-type)
-(s/def ::layer-of-cells (s/multi-spec layer-spec ::layer-type))
-(s/def ::layer-type keyword?)
-
-(defmulti synapse-graph-spec ::synapse-graph-type)
-(s/def ::synapse-graph (s/multi-spec synapse-graph-spec ::synapse-graph-type))
-(s/def ::synapse-graph-type keyword?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Util
@@ -50,6 +44,55 @@
 (defprotocol PParameterised
   (params [this]
     "A parameter set as map with keyword keys."))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Topology
+
+(defprotocol PTopological
+  (topology [this]))
+
+(defprotocol PTopology
+  "Operating on a regular grid of certain dimensions, where each
+   coordinate is an n-tuple vector---or integer for 1D---and also has
+   a unique integer index."
+  (dimensions [this])
+  (coordinates-of-index [this idx])
+  (index-of-coordinates [this coord])
+  (neighbours* [this coord outer-r inner-r])
+  (coord-distance [this coord-a coord-b]))
+
+(defn size
+  "The total number of elements indexed in the topology."
+  [topo]
+  (reduce * (dimensions topo)))
+
+(defn dims-of
+  "The dimensions of a PTopological as an n-tuple vector."
+  [x]
+  (dimensions (topology x)))
+
+(defn size-of
+  "The total number of elements in a PTopological."
+  [x]
+  (size (topology x)))
+
+(defn neighbours
+  "Returns the coordinates away from `coord` at distances
+  `inner-r` (exclusive) out to `outer-r` (inclusive) ."
+  ([topo coord radius]
+   (neighbours* topo coord radius 0))
+  ([topo coord outer-r inner-r]
+   (neighbours* topo coord outer-r inner-r)))
+
+(defn neighbours-indices
+  "Same as `neighbours` but taking and returning indices instead of
+   coordinates."
+  ([topo idx radius]
+   (neighbours-indices topo idx radius 0))
+  ([topo idx outer-r inner-r]
+   (->> (neighbours* topo (coordinates-of-index topo idx)
+                     outer-r inner-r)
+        (map (partial index-of-coordinates topo)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Hierarchy
@@ -130,6 +173,10 @@
   (layer-depolarise* [this distal-ff-bits apical-fb-bits apical-fb-wc-bits])
   (layer-state* [this])
   (layer-depth* [this]))
+
+(defmulti layer-spec type)
+(s/def ::layer-of-cells (s/and (s/multi-spec layer-spec :gen-type)
+                               #(satisfies? PLayerOfCells %)))
 
 (defn layer-activate
   [this ff-bits stable-ff-bits]
@@ -234,6 +281,15 @@
     a sequence of SegUpdate records, one for each target dendrite
     segment."))
 
+(s/def ::n-synapse-targets (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
+(s/def ::n-synapse-sources (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
+
+(defmulti synapse-graph-spec type)
+(s/def ::synapse-graph (s/and (s/multi-spec synapse-graph-spec :gen-type)
+                              #(satisfies? PSynapseGraph %)
+                              (s/keys :req [::n-synapse-sources
+                                            ::n-synapse-targets])))
+
 (defn bulk-learn
   [this seg-updates active-sources pinc pdec pinit]
   (bulk-learn* this seg-updates active-sources pinc pdec pinit))
@@ -284,17 +340,47 @@
     "Extracts a value from `state` according to some configured pattern. A
     simple example is a lookup by keyword in a map."))
 
+(s/def ::selector #(satisfies? PSelector %))
+
 (defprotocol PEncoder
   "Encoders need to extend this together with PTopological."
-  (encode [this x]
-    "Encodes `x` as a collection of distinct integers which are the on-bits.")
-  (decode [this bit-votes n]
-    "Finds `n` domain values matching the given bit set in a sequence
-     of maps with keys `:value`, `:votes-frac`, `:votes-per-bit`,
-     `:bit-coverage`, `:bit-precision`, ordered by votes fraction
-     decreasing. The argument `bit-votes` is a map from encoded bit
-     index to a number of votes, typically the number of synapse
-     connections from predictive cells."))
+  (encode* [this x])
+  (decode* [this bit-votes n]))
+
+(s/def ::encoder #(satisfies? PEncoder %))
+
+(defn encode
+  "Encodes `x` as a collection of distinct integers which are the on-bits."
+  [encoder x]
+  (encode* encoder x))
+
+(s/fdef encode
+        :args (s/cat :encoder ::encoder
+                     :x (constantly true))
+        :ret ::bits
+        :fn (fn [v]
+              (let [w (-> v :args :encoder size-of)]
+                (every? #(< % w) (:ret v)))))
+
+(defn decode
+  "Finds `n` domain values matching the given bit set in a sequence
+  of maps with keys `:value`, `:votes-frac`, `:votes-per-bit`,
+  `:bit-coverage`, `:bit-precision`, ordered by votes fraction
+  decreasing. The argument `bit-votes` is a map from encoded bit
+  index to a number of votes, typically the number of synapse
+  connections from predictive cells."
+  [encoder bit-votes n]
+  (decode* encoder bit-votes n))
+
+(s/def ::votes-frac (s/and number? (complement neg?)))
+(s/def ::bit-coverage (s/and number? (complement neg?)))
+
+(s/fdef decode
+        :args (s/cat :encoder ::encoder
+                     :bit-votes (s/every-kv ::bit nat-int?)
+                     :n (s/int-in 0 1000))
+        :ret (s/coll-of (s/keys :req-un [::votes-frac
+                                         ::bit-coverage])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Etc
@@ -318,49 +404,3 @@
       pooling in any higher layers (not `this` layer).
     * :winners, allows new winner cells to be chosen in continuing
       columns."))
-
-(defprotocol PTopological
-  (topology [this]))
-
-(defprotocol PTopology
-  "Operating on a regular grid of certain dimensions, where each
-   coordinate is an n-tuple vector---or integer for 1D---and also has
-   a unique integer index."
-  (dimensions [this])
-  (coordinates-of-index [this idx])
-  (index-of-coordinates [this coord])
-  (neighbours* [this coord outer-r inner-r])
-  (coord-distance [this coord-a coord-b]))
-
-(defn size
-  "The total number of elements indexed in the topology."
-  [topo]
-  (reduce * (dimensions topo)))
-
-(defn dims-of
-  "The dimensions of a PTopological as an n-tuple vector."
-  [x]
-  (dimensions (topology x)))
-
-(defn size-of
-  "The total number of elements in a PTopological."
-  [x]
-  (size (topology x)))
-
-(defn neighbours
-  "Returns the coordinates away from `coord` at distances
-  `inner-r` (exclusive) out to `outer-r` (inclusive) ."
-  ([topo coord radius]
-   (neighbours* topo coord radius 0))
-  ([topo coord outer-r inner-r]
-   (neighbours* topo coord outer-r inner-r)))
-
-(defn neighbours-indices
-  "Same as `neighbours` but taking and returning indices instead of
-   coordinates."
-  ([topo idx radius]
-   (neighbours-indices topo idx radius 0))
-  ([topo idx outer-r inner-r]
-   (->> (neighbours* topo (coordinates-of-index topo idx)
-                     outer-r inner-r)
-        (map (partial index-of-coordinates topo)))))

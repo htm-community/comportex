@@ -52,5 +52,5 @@
    `[p/layer-activate]
      ;cells/spatial-pooling
      ;cells/temporal-pooling]
-   (stest/check (assoc-in opts [::stc/opts :num-tests] 200))
+   (stest/check (assoc-in opts [::stc/opts :num-tests] 100))
    (stest/summarize-results)))

@@ -11,6 +11,7 @@
   layer-state, which returns all the above under keys of the same names.
   This seems more clojurey in avoiding inventing detailed APIs, while still
   allowing for different implementations... and is easier to spec.
+- some protocols fns renamed adding a star*, to allow global specs on wrappers.
 - params `:ff-perm-init-lo, :ff-perm-init-hi` now `:ff-perm-init [lo hi]`.
 
 ### Added

@@ -4,9 +4,15 @@
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util]
-            [clojure.test.check.random :as random]))
+            [clojure.test.check.random :as random]
+            [clojure.spec :as s]
+            [clojure.spec.gen :as gen]))
 
-;;; # Selectors
+(s/def ::pos-dimensions
+  (s/and ::p/dimensions #(pos? (reduce * %))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Selectors
 ;;; Implemented as values not functions for serializability.
 
 (extend-protocol p/PSelector
@@ -29,7 +35,8 @@
   [& selectors]
   (->VecSelector selectors))
 
-;;; # Decoding
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Decoding
 
 (defn prediction-stats
   [x-bits bit-votes total-votes]
@@ -68,7 +75,21 @@
         partitioned-vs (util/splits-at (map count partitioned-is) vs)]
     (map zipmap partitioned-is partitioned-vs)))
 
-;;; # Encoders
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; concat encoder
+
+(defn concat-encode
+  [xs encoders]
+  (let [bit-widths (map p/size-of encoders)]
+    (->> xs
+         (map p/encode encoders)
+         (util/align-indices bit-widths))))
+
+(s/fdef concat-encode
+        :args (-> (s/cat :xs coll?
+                         :encoders (s/coll-of ::p/encoder))
+                  (s/and #(= (count (:xs %)) (count (:encoders %)))))
+        :ret ::p/bits)
 
 (defrecord ConcatEncoder
     [encoders]
@@ -78,13 +99,9 @@
                    (apply topology/combined-dimensions))]
       (topology/make-topology dim)))
   p/PEncoder
-  (encode
-    [_ xs]
-    (let [bit-widths (map p/size-of encoders)]
-      (->> xs
-           (map p/encode encoders)
-           (util/align-indices bit-widths))))
-  (decode
+  (encode* [_ xs]
+   (concat-encode xs encoders))
+  (decode*
     [_ bit-votes n-values]
     (let [bit-widths (map p/size-of encoders)]
       (map #(p/decode % %2 n-values)
@@ -99,18 +116,28 @@
   [encoders]
   (->ConcatEncoder encoders))
 
+(s/fdef encat
+        :args (s/cat :encoders (s/coll-of ::p/encoder :min-count 1))
+        :ret ::p/encoder)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; splat encoder
+
+(defn splat-encode
+  [xs encoder]
+  (->> xs
+       (mapcat (partial p/encode encoder))
+       (distinct)))
+
 (defrecord SplatEncoder
     [encoder]
   p/PTopological
   (topology [_]
     (p/topology encoder))
   p/PEncoder
-  (encode
-    [_ xs]
-    (->> xs
-         (mapcat (partial p/encode encoder))
-         (distinct)))
-  (decode [_ bit-votes n-values]
+  (encode* [_ xs]
+    (splat-encode xs encoder))
+  (decode* [_ bit-votes n-values]
     (p/decode encoder bit-votes n-values)))
 
 (defn ensplat
@@ -120,19 +147,30 @@
   [encoder]
   (->SplatEncoder encoder))
 
-(defn linear-bits
+(s/fdef ensplat
+        :args ::p/encoder
+        :ret ::p/encoder)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; linear encoder
+
+(defn linear-encode
   "truncates"
   [x lower upper n-bits n-active]
-  (let [span (double (- upper lower))
+  (assert (number? x))
+  (let [x (double x)
+        span (double (- upper lower))
         x (-> x (max lower) (min upper))
         z (/ (- x lower) span)
         i (long (* z (- n-bits n-active)))]
     (range i (+ i n-active))))
 
-(defn periodic-linear-bits
+(defn linear-periodic-encode
   "wraps"
   [x lower upper n-bits n-active]
-  (let [span (double (- upper lower))
+  (assert (number? x))
+  (let [x (double x)
+        span (double (- upper lower))
         z (/ (- x lower) span)
         z (mod z 1.0)
         i (long (* z n-bits))
@@ -149,15 +187,15 @@
   (topology [_]
     topo)
   p/PEncoder
-  (encode
+  (encode*
     [_ x]
     (if x
       (let [n-bits (p/size topo)]
         (if periodic?
-          (periodic-linear-bits x lower upper n-bits n-active)
-          (linear-bits x lower upper n-bits n-active)))
+          (linear-periodic-encode x lower upper n-bits n-active)
+          (linear-encode x lower upper n-bits n-active)))
       (sequence nil)))
-  (decode
+  (decode*
     [this bit-votes n]
     (let [span (double (- upper lower))
           values (range lower upper (if (< 5 span 250)
@@ -176,7 +214,7 @@
   * `n-active` is the number of bits to be active.
 
   * `[lower upper]` gives the numeric range to cover. The input number
-    will be clamped to this range."
+    will be clamped or wrapped to this range."
   ([dimensions n-active [lower upper]]
    (linear-encoder dimensions n-active [lower upper] false))
   ([dimensions n-active [lower upper] periodic?]
@@ -187,21 +225,39 @@
                           :upper upper
                           :periodic? periodic?}))))
 
+(s/fdef linear-encoder
+        :args (s/and
+               (s/cat :dimensions ::pos-dimensions
+                      :n-active pos-int?
+                      :lower-upper (s/and (s/tuple number? number?)
+                                          (fn [[a b]] (< a b)))
+                      :periodic? (s/? boolean?))
+               #(< (:n-active %) (reduce * (:dimensions %))))
+        :ret ::p/encoder)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; category encoder
+
+(defn category-encode
+  [x value->index n-bits]
+  (assert (contains? value->index x))
+  (if-not (nil? x)
+    (let [idx (util/getx value->index x)
+          n-active (quot n-bits (count value->index))
+          i (* idx n-active)]
+      (range i (+ i n-active)))
+    (sequence nil)))
+
 (defrecord CategoryEncoder
     [topo value->index]
   p/PTopological
   (topology [_]
     topo)
   p/PEncoder
-  (encode
+  (encode*
     [_ x]
-    (if-let [idx (value->index x)]
-      (let [n-bits (p/size topo)
-            n-active (quot n-bits (count value->index))
-            i (* idx n-active)]
-        (range i (+ i n-active)))
-      (sequence nil)))
-  (decode
+    (category-encode x value->index (p/size topo)))
+  (decode*
     [this bit-votes n]
     (->> (decode-by-brute-force this (keys value->index) bit-votes)
          (take n))))
@@ -212,16 +268,27 @@
     (map->CategoryEncoder {:topo topo
                            :value->index (zipmap values (range))})))
 
+(s/fdef category-encoder
+        :args (s/cat :dimensions ::pos-dimensions
+                     :values (s/coll-of (complement nil?) :min-count 1
+                                        :distinct true))
+        :ret ::p/encoder)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; no encoder (pass-through)
+
 (defrecord NoEncoder
     [topo]
   p/PTopological
   (topology [_]
     topo)
   p/PEncoder
-  (encode
+  (encode*
     [_ x]
-    x)
-  (decode
+    (s/assert (let [n (p/size topo)]
+                (s/every (s/and ::p/bit #(< % n))))
+              x))
+  (decode*
     [this bit-votes n]
     [(keys bit-votes)]))
 
@@ -229,6 +296,13 @@
   [dimensions]
   (let [topo (topology/make-topology dimensions)]
     (map->NoEncoder {:topo topo})))
+
+(s/fdef no-encoder
+        :args (s/cat :dimensions ::pos-dimensions)
+        :ret ::p/encoder)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; unique encoder
 
 (defn unique-sdr
   [x n-bits n-active]
@@ -241,21 +315,25 @@
                 (take n-active))
           rngs)))
 
+(defn unique-encode
+  [x n-bits n-active cache]
+  (if (nil? x)
+    (sequence nil)
+    (or (get @cache x)
+        (let [sdr (unique-sdr x n-bits n-active)]
+          (get (swap! cache assoc x sdr)
+               x)))))
+
 (defrecord UniqueEncoder
     [topo n-active cache]
   p/PTopological
   (topology [_]
     topo)
   p/PEncoder
-  (encode
+  (encode*
     [_ x]
-    (if (nil? x)
-      (sequence nil)
-      (or (get @cache x)
-          (let [sdr (unique-sdr x (p/size topo) n-active)]
-            (get (swap! cache assoc x sdr)
-                 x)))))
-  (decode
+    (unique-encode x (p/size topo) n-active cache))
+  (decode*
     [this bit-votes n]
     (->> (decode-by-brute-force this (keys @cache) bit-votes)
          (take n))))
@@ -269,30 +347,44 @@
                          :n-active n-active
                          :cache (atom {})})))
 
+(s/fdef unique-encoder
+        :args (s/and
+               (s/cat :dimensions ::pos-dimensions
+                      :n-active pos-int?)
+               #(< (:n-active %) (reduce * (:dimensions %))))
+        :ret ::p/encoder)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; linear 2d encoder
+
+(defn linear-2d-encode
+  [[x y] topo n-active x-max y-max]
+  (if x
+    (let [[w h] (p/dimensions topo)
+          x (-> x (max 0) (min x-max))
+          y (-> y (max 0) (min y-max))
+          xz (/ x x-max)
+          yz (/ y y-max)
+          xi (long (* xz w))
+          yi (long (* yz h))
+          coord [xi yi]
+          idx (p/index-of-coordinates topo coord)]
+      (->> (range 10)
+           (mapcat (fn [radius]
+                     (p/neighbours-indices topo idx radius (dec radius))))
+           (take n-active)))
+    (sequence nil)))
+
 (defrecord Linear2DEncoder
     [topo n-active x-max y-max]
   p/PTopological
   (topology [_]
     topo)
   p/PEncoder
-  (encode
+  (encode*
     [_ [x y]]
-    (if x
-      (let [[w h] (p/dimensions topo)
-            x (-> x (max 0) (min x-max))
-            y (-> y (max 0) (min y-max))
-            xz (/ x x-max)
-            yz (/ y y-max)
-            xi (long (* xz w))
-            yi (long (* yz h))
-            coord [xi yi]
-            idx (p/index-of-coordinates topo coord)]
-        (->> (range 10)
-             (mapcat (fn [radius]
-                       (p/neighbours-indices topo idx radius (dec radius))))
-             (take n-active)))
-      (sequence nil)))
-  (decode
+    (linear-2d-encode [[x y]] topo n-active x-max y-max))
+  (decode*
     [this bit-votes n]
     (let [values (for [x (range x-max)
                        y (range y-max)]
@@ -321,6 +413,18 @@
                            :x-max x-max
                            :y-max y-max})))
 
+(s/fdef linear-2d-encoder
+        :args (s/and
+               (s/cat :dimensions ::pos-dimensions
+                      :n-active pos-int?
+                      :xy-maxs (s/tuple number? number?))
+               #(< (:n-active %) (reduce * (:dimensions %))))
+        :ret ::p/encoder)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; coordinate encoder
+
 ;; we only support up to 3D. beyond that, perf will be bad anyway.
 (defn coordinate-neighbours
   [coord radii]
@@ -341,6 +445,14 @@
               z (range (- cz rz) (+ cz rz 1))]
           [x y z]))))
 
+(s/fdef coordinate-neighbours
+        :args (s/cat :coord (s/coll-of number? :min-count 1 :max-count 3)
+                     :radii (s/coll-of number? :min-count 1 :max-count 3))
+        :ret (s/coll-of number? :min-count 1 :max-count 3 :kind vector?)
+        :fn #(apply = (count (-> % :args :coord))
+                    (count (-> % :args :radii))
+                    (map count (:ret %))))
+
 (defn coordinate-order
   [coord]
   ;; NOTE it is not enough to take (hash coord) as the seed here,
@@ -359,21 +471,25 @@
       (second) ;; impl detail? this is independent from the pre-split rng
       (util/rand-int size)))
 
+(defn coordinate-encode
+  [coord n-bits n-active scale-factors radii]
+  (when (first coord)
+    (let [int-coord (map (comp util/round *) coord scale-factors)
+          neighs (coordinate-neighbours int-coord radii)]
+      (->> (zipmap neighs (map coordinate-order neighs))
+           (util/top-n-keys-by-value n-active)
+           (map (partial coordinate-bit n-bits))
+           (distinct)))))
+
 (defrecord CoordinateEncoder
     [topo n-active scale-factors radii]
   p/PTopological
   (topology [_]
     topo)
   p/PEncoder
-  (encode
+  (encode*
     [_ coord]
-    (when (first coord)
-      (let [int-coord (map (comp util/round *) coord scale-factors)
-            neighs (coordinate-neighbours int-coord radii)]
-        (->> (zipmap neighs (map coordinate-order neighs))
-             (util/top-n-keys-by-value n-active)
-             (map (partial coordinate-bit (p/size topo)))
-             (distinct))))))
+    (coordinate-encode coord (p/size topo) n-active scale-factors radii)))
 
 (defn coordinate-encoder
   "Coordinate encoder for integer coordinates, unbounded, with one,
@@ -389,8 +505,18 @@
                              :scale-factors scale-factors
                              :radii radii})))
 
+(s/fdef coordinate-encoder
+        :args (s/and
+               (s/cat :dimensions ::pos-dimensions
+                      :n-active pos-int?
+                      :scale-factors (s/coll-of number? :min-count 1 :max-count 3)
+                      :radii (s/coll-of number? :min-count 1 :max-count 3))
+               #(< (:n-active %) (reduce * (:dimensions %)))
+               #(= (count (:scale-factors %)) (count (:radii %))))
+        :ret ::p/encoder)
 
-;;; # Sampling Linear Encoder
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Sampling Linear Encoder
 ;;; see http://mrcslws.com/gorilla/?path=hotgym.clj#a_third_way
 
 (defn middle-out-range
@@ -469,6 +595,24 @@
                  (* density 2)))
         chosen))))
 
+(defn sampling-linear-encode
+  [x n-bits n-active lower upper radius periodic?]
+  (if x
+    (let [domain-width (- upper lower)
+          z (/ (- x lower)
+               domain-width)
+          center (if periodic?
+                   (-> (mod z 1.0)
+                       (* (dec n-bits))
+                       (long))
+                   (-> z (max 0.0) (min 1.0)
+                       (* (dec n-bits))
+                       (long)))
+          bit-radius (* radius
+                        (/ n-bits domain-width))]
+      (sampled-window center n-bits n-active bit-radius periodic?))
+    (sequence nil)))
+
 (defrecord SamplingLinearEncoder
   [topo n-active lower upper radius periodic?]
   p/PTopological
@@ -476,25 +620,10 @@
     [_]
     topo)
   p/PEncoder
-  (encode
+  (encode*
     [_ x]
-    (if x
-      (let [n-bits (p/size topo)
-            domain-width (- upper lower)
-            z (/ (- x lower)
-                 domain-width)
-            center (if periodic?
-                     (-> (mod z 1.0)
-                         (* (dec n-bits))
-                         (long))
-                     (-> z (max 0.0) (min 1.0)
-                         (* (dec n-bits))
-                         (long)))
-            bit-radius (* radius
-                          (/ (p/size topo) domain-width))]
-        (sampled-window center n-bits n-active bit-radius periodic?))
-      (sequence nil)))
-  (decode
+    (sampling-linear-encode x (p/size topo) n-active lower upper radius periodic?))
+  (decode*
     [this bit-votes n]
     (let [span (double (- upper lower))
           values (range lower upper (if (< 5 span 250)
@@ -534,7 +663,22 @@
                                   :radius radius
                                   :periodic? periodic?}))))
 
-;;; # Sensors
+(s/fdef sampling-linear-encoder
+        :args (s/and
+               (s/cat :dimensions ::pos-dimensions
+                      :n-active pos-int?
+                      :lower-upper (s/and (s/tuple number? number?)
+                                          (fn [[a b]] (< a b)))
+                      :radius (s/and number? pos?)
+                      :periodic? (s/? boolean?))
+               #(< (:n-active %) (reduce * (:dimensions %))))
+        :ret ::p/encoder)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Sensors
+
+(s/def ::sensor (s/cat :selector ::p/selector
+                       :encoder ::p/encoder))
 
 (defn sensor-cat
   [& sensors]
@@ -542,3 +686,7 @@
         encoders (map second sensors)]
     [(apply vec-selector selectors)
      (encat encoders)]))
+
+(s/fdef sensor-cat
+        :args (s/coll-of ::sensor :min-count 1)
+        :ret ::sensor)
