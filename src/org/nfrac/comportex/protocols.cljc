@@ -345,9 +345,12 @@
 (defprotocol PEncoder
   "Encoders need to extend this together with PTopological."
   (encode* [this x])
-  (decode* [this bit-votes n]))
+  (decode* [this bit-votes n])
+  (input-generator [this]))
 
-(s/def ::encoder #(satisfies? PEncoder %))
+(defmulti encoder-spec type)
+(s/def ::encoder (s/and (s/multi-spec encoder-spec :gen-type)
+                        #(satisfies? PEncoder %)))
 
 (defn encode
   "Encodes `x` as a collection of distinct integers which are the on-bits."
@@ -355,8 +358,14 @@
   (encode* encoder x))
 
 (s/fdef encode
-        :args (s/cat :encoder ::encoder
-                     :x (constantly true))
+        :args (->
+               (s/cat :encoder ::encoder
+                      :x any?)
+               (s/with-gen
+                 #(gen/bind (s/gen ::encoder)
+                            (fn [e]
+                              (gen/tuple (gen/return e)
+                                         (input-generator e))))))
         :ret ::bits
         :fn (fn [v]
               (let [w (-> v :args :encoder size-of)]

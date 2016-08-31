@@ -3,13 +3,16 @@
    input to a cortical region."
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topology :as topology]
-            [org.nfrac.comportex.util :as util]
+            [org.nfrac.comportex.util :as util :refer [abs finite?-spec]]
             [clojure.test.check.random :as random]
             [clojure.spec :as s]
             [clojure.spec.gen :as gen]))
 
 (s/def ::pos-dimensions
   (s/and ::p/dimensions #(pos? (reduce * %))))
+
+(s/def ::n-active-bits
+  (-> pos-int? (s/with-gen #(s/gen (s/int-in 0 600)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Selectors
@@ -106,7 +109,10 @@
     (let [bit-widths (map p/size-of encoders)]
       (map #(p/decode % %2 n-values)
            encoders
-           (unaligned-bit-votes bit-widths bit-votes)))))
+           (unaligned-bit-votes bit-widths bit-votes))))
+  (input-generator
+   [_]
+   (apply gen/tuple (map p/input-generator encoders))))
 
 (defn encat
   "Returns an encoder for a sequence of values, where each is encoded
@@ -119,6 +125,9 @@
 (s/fdef encat
         :args (s/cat :encoders (s/coll-of ::p/encoder :min-count 1))
         :ret ::p/encoder)
+
+(defmethod p/encoder-spec ConcatEncoder [_]
+  (s/with-gen (s/keys) #(util/fn->generator (var encat))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; splat encoder
@@ -138,7 +147,9 @@
   (encode* [_ xs]
     (splat-encode xs encoder))
   (decode* [_ bit-votes n-values]
-    (p/decode encoder bit-votes n-values)))
+    (p/decode encoder bit-votes n-values))
+  (input-generator [_]
+    (p/input-generator encoder)))
 
 (defn ensplat
   "Returns an encoder for a sequence of values. The given encoder will
@@ -148,8 +159,11 @@
   (->SplatEncoder encoder))
 
 (s/fdef ensplat
-        :args ::p/encoder
+        :args (s/cat :encoder ::p/encoder)
         :ret ::p/encoder)
+
+(defmethod p/encoder-spec ConcatEncoder [_]
+  (s/with-gen (s/keys) #(util/fn->generator (var ensplat))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; linear encoder
@@ -202,7 +216,13 @@
                                       1
                                       (/ span 50)))]
       (->> (decode-by-brute-force this values bit-votes)
-           (take n)))))
+           (take n))))
+  (input-generator
+   [_]
+   (let [span (- upper lower)]
+     (gen/double* {:min (- lower (/ span 2))
+                   :max (+ upper (/ span 2))
+                   :NaN? false}))))
 
 (defn linear-encoder
   "Returns a simple encoder for a single number. It encodes a number
@@ -228,12 +248,15 @@
 (s/fdef linear-encoder
         :args (s/and
                (s/cat :dimensions ::pos-dimensions
-                      :n-active pos-int?
-                      :lower-upper (s/and (s/tuple number? number?)
+                      :n-active ::n-active-bits
+                      :lower-upper (s/and (s/tuple (finite?-spec) (finite?-spec))
                                           (fn [[a b]] (< a b)))
                       :periodic? (s/? boolean?))
                #(< (:n-active %) (reduce * (:dimensions %))))
         :ret ::p/encoder)
+
+(defmethod p/encoder-spec LinearEncoder [_]
+  (s/with-gen (s/keys) #(util/fn->generator (var linear-encoder))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; category encoder
@@ -260,7 +283,10 @@
   (decode*
     [this bit-votes n]
     (->> (decode-by-brute-force this (keys value->index) bit-votes)
-         (take n))))
+         (take n)))
+  (input-generator
+   [_]
+   (gen/elements (keys value->index))))
 
 (defn category-encoder
   [dimensions values]
@@ -270,9 +296,12 @@
 
 (s/fdef category-encoder
         :args (s/cat :dimensions ::pos-dimensions
-                     :values (s/coll-of (complement nil?) :min-count 1
-                                        :distinct true))
+                     :values (s/coll-of (s/with-gen some? #(gen/simple-type-printable))
+                                        :min-count 1 :distinct true))
         :ret ::p/encoder)
+
+(defmethod p/encoder-spec CategoryEncoder [_]
+  (s/with-gen (s/keys) #(util/fn->generator (var category-encoder))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; no encoder (pass-through)
@@ -290,7 +319,12 @@
               x))
   (decode*
     [this bit-votes n]
-    [(keys bit-votes)]))
+    [(keys bit-votes)])
+  (input-generator
+   [_]
+   (let [n (p/size topo)]
+     (gen/vector-distinct (gen/large-integer* {:min 0 :max (dec n)})
+                          {:min-elements 1}))))
 
 (defn no-encoder
   [dimensions]
@@ -300,6 +334,9 @@
 (s/fdef no-encoder
         :args (s/cat :dimensions ::pos-dimensions)
         :ret ::p/encoder)
+
+(defmethod p/encoder-spec NoEncoder [_]
+  (s/with-gen (s/keys) #(util/fn->generator (var no-encoder))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; unique encoder
@@ -336,7 +373,11 @@
   (decode*
     [this bit-votes n]
     (->> (decode-by-brute-force this (keys @cache) bit-votes)
-         (take n))))
+         (take n)))
+  (input-generator
+   [_]
+   ;; really anything except nil, but `any` is messy to print
+   (gen/simple-type-printable)))
 
 (defn unique-encoder
   "This encoder generates a unique bit set for each distinct value,
@@ -350,9 +391,12 @@
 (s/fdef unique-encoder
         :args (s/and
                (s/cat :dimensions ::pos-dimensions
-                      :n-active pos-int?)
+                      :n-active ::n-active-bits)
                #(< (:n-active %) (reduce * (:dimensions %))))
         :ret ::p/encoder)
+
+(defmethod p/encoder-spec UniqueEncoder [_]
+  (s/with-gen (s/keys) #(util/fn->generator (var unique-encoder))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; linear 2d encoder
@@ -383,14 +427,18 @@
   p/PEncoder
   (encode*
     [_ [x y]]
-    (linear-2d-encode [[x y]] topo n-active x-max y-max))
+    (linear-2d-encode [x y] topo n-active x-max y-max))
   (decode*
     [this bit-votes n]
     (let [values (for [x (range x-max)
                        y (range y-max)]
                    [x y])]
       (->> (decode-by-brute-force this values bit-votes)
-           (take n)))))
+           (take n))))
+  (input-generator
+   [_]
+   (gen/tuple (gen/double* {:min 0 :max x-max :NaN? false})
+              (gen/double* {:min 0 :max y-max :NaN? false}))))
 
 (defn linear-2d-encoder
   "Returns a simple encoder for a tuple of two numbers representing a
@@ -415,12 +463,15 @@
 
 (s/fdef linear-2d-encoder
         :args (s/and
-               (s/cat :dimensions ::pos-dimensions
-                      :n-active pos-int?
-                      :xy-maxs (s/tuple number? number?))
+               (s/cat :dimensions (s/and ::pos-dimensions #(= 2 (count %)))
+                      :n-active ::n-active-bits
+                      :xy-maxs (s/tuple (s/and (finite?-spec :min 0) pos?)
+                                        (s/and (finite?-spec :min 0) pos?)))
                #(< (:n-active %) (reduce * (:dimensions %))))
         :ret ::p/encoder)
 
+(defmethod p/encoder-spec Linear2DEncoder [_]
+  (s/with-gen (s/keys) #(util/fn->generator (var linear-2d-encoder))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; coordinate encoder
@@ -446,9 +497,9 @@
           [x y z]))))
 
 (s/fdef coordinate-neighbours
-        :args (s/cat :coord (s/coll-of number? :min-count 1 :max-count 3)
-                     :radii (s/coll-of number? :min-count 1 :max-count 3))
-        :ret (s/coll-of number? :min-count 1 :max-count 3 :kind vector?)
+        :args (s/cat :coord (s/coll-of (finite?-spec) :min-count 1 :max-count 3)
+                     :radii (s/coll-of (finite?-spec) :min-count 1 :max-count 3))
+        :ret (s/coll-of (finite?-spec) :min-count 1 :max-count 3 :kind vector?)
         :fn #(apply = (count (-> % :args :coord))
                     (count (-> % :args :radii))
                     (map count (:ret %))))
@@ -489,7 +540,14 @@
   p/PEncoder
   (encode*
     [_ coord]
-    (coordinate-encode coord (p/size topo) n-active scale-factors radii)))
+    (coordinate-encode coord (p/size topo) n-active scale-factors radii))
+  (input-generator
+   [_]
+   (apply gen/tuple
+     (map (fn [scale radius]
+            (gen/double* {:min 0 :max (/ (* radius 10) (abs scale)) :NaN? false}))
+          scale-factors
+          radii))))
 
 (defn coordinate-encoder
   "Coordinate encoder for integer coordinates, unbounded, with one,
@@ -508,12 +566,19 @@
 (s/fdef coordinate-encoder
         :args (s/and
                (s/cat :dimensions ::pos-dimensions
-                      :n-active pos-int?
-                      :scale-factors (s/coll-of number? :min-count 1 :max-count 3)
-                      :radii (s/coll-of number? :min-count 1 :max-count 3))
+                      :n-active ::n-active-bits
+                      :scale-factors (s/coll-of (s/and (finite?-spec)
+                                                       (complement zero?))
+                                                :min-count 1 :max-count 3)
+                      :radii (s/coll-of (s/and (finite?-spec :min 0 :max 100) pos?)
+                                        :min-count 1 :max-count 3))
                #(< (:n-active %) (reduce * (:dimensions %)))
                #(= (count (:scale-factors %)) (count (:radii %))))
+
         :ret ::p/encoder)
+
+(defmethod p/encoder-spec CoordinateEncoder [_]
+  (s/with-gen (s/keys) #(util/fn->generator (var coordinate-encoder))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Sampling Linear Encoder
@@ -542,6 +607,12 @@
                           %
                           upper-bound)))))
 
+(s/fdef multiples-within-radius
+        :args (s/cat :center nat-int?
+                     :radius (s/and (finite?-spec :min 0) pos?)
+                     :multiples-of pos-int?)
+        :ret (s/every int?))
+
 (defn handle-multiples-at-edges
   [periodic? n-bits multiples-of coll]
   (if-not periodic?
@@ -551,6 +622,13 @@
                      (inc)
                      (* multiples-of))]
       (map #(mod % m-wrap) coll))))
+
+(s/fdef handle-multiples-at-edges
+        :args (s/cat :periodic? boolean?
+                     :n-bits pos-int?
+                     :multiples-of pos-int?
+                     :coll (s/every int?))
+        :ret (s/every nat-int?))
 
 (defn into-bounded
   "Move items from `from` to `coll` until its size reaches `max-size`
@@ -567,6 +645,12 @@
                  untaken))
         coll))))
 
+(s/fdef into-bounded
+        :args (s/cat :coll coll?
+                     :max-size pos-int?
+                     :from seqable?)
+        :ret coll?)
+
 (defn sampled-window
   "Place a bit in the center.
   Distribute bits around the center until we've used half of the remainder.
@@ -581,11 +665,11 @@
          density (/ (- target-n-active (count chosen))
                     (* 2 bit-radius)
                     2)]
-    (let [remaining (- target-n-active (count chosen))
-          multiples-of (long (/ 1 density))]
+    (let [remaining (- target-n-active (count chosen))]
       (if (and (pos? remaining)
-               (pos? multiples-of))
-        (let [half-remaining (quot remaining 2)
+               (pos? (long (/ 1 density))))
+        (let [multiples-of (long (/ 1 density))
+              half-remaining (quot remaining 2)
               n-take (if (== 1 remaining)
                        remaining
                        half-remaining)]
@@ -594,6 +678,17 @@
                       (into-bounded chosen (+ n-take (count chosen))))
                  (* density 2)))
         chosen))))
+
+(s/fdef sampled-window
+        :args (s/and
+               (s/cat :center nat-int?
+                      :n-bits pos-int?
+                      :target-n-active pos-int?
+                      :bit-radius (finite?-spec :min 0)
+                      :periodic? boolean?)
+               #(>= (:bit-radius %)
+                    (/ (:target-n-active %) 4)))
+        :ret (s/every nat-int?))
 
 (defn sampling-linear-encode
   [x n-bits n-active lower upper radius periodic?]
@@ -609,7 +704,7 @@
                        (* (dec n-bits))
                        (long)))
           bit-radius (* radius
-                        (/ n-bits domain-width))]
+                        (/ n-bits domain-width))] ;; why this?
       (sampled-window center n-bits n-active bit-radius periodic?))
     (sequence nil)))
 
@@ -630,7 +725,13 @@
                                       1
                                       (/ span 50)))]
       (->> (decode-by-brute-force this values bit-votes)
-           (take n)))))
+           (take n))))
+  (input-generator
+   [_]
+   (let [span (- upper lower)]
+     (gen/double* {:min (- lower (/ span 2))
+                   :max (+ upper (/ span 2))
+                   :NaN? false}))))
 
 (defn sampling-linear-encoder
   "A linear encoder that samples the surrounding radius, rather than
@@ -642,7 +743,7 @@
   * `n-active` is the number of bits to be active.
 
   * `[lower upper]` gives the numeric range to cover. The input number
-    will be clamped to this range.
+    will be clamped or wrapped to this range.
 
   * `radius` describes the range to sample.
 
@@ -663,16 +764,48 @@
                                   :radius radius
                                   :periodic? periodic?}))))
 
-(s/fdef sampling-linear-encoder
-        :args (s/and
-               (s/cat :dimensions ::pos-dimensions
-                      :n-active pos-int?
-                      :lower-upper (s/and (s/tuple number? number?)
-                                          (fn [[a b]] (< a b)))
-                      :radius (s/and number? pos?)
-                      :periodic? (s/? boolean?))
-               #(< (:n-active %) (reduce * (:dimensions %))))
-        :ret ::p/encoder)
+(s/def ::sampling-linear-encoder-args
+  #_"Args spec for sampling-linear-encoder, without the radius constraint.
+  Given an id here for generator use."
+  (s/and
+   (s/cat :dimensions ::pos-dimensions
+          :n-active ::n-active-bits
+          :lower-upper (s/and (s/tuple (finite?-spec :min -1e12 :max 1e12)
+                                       (finite?-spec :min -1e12 :max 1e12))
+                              (fn [[a b]] (< a b)))
+          :radius (s/and (finite?-spec :min 0 :max 1e12)
+                         pos?)
+          :periodic? (s/? boolean?))
+   #(< (:n-active %) (reduce * (:dimensions %)))))
+
+(defn- sle-radius-range
+  [dimensions n-active [lower upper]]
+  (let [n-bits (reduce * dimensions)
+        span (- upper lower)
+        radius-min (* span (/ n-active n-bits 4))]
+    [radius-min (* span 10)]))
+
+(s/fdef
+ sampling-linear-encoder
+ :args (->
+        (s/and ::sampling-linear-encoder-args
+               #(let [[rmin rmax] (sle-radius-range (:dimensions %) (:n-active %)
+                                                    (:lower-upper %))]
+                  (<= rmin (:radius %) rmax)))
+        (s/with-gen
+          (fn []
+            (gen/bind
+             (s/gen ::sampling-linear-encoder-args)
+             (fn [[dimensions n-active lower-upper _ periodic? :as args]]
+               (let [[rmin rmax] (sle-radius-range dimensions n-active
+                                                   lower-upper)
+                     radius-gen (gen/double* {:min rmin :max rmax :NaN? false})]
+                 (gen/fmap #(-> (take 3 args) (vec) (conj %) (conj periodic?))
+                           radius-gen)))))))
+ :ret ::p/encoder)
+
+(defmethod p/encoder-spec SamplingLinearEncoder [_]
+  (s/with-gen (s/keys) #(util/fn->generator (var sampling-linear-encoder))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Sensors

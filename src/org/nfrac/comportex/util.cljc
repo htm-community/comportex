@@ -1,5 +1,7 @@
 (ns org.nfrac.comportex.util
   (:require [clojure.test.check.random :as random]
+            [clojure.spec :as s]
+            [clojure.spec.gen :as gen]
             [clojure.set :as set])
   (:refer-clojure :exclude [rand rand-int rand-nth shuffle]))
 
@@ -332,3 +334,33 @@
   [sdr1 sdr2]
   (/ (count (set/intersection sdr1 sdr2))
      (max 1 (count sdr1) (count sdr2))))
+
+(defn fn->generator
+  "Returns a generator of the return values of the function.
+  The function must be given as a var and it must have arg specs."
+  [fn-var]
+  (gen/fmap #(apply fn-var %) (s/gen (:args (s/get-spec fn-var)))))
+
+(defn finite?
+  [x]
+  (when (number? x)
+    (if (float? x)
+      #?(:clj (Double/isFinite x)
+         :cljs (js/isFinite x))
+      ;; int
+      true)))
+
+(defn finite?-spec
+  "Returns a spec like `number?` but which doesn't generate NaN or infinity.
+  Specifically it accepts and generates integers or doubles. min/max optional."
+  [& {:keys [min max]}]
+  (->
+    (fn [x]
+      (when (finite? x)
+        (and (if min (>= x min) true)
+             (if max (<= x max) true))))
+    ;; generate a scalar, not a map as 'or' would
+    (s/with-gen
+      #(gen/one-of
+        [(gen/large-integer :min min :max max)
+         (gen/double* {:NaN? false :infinite? false :min min :max max})]))))
