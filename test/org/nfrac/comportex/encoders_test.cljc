@@ -2,8 +2,6 @@
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [clojure.set :as set]
-            [clojure.spec :as s]
-            [clojure.spec.gen :as gen]
             [clojure.spec.test :as stest]
             [clojure.test.check.clojure-test :as ctcc]
             [clojure.test :as t

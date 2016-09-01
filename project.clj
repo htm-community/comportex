@@ -7,7 +7,7 @@
                  [org.clojure/core.async "0.2.385"]
                  [org.clojure/data.int-map "0.2.3"]
                  [org.clojure/test.check "0.9.0"]
-                 [org.clojure/clojurescript "1.9.198"]
+                 [org.clojure/clojurescript "1.9.227"]
                  [clj-http "3.1.0"]
                  [cljs-http "0.1.41"]]
 

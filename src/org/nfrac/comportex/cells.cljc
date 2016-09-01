@@ -26,11 +26,11 @@
             [org.nfrac.comportex.inhibition :as inh]
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util
-             :refer [count-filter remap round]]
+             :refer [count-filter remap round spec-finite]]
             [clojure.test.check.random :as random]
             [clojure.set :as set]
             [clojure.spec :as s]
-            [clojure.spec.gen :as gen]))
+            [#?(:clj clojure.spec.gen :cljs clojure.spec.impl.gen) :as gen]))
 
 (s/def ::max-segments
   #_"maximum number of dendrites segments per cell (or column for proximal)."
@@ -153,12 +153,12 @@
 (s/def ::ff-potential-radius
   #_"range of potential feed-forward synapse connections, as a fraction of the
   longest single dimension in the input space."
-  (s/double-in :min 1/10000 :max 1.0 :NaN? false))
+  (spec-finite :min (/ 1 10000) :max 1.0))
 
 (s/def ::ff-init-frac
   #_"fraction of inputs within radius of a column that will be initialised with
   proximal synapses."
-  (s/double-in :min 0.0 :max 1.0 :NaN? false))
+  (spec-finite :min 0.0 :max 1.0))
 
 (s/def ::ff-perm-init
   #_"range of initial permanence values on proximal synapses."
@@ -197,19 +197,19 @@
 (s/def ::boost-active-duty-ratio
   #_"when a column's activation frequency is below this proportion of the
   highest of its neighbours, its boost factor is increased."
-  (s/double-in :min 0.0 :max 1.0 :NaN? false))
+  (spec-finite :min 0.0 :max 1.0))
 
 (s/def ::adjust-overlap-duty-ratio
   #_"when a column's overlap frequency differs from any of its neighbours by at
   least this fraction, its permanences are adjusted."
-  (s/double-in :min 0.0 :max 1.0 :NaN? false))
+  (spec-finite :min 0.0 :max 1.0))
 
 (s/def ::float-overlap-duty-ratio
   #_""
-  (s/double-in :min 0.0 :max 1.0 :NaN? false))
+  (spec-finite :min 0.0 :max 1.0))
 
 (s/def ::float-overlap-duty-ratio-hi
-  (s/double-in :min 1.0 :max 1e6 :NaN? false))
+  (spec-finite :min 1.0 :max 1e6))
 
 (s/def ::boost-active-every
   #_"number of time steps between recalculating column boosting factors."
@@ -264,7 +264,7 @@
 (s/def ::activation-level
   #_"fraction of columns that can be active; inhibition kicks in to reduce it to
   this level."
-  (s/double-in :min 1/10000 :max 1.0 :NaN? false))
+  (spec-finite :min (/ 1 10000) :max 1.0))
 
 (s/def ::inhibition-base-distance
   #_"the distance in columns within which a cell will always inhibit neighbouring
@@ -276,13 +276,13 @@
   segment) before adding to the number of active proximal synapses, when
   selecting active columns. Set to zero to disable ``prediction-assisted''
   activation."
-  (s/double-in :min 0.0 :max 1e6 :NaN? false))
+  (spec-finite :min 0.0 :max 1e6))
 
 (s/def ::apical-bias-frac
   #_"probability of choosing a winner cell according to apical excitation when
   otherwise the choice would have been random. Generates similarity between
   cases in similar contexts."
-  (s/double-in :min 0.0 :max 1.0 :NaN? false))
+  (spec-finite :min 0.0 :max 1.0))
 
 (s/def ::spontaneous-activation?
   #_"if true, cells may become active with sufficient distal synapse excitation,
@@ -305,7 +305,7 @@
   #_"effective time steps are delayed until the similarity (normalised column
   overlap) between successive states falls below this level. So 1.0 means every
   time step is effective - the usual behaviour."
-  (s/double-in :min 0.0 :max 1.0 :NaN? false))
+  (spec-finite :min 0.0 :max 1.0))
 
 (s/def ::random-seed
   #_"the random seed (for reproducible results)."

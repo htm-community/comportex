@@ -54,8 +54,7 @@
    :proximal {:perm-inc 0.05
               :perm-dec 0.05
               :perm-connected 0.10}
-   :ff-perm-init-lo 0.35
-   :ff-perm-init-hi 0.45
+   :ff-perm-init [0.35 0.45]
    ;; chosen for exploration - fresh connections fully boosted > 1.0:
    :max-boost 3.0
    :boost-active-every 1
@@ -93,7 +92,7 @@
 (defn select-action
   [htm curr-pos]
   (let [alyr (get-in htm [:regions :action :layer-3])
-        acols (p/active-columns alyr)
+        acols (:active-columns (p/layer-state alyr))
         signals (map column->signal acols)
         poss (possible-directions curr-pos)]
     (->> signals

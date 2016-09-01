@@ -1,7 +1,7 @@
 (ns org.nfrac.comportex.util
   (:require [clojure.test.check.random :as random]
             [clojure.spec :as s]
-            [clojure.spec.gen :as gen]
+            [#?(:clj clojure.spec.gen :cljs clojure.spec.impl.gen) :as gen]
             [clojure.set :as set])
   (:refer-clojure :exclude [rand rand-int rand-nth shuffle]))
 
@@ -344,13 +344,13 @@
 (defn finite?
   [x]
   (when (number? x)
-    (if (float? x)
+    (if (not (integer? x))
       #?(:clj (Double/isFinite x)
          :cljs (js/isFinite x))
       ;; int
       true)))
 
-(defn finite?-spec
+(defn spec-finite
   "Returns a spec like `number?` but which doesn't generate NaN or infinity.
   Specifically it accepts and generates integers or doubles. min/max optional."
   [& {:keys [min max]}]
@@ -361,6 +361,8 @@
              (if max (<= x max) true))))
     ;; generate a scalar, not a map as 'or' would
     (s/with-gen
-      #(gen/one-of
-        [(gen/large-integer :min min :max max)
-         (gen/double* {:NaN? false :infinite? false :min min :max max})]))))
+      (if (and max min (<= (- max min) 1.0)) ;; sub-integer, only generate floats
+        #(gen/double* {:NaN? false :min min :max max})
+        #(gen/one-of
+          [(gen/large-integer :min min :max max)
+           (gen/double* {:NaN? false :infinite? false :min min :max max})])))))

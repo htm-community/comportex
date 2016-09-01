@@ -1,6 +1,7 @@
 (ns org.nfrac.comportex.protocols
-  (:require [clojure.spec :as s]
-            [clojure.spec.gen :as gen]))
+  (:require [org.nfrac.comportex.util :refer [spec-finite]]
+            [clojure.spec :as s]
+            [#?(:clj clojure.spec.gen :cljs clojure.spec.impl.gen) :as gen]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Common specs
@@ -12,8 +13,7 @@
 (s/def ::cell-index (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 32)))))
 (s/def ::cell-id (s/tuple ::column-id ::cell-index))
 (s/def ::seg-path (s/tuple ::column-id ::cell-index ::cell-index))
-(s/def ::excitation-amt (-> (s/and number? #(<= 0 % 1e12)
-                                   #(not (Double/isNaN %)))
+(s/def ::excitation-amt (-> (spec-finite :min 0 :max 1e12)
                             (s/with-gen #(s/gen (s/int-in 0 500)))))
 (s/def ::seg-exc (s/every-kv ::seg-path ::excitation-amt))
 (s/def ::timestep nat-int?)
@@ -24,7 +24,7 @@
                                              :min-count 1 :max-count 3)
                                   #(<= (reduce * %) 2048))))))
 
-(s/def ::permanence (s/double-in :min 0.0 :max 1.0 :NaN? false))
+(s/def ::permanence (spec-finite :min 0.0 :max 1.0))
 (s/def ::segment (s/every-kv ::bit ::permanence))
 (s/def ::operation #{:learn :punish :reinforce})
 (s/def ::grow-sources (s/nilable ::bits))

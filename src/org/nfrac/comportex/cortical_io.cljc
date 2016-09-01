@@ -128,14 +128,14 @@
       (topology [_]
         topo)
       p/PEncoder
-      (encode
+      (encode*
         [_ term]
         (if (seq term)
           (cond->
            (get-fingerprint cache term)
            spatial-scramble? (scramble-bitset))
           (sequence nil)))
-      (decode
+      (decode*
         [this bit-votes n]
         (let [bit-votes (if spatial-scramble?
                           (zipmap (map unscramble-bit (keys bit-votes))

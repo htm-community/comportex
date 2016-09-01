@@ -3,10 +3,10 @@
    input to a cortical region."
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topology :as topology]
-            [org.nfrac.comportex.util :as util :refer [abs finite?-spec]]
+            [org.nfrac.comportex.util :as util :refer [abs spec-finite]]
             [clojure.test.check.random :as random]
             [clojure.spec :as s]
-            [clojure.spec.gen :as gen]))
+            [#?(:clj clojure.spec.gen :cljs clojure.spec.impl.gen) :as gen]))
 
 (s/def ::pos-dimensions
   (s/and ::p/dimensions #(pos? (reduce * %))))
@@ -249,7 +249,7 @@
         :args (s/and
                (s/cat :dimensions ::pos-dimensions
                       :n-active ::n-active-bits
-                      :lower-upper (s/and (s/tuple (finite?-spec) (finite?-spec))
+                      :lower-upper (s/and (s/tuple (spec-finite) (spec-finite))
                                           (fn [[a b]] (< a b)))
                       :periodic? (s/? boolean?))
                #(< (:n-active %) (reduce * (:dimensions %))))
@@ -465,8 +465,8 @@
         :args (s/and
                (s/cat :dimensions (s/and ::pos-dimensions #(= 2 (count %)))
                       :n-active ::n-active-bits
-                      :xy-maxs (s/tuple (s/and (finite?-spec :min 0) pos?)
-                                        (s/and (finite?-spec :min 0) pos?)))
+                      :xy-maxs (s/tuple (s/and (spec-finite :min 0) pos?)
+                                        (s/and (spec-finite :min 0) pos?)))
                #(< (:n-active %) (reduce * (:dimensions %))))
         :ret ::p/encoder)
 
@@ -497,9 +497,9 @@
           [x y z]))))
 
 (s/fdef coordinate-neighbours
-        :args (s/cat :coord (s/coll-of (finite?-spec) :min-count 1 :max-count 3)
-                     :radii (s/coll-of (finite?-spec) :min-count 1 :max-count 3))
-        :ret (s/coll-of (finite?-spec) :min-count 1 :max-count 3 :kind vector?)
+        :args (s/cat :coord (s/coll-of (spec-finite) :min-count 1 :max-count 3)
+                     :radii (s/coll-of (spec-finite) :min-count 1 :max-count 3))
+        :ret (s/coll-of (spec-finite) :min-count 1 :max-count 3 :kind vector?)
         :fn #(apply = (count (-> % :args :coord))
                     (count (-> % :args :radii))
                     (map count (:ret %))))
@@ -567,10 +567,10 @@
         :args (s/and
                (s/cat :dimensions ::pos-dimensions
                       :n-active ::n-active-bits
-                      :scale-factors (s/coll-of (s/and (finite?-spec)
+                      :scale-factors (s/coll-of (s/and (spec-finite)
                                                        (complement zero?))
                                                 :min-count 1 :max-count 3)
-                      :radii (s/coll-of (s/and (finite?-spec :min 0 :max 100) pos?)
+                      :radii (s/coll-of (s/and (spec-finite :min 0 :max 100) pos?)
                                         :min-count 1 :max-count 3))
                #(< (:n-active %) (reduce * (:dimensions %)))
                #(= (count (:scale-factors %)) (count (:radii %))))
@@ -609,7 +609,7 @@
 
 (s/fdef multiples-within-radius
         :args (s/cat :center nat-int?
-                     :radius (s/and (finite?-spec :min 0) pos?)
+                     :radius (s/and (spec-finite :min 0) pos?)
                      :multiples-of pos-int?)
         :ret (s/every int?))
 
@@ -684,7 +684,7 @@
                (s/cat :center nat-int?
                       :n-bits pos-int?
                       :target-n-active pos-int?
-                      :bit-radius (finite?-spec :min 0)
+                      :bit-radius (spec-finite :min 0)
                       :periodic? boolean?)
                #(>= (:bit-radius %)
                     (/ (:target-n-active %) 4)))
@@ -770,10 +770,10 @@
   (s/and
    (s/cat :dimensions ::pos-dimensions
           :n-active ::n-active-bits
-          :lower-upper (s/and (s/tuple (finite?-spec :min -1e12 :max 1e12)
-                                       (finite?-spec :min -1e12 :max 1e12))
+          :lower-upper (s/and (s/tuple (spec-finite :min -1e12 :max 1e12)
+                                       (spec-finite :min -1e12 :max 1e12))
                               (fn [[a b]] (< a b)))
-          :radius (s/and (finite?-spec :min 0 :max 1e12)
+          :radius (s/and (spec-finite :min 0 :max 1e12)
                          pos?)
           :periodic? (s/? boolean?))
    #(< (:n-active %) (reduce * (:dimensions %)))))

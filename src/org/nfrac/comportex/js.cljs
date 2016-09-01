@@ -85,28 +85,28 @@
 (defn ^:export bursting-columns
   "The set of bursting column ids."
   [lyr]
-  (clj->js (p/bursting-columns lyr)))
+  (clj->js (:bursting-columns (p/layer-state lyr))))
 
 (defn ^:export active-columns
   "The set of active column ids."
   [lyr]
-  (clj->js (p/active-columns lyr)))
+  (clj->js (:active-columns (p/layer-state lyr))))
 
 (defn ^:export active-cells
   "The set of active cell ids."
   [lyr]
-  (clj->js (p/active-cells lyr)))
+  (clj->js (:active-cells (p/layer-state lyr))))
 
 (defn ^:export predictive-cells
   "The set of predictive cell ids derived from the current active
   cells. If the depolarise phase has not been applied yet, returns
   nil."
   [lyr]
-  (clj->js (p/predictive-cells lyr)))
+  (clj->js (:predictive-cells (p/layer-state lyr))))
 
 (defn ^:export prior-predictive-cells
   [lyr]
-  (clj->js (p/prior-predictive-cells lyr)))
+  (clj->js (:prior-predictive-cells (p/layer-state lyr))))
 
 ;; ===================================================================
 
