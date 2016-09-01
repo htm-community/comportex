@@ -369,7 +369,10 @@
         :ret ::bits
         :fn (fn [v]
               (let [w (-> v :args :encoder size-of)]
-                (every? #(< % w) (:ret v)))))
+                (if (nil? (-> v :args :x))
+                  (empty? (:ret v))
+                  (and (<= (count (:ret v)) w)
+                       (every? #(< % w) (:ret v)))))))
 
 (defn decode
   "Finds `n` domain values matching the given bit set in a sequence
