@@ -2,8 +2,9 @@
 
 ## [Unreleased]
 ### Changed
-- Namespace changes: `.cells` is now `.layer`.
-
+- Namespace changes:
+  - `.cells` renamed to `.layer`.
+  - `.columns` renamed to `.homeostasis` and init fn moved into `.layer`.
 
 ## [0.0.15] - 2016-09-05
 ### Changed

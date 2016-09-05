@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.layer
-  "Cell activation and sequence memory.
+  "Implements a single layer of cells.
 
    **Argument name conventions:**
 
@@ -21,7 +21,7 @@
    * `seg` or `syns` -- incoming synapses as a map from source id to permanence.
 "
   (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.columns :as columns]
+            [org.nfrac.comportex.homeostasis :as homeo]
             [org.nfrac.comportex.synapses :as syn]
             [org.nfrac.comportex.inhibition :as inh]
             [org.nfrac.comportex.topology :as topology]
@@ -1369,7 +1369,7 @@
         ;; these both keyed by [col 0]
         [raw-col-exc matching-ff-segs]
         (best-segment-excitations-and-paths col-seg-overlaps)
-        col-exc (columns/apply-overlap-boosting raw-col-exc boosts)
+        col-exc (homeo/apply-overlap-boosting raw-col-exc boosts)
         ;; combine excitation values for selecting columns
         abs-cell-exc (total-excitations col-exc fb-cell-exc
                                         (:distal-vs-proximal-weight params)
@@ -1394,7 +1394,7 @@
         ;; these both keyed by [col 0]
         [raw-col-exc matching-ff-segs]
         (best-segment-excitations-and-paths col-seg-overlaps)
-        col-exc (columns/apply-overlap-boosting raw-col-exc boosts)
+        col-exc (homeo/apply-overlap-boosting raw-col-exc boosts)
         ;; combine excitation values for selecting columns
         abs-cell-exc (total-excitations col-exc fb-cell-exc
                                         (:distal-vs-proximal-weight params)
@@ -1544,14 +1544,14 @@
        (:punish? (:distal params)) (layer-punish-lateral (:prior-active-cells learn-state))
        (:punish? (:apical params)) (layer-punish-apical (:prior-active-cells learn-state))
        (:punish? (:proximal params)) (layer-punish-proximal)
-       true (update :active-duty-cycles columns/update-duty-cycles
+       true (update :active-duty-cycles homeo/update-duty-cycles
                     a-cols (:duty-cycle-period params))
-       true (update :overlap-duty-cycles columns/update-duty-cycles
+       true (update :overlap-duty-cycles homeo/update-duty-cycles
                     (map first (keys (:col-overlaps state)))
                     (:duty-cycle-period params))
-       (zero? (mod timestep (:boost-active-every params))) (columns/boost-active)
-       (zero? (mod timestep (:adjust-overlap-every params))) (columns/adjust-overlap)
-       (zero? (mod timestep (:float-overlap-every params))) (columns/layer-float-overlap)
+       (zero? (mod timestep (:boost-active-every params))) (homeo/boost-active)
+       (zero? (mod timestep (:adjust-overlap-every params))) (homeo/adjust-overlap)
+       (zero? (mod timestep (:float-overlap-every params))) (homeo/layer-float-overlap)
        (zero? (mod timestep (:inh-radius-every params))) (update-inhibition-radius)))))
 
 (defn layer-depolarise-impl
@@ -1656,6 +1656,85 @@
   (params [_]
     params))
 
+(defn uniform-ff-synapses
+  "Generates feed-forward synapses connecting columns to the input bit array.
+  Connections are made locally by scaling the input space to the column space.
+  Potential synapses are chosen within a radius in input space of
+  `ff-potential-radius` fraction of the longest single dimension, and of those,
+  `ff-init-frac` are chosen from a uniform random distribution. Initial
+  permanence values are uniformly distributed in the range of `ff-perm-init`."
+  [topo itopo params rng]
+  (let [[p-lo p-hi] (:ff-perm-init params)
+        global? (>= (:ff-potential-radius params) 1.0)
+        ;; radius in input space, fraction of longest dimension
+        radius (long (* (:ff-potential-radius params)
+                        (apply max (p/dimensions itopo))))
+        frac (:ff-init-frac params)
+        input-size (p/size itopo)
+        n-cols (p/size topo)
+        one-d? (or (== 1 (count (p/dimensions topo)))
+                   (== 1 (count (p/dimensions itopo))))
+        [cw ch cdepth] (p/dimensions topo)
+        [iw ih idepth] (p/dimensions itopo)
+        ;; range of coordinates usable as focus (adjust for radius at edges)
+        focus-ix (fn [frac width]
+                   (-> frac
+                       (* (- width (* 2 radius)))
+                       (+ radius)
+                       (round)))
+        ;; range of z coordinates usable as focus for radius
+        focus-izs (when idepth
+                    (if (<= idepth (inc (* 2 radius)))
+                      (list (quot idepth 2))
+                      (range radius (- idepth radius))))]
+    (if global?
+      (let [n-syns (round (* frac input-size))]
+        (->> (random/split-n rng n-cols)
+             (mapv (fn [col-rng]
+                     (into {}
+                           (map (fn [rng]
+                                  (let [[rng1 rng2] (random/split rng)]
+                                    [(util/rand-int rng1 input-size)
+                                     (util/rand rng2 p-lo p-hi)])))
+                           (random/split-n col-rng n-syns))))))
+      (->> (random/split-n rng n-cols)
+           (mapv (fn [col col-rng]
+                   (let [focus-i (if one-d?
+                                   (round (* input-size (/ col n-cols)))
+                                   ;; use corresponding positions in 2D
+                                   (let [[cx cy _] (p/coordinates-of-index topo col)
+                                         ix (focus-ix (/ cx cw) iw)
+                                         iy (focus-ix (/ cy ch) ih)
+                                         ;; in 3D, choose z coordinate from range
+                                         iz (when idepth
+                                              (nth focus-izs (mod col (count focus-izs))))
+                                         icoord (if idepth [ix iy iz] [ix iy])]
+                                     (p/index-of-coordinates itopo icoord)))
+                         all-ids (vec (p/neighbours-indices itopo focus-i radius -1))
+                         n (round (* frac (count all-ids)))
+                         [rng1 rng2] (random/split col-rng)
+                         ids (cond
+                               (< frac 0.4) ;; for performance:
+                               (util/sample rng1 n all-ids)
+                               (< frac 1.0)
+                               (util/reservoir-sample rng1 n all-ids)
+                               :else
+                               all-ids)]
+                     (into {}
+                           (map (fn [id rng]
+                                  [id (util/rand rng p-lo p-hi)])
+                                ids
+                                (random/split-n rng2 (count ids))))))
+                 (range))))))
+
+(s/fdef uniform-ff-synapses
+        :args (s/cat :topo #(satisfies? p/PTopological %)
+                     :itopo #(satisfies? p/PTopological %)
+                     :params (s/keys :req-un [::ff-perm-init
+                                              ::ff-init-frac
+                                              ::ff-potential-radius])
+                     :rng ::rng))
+
 (defn check-param-deprecations
   [params]
   (assert (not (contains? params :global-inhibition?))
@@ -1676,8 +1755,8 @@
         n-apical (reduce * (:distal-topdown-dimensions params))
         [rng rng*] (-> (random/make-random (:random-seed params))
                        (random/split))
-        col-prox-syns (columns/uniform-ff-synapses col-topo input-topo
-                                                   params rng*)
+        col-prox-syns (uniform-ff-synapses col-topo input-topo
+                                           params rng*)
         proximal-sg (syn/col-segs-synapse-graph col-prox-syns n-cols
                                                 (:max-segments (:proximal params))
                                                 (p/size input-topo)
