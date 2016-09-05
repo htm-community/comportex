@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 ### Changed
+- Namespace changes: `.cells` is now `.layer`.
+
 
 ## [0.0.15] - 2016-09-05
 ### Changed

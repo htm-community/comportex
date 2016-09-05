@@ -46,7 +46,7 @@
         htm (p/htm-step prev-htm (first continued))]
     (testing "Cell excitation breakdowns"
       (let [lyr (get-in htm [:regions :rgn-0 :layer-3])
-            wc (p/winner-cells lyr)
+            wc (:winner-cells (p/layer-state lyr))
             bd (core/cell-excitation-breakdowns htm prev-htm :rgn-0 :layer-3
                                                 (conj wc [0 0]))]
         (is (every? (comp pos? :total) (map bd wc))

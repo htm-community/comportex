@@ -5,7 +5,7 @@
    itself and possibly other regions."
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topology :as topology]
-            [org.nfrac.comportex.cells :as cells]
+            [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.util :as util]
             [org.nfrac.comportex.util.algo-graph :as graph]
             [clojure.set :as set]))
@@ -80,15 +80,15 @@
   "Constructs a cortical region with one layer.
 
   `params` is the parameter specification map. See documentation on
-  `cells/parameter-defaults` for possible keys. Any keys given here
+  `layer/parameter-defaults` for possible keys. Any keys given here
   will override those default values."
   [params]
   (let [unk (set/difference (set (keys params))
-                            (set (keys cells/parameter-defaults)))]
+                            (set (keys layer/parameter-defaults)))]
     (when (seq unk)
       (println "Warning: unknown keys in params:" unk)))
   (map->SensoryRegion
-   {:layer-3 (cells/layer-of-cells params)}))
+   {:layer-3 (layer/layer-of-cells params)}))
 
 ;;; # Sensorimotor = L3 + L4
 
@@ -170,7 +170,7 @@
   3."
   [params]
   (let [unk (set/difference (set (keys params))
-                            (set (keys cells/parameter-defaults))
+                            (set (keys layer/parameter-defaults))
                             #{:layer-4 :layer-3})]
     (when (seq unk)
       (println "Warning: unknown keys in params:" unk)))
@@ -178,14 +178,14 @@
                        :lateral-synapses? false)
                       (util/deep-merge (:layer-4 params {}))
                       (dissoc :layer-3 :layer-4))
-        l4 (cells/layer-of-cells l4-params)
+        l4 (layer/layer-of-cells l4-params)
         l3-params (-> (assoc params
                        :input-dimensions (p/dimensions (p/ff-topology l4))
                        :distal-motor-dimensions [0]
                        :lateral-synapses? true)
                     (util/deep-merge (:layer-3 params {}))
                     (dissoc :layer-3 :layer-4))
-        l3 (cells/layer-of-cells l3-params)]
+        l3 (layer/layer-of-cells l3-params)]
     (map->SensoriMotorRegion
      {:layer-3 l3
       :layer-4 l4})))
@@ -286,7 +286,7 @@
   (let [rgn (get-in htm [:regions rgn-id])
         lyr (get rgn lyr-id)
         params (p/params lyr)
-        [src-type adj-i] (cells/id->source params i)]
+        [src-type adj-i] (layer/id->source params i)]
     (case src-type
       :this [rgn-id lyr-id i]
       :ff (if (= lyr-id (first (layers rgn)))
@@ -323,7 +323,7 @@
 ;; TODO - better way to do this
 (defn fb-dim-from-params
   [params]
-  (let [params (util/deep-merge cells/parameter-defaults params)]
+  (let [params (util/deep-merge layer/parameter-defaults params)]
     (topology/make-topology (conj (:column-dimensions params)
                                   (:depth params)))))
 

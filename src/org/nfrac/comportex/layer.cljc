@@ -1,4 +1,4 @@
-(ns org.nfrac.comportex.cells
+(ns org.nfrac.comportex.layer
   "Cell activation and sequence memory.
 
    **Argument name conventions:**
@@ -1079,7 +1079,7 @@
         (persistent! m)))))
 
 (s/fdef learning-updates
-        :args (s/cat :cells (s/nilable (s/coll-of ::p/cell-id))
+        :args (s/cat :cells (s/nilable (s/coll-of ::p/cell-id :distinct true))
                      :matching-segs ::matching-segs
                      :sg ::p/synapse-graph
                      :learnable-bits (s/nilable ::p/bits)

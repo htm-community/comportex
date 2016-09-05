@@ -10,7 +10,8 @@
   segment. Operation can be one of `:learn` (increment active sources,
   decrement inactive), `:punish` (decrement active sources) or
   `:reinforce` (increment active sources). Without the operation
-  argument, only the growth and death of synapses will be applied."
+  argument, only the growth and death of synapses will be applied.
+  It is allowed for a source to die and (re-)grow in the same update."
   ([target-id grow-sources die-sources]
    (SegUpdate. target-id nil grow-sources die-sources))
   ([target-id operation grow-sources die-sources]
@@ -126,8 +127,8 @@
           (recur (next seg-updates)
                  (assoc! syns-by-target target-id new-syns)
                  (-> targets-by-source
-                     (util/update-each! connect-ids #(conj % target-id))
-                     (util/update-each! disconnect-ids #(disj % target-id)))))
+                     (util/update-each! disconnect-ids #(disj % target-id))
+                     (util/update-each! connect-ids #(conj % target-id)))))
         ;; finished loop
         (assoc this
                :syns-by-target (persistent! syns-by-target)

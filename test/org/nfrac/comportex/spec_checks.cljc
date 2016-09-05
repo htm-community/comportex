@@ -1,6 +1,6 @@
 (ns org.nfrac.comportex.spec-checks
   (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.cells :as cells]
+            [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.fancy-generators :refer [fancy-gens]]
             [clojure.spec.test :as stest]
             [clojure.test.check.clojure-test :as ctcc]
@@ -17,40 +17,40 @@
 (def opts {::stc/opts {:num-tests 50}
            :gen fancy-gens})
 
-(stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.cells))
+(stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.layer))
 (stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.protocols))
 
-(deftest cells-light-fns-test
-  (-> `[cells/segment-activation
-        cells/best-matching-segment
-        cells/best-segment-excitations-and-paths
-        cells/best-by-column
-        cells/total-excitations
-        cells/column-active-cells
-        cells/select-active-cells
-        cells/new-segment-id
-        cells/segment-new-synapse-source-ids]
+(deftest layer-light-fns-test
+  (-> `[layer/segment-activation
+        layer/best-matching-segment
+        layer/best-segment-excitations-and-paths
+        layer/best-by-column
+        layer/total-excitations
+        layer/column-active-cells
+        layer/select-active-cells
+        layer/new-segment-id
+        layer/segment-new-synapse-source-ids]
       (stest/check opts)
       (stest/summarize-results)))
 
 ;; requires synapse graph generator
 #_
-(deftest cells-sg-fns-test
-  (-> `[cells/select-winner-cell-and-seg
-        cells/select-winner-cells-and-segs
-        cells/learning-updates
-        cells/learn-distal
-        cells/punish-distal
-        cells/compute-distal-state
-        cells/layer-learn-proximal]
+(deftest layer-sg-fns-test
+  (-> `[layer/select-winner-cell-and-seg
+        layer/select-winner-cells-and-segs
+        layer/learning-updates
+        layer/learn-distal
+        layer/punish-distal
+        layer/compute-distal-state
+        layer/layer-learn-proximal]
       (stest/check (assoc-in opts [::stc/opts :num-tests] 50))
       (stest/summarize-results)))
 
 ;; requires layer-of-cells generator
-(deftest cells-heavy-fns-test
+(deftest layer-heavy-fns-test
   (->
    `[p/layer-activate]
-     ;cells/spatial-pooling
-     ;cells/temporal-pooling]
+     ;layer/spatial-pooling
+     ;layer/temporal-pooling]
    (stest/check (assoc-in opts [::stc/opts :num-tests] 100))
    (stest/summarize-results)))

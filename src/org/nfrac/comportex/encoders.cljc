@@ -782,7 +782,9 @@
   [dimensions n-active [lower upper]]
   (let [n-bits (reduce * dimensions)
         span (- upper lower)
-        radius-min (* span (/ n-active n-bits 4))]
+        fuzz 0.001
+        radius-min (* span (/ n-active n-bits 4)
+                      (+ 1 fuzz))]
     [radius-min (* span 10)]))
 
 (s/fdef

@@ -1,12 +1,12 @@
 (ns org.nfrac.comportex.repl
   "Optional REPL tweaks"
   #?(:clj (:require [clojure.pprint :as pprint]
-                    [org.nfrac.comportex.cells]
+                    [org.nfrac.comportex.layer]
                     [org.nfrac.comportex.synapses])
-     :cljs (:require [org.nfrac.comportex.cells
+     :cljs (:require [org.nfrac.comportex.layer
                       :refer [LayerOfCells LayerActiveState LayerDistalState]]
                      [org.nfrac.comportex.synapses :refer [SynapseGraph]]))
-  #?(:clj (:import [org.nfrac.comportex.cells
+  #?(:clj (:import [org.nfrac.comportex.layer
                     LayerOfCells LayerActiveState LayerDistalState]
                    [org.nfrac.comportex.synapses SynapseGraph])))
 

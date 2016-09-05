@@ -1,7 +1,6 @@
 (ns org.nfrac.comportex.demos.q-learning-2d
   (:require [org.nfrac.comportex.core :as core]
             [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.cells :as cells]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util :refer [round abs]]
             [org.nfrac.comportex.demos.q-learning-1d :refer [q-learn]]
