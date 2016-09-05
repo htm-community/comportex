@@ -23,15 +23,12 @@ Comportex is not yet stable. Our aims are to:
 3. further develop the theory by attempting to apply it to new problem types.
 
 
+## Documentation
+
 For an applied exploration of HTM using Comportex, try the essay
 [Predicting power consumptions with HTM](http://mrcslws.com/gorilla/?path=hotgym.clj)
 by Marcus Lewis.
 
-
-## Documentation
-
-For now there is the
-[annotated source code](http://htm-community.github.com/comportex/docs/).
 The main API is in the namespaces `core`, `protocols` and `encoders`, while the
 algorithms are mainly in `cells`, `synapses` and `inhibition`.
 
