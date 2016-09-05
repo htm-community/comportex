@@ -3,10 +3,8 @@
             [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
-            #?(:clj [clojure.test :as t
-                     :refer (is deftest testing run-tests)]
-               :cljs [cemerick.cljs.test :as t
-                      :refer-macros (is deftest testing run-tests)])))
+            [clojure.test :as t
+             :refer (is deftest testing run-tests)]))
 
 (def bit-width 200)
 (def n-on-bits 20)
@@ -34,12 +32,12 @@
   [:value
    (enc/unique-encoder [bit-width] n-on-bits)])
 
-(def spec
+(def params
   {})
 
 (defn model
   []
-  (core/regions-in-series 2 core/sensory-region (repeat spec)
+  (core/regions-in-series 2 core/sensory-region (repeat params)
                           {:input sensor}))
 
 (deftest exc-bd-test

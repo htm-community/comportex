@@ -1,5 +1,7 @@
 (ns org.nfrac.comportex.util
   (:require [clojure.test.check.random :as random]
+            [clojure.spec :as s]
+            [#?(:clj clojure.spec.gen :cljs clojure.spec.impl.gen) :as gen]
             [clojure.set :as set])
   (:refer-clojure :exclude [rand rand-int rand-nth shuffle]))
 
@@ -27,14 +29,14 @@
 
 (defn round
   ([x]
-     (Math/round (double x)))
+   (Math/round (double x)))
   ([x n]
-     (let [z (Math/pow 10.0 n)]
-       (-> x
-           (* z)
-           (round)
-           (/ z)
-           (double)))))
+   (let [z (Math/pow 10.0 n)]
+     (-> x
+         (* z)
+         (round)
+         (/ z)
+         (double)))))
 
 (defn mean
   [xs]
@@ -151,23 +153,23 @@
    with many values per key. `f` is a function taking 2 arguments, the
    key and value."
   ([f kvs]
-     (group-by-maps f kvs {}))
+   (group-by-maps f kvs {}))
   ([f kvs init-m]
-     (->> kvs
+   (->> kvs
           ;; create a transient map of transient maps
-          (reduce (fn [m [k v]]
-                    (let [g (f k v)
-                          items (get m g (transient init-m))]
-                      (assoc! m g (assoc! items k v))))
-                  (transient {}))
+        (reduce (fn [m [k v]]
+                  (let [g (f k v)
+                        items (get m g (transient init-m))]
+                    (assoc! m g (assoc! items k v))))
+                (transient {}))
           ;; make the outer map persistent (can't seq it)
-          (persistent!)
+        (persistent!)
           ;; make the inner maps persistent within a transient outer map
-          (reduce (fn [m [g items]]
-                    (assoc! m g (persistent! items)))
-                  (transient {}))
+        (reduce (fn [m [g items]]
+                  (assoc! m g (persistent! items)))
+                (transient {}))
           ;; make the outer map persistent
-          (persistent!))))
+        (persistent!))))
 
 (defn update-each!
   "Transforms a transient map or vector `m` applying function `f` to
@@ -278,12 +280,12 @@
   Lazily concat all results."
   ([widths]
      ;; reserving arity -- this could become a transducer
-     :not-implemented)
+   :not-implemented)
   ([widths collcoll]
-     (let [[leftmost & others] collcoll
-           offs (reductions + widths)]
-       (concat leftmost
-               (mapcat #(map (partial + %) %2) offs others)))))
+   (let [[leftmost & others] collcoll
+         offs (reductions + widths)]
+     (concat leftmost
+             (mapcat #(map (partial + %) %2) offs others)))))
 
 (defn unalign-indices
   "Partition a sorted seq of indices into `(count widths)` seqs of unshifted
@@ -332,3 +334,35 @@
   [sdr1 sdr2]
   (/ (count (set/intersection sdr1 sdr2))
      (max 1 (count sdr1) (count sdr2))))
+
+(defn fn->generator
+  "Returns a generator of the return values of the function.
+  The function must be given as a var and it must have arg specs."
+  [fn-var]
+  (gen/fmap #(apply fn-var %) (s/gen (:args (s/get-spec fn-var)))))
+
+(defn finite?
+  [x]
+  (when (number? x)
+    (if (not (integer? x))
+      #?(:clj (Double/isFinite x)
+         :cljs (js/isFinite x))
+      ;; int
+      true)))
+
+(defn spec-finite
+  "Returns a spec like `number?` but which doesn't generate NaN or infinity.
+  Specifically it accepts and generates integers or doubles. min/max optional."
+  [& {:keys [min max]}]
+  (->
+    (fn [x]
+      (when (finite? x)
+        (and (if min (>= x min) true)
+             (if max (<= x max) true))))
+    ;; generate a scalar, not a map as 'or' would
+    (s/with-gen
+      (if (and max min (<= (- max min) 1.0)) ;; sub-integer, only generate floats
+        #(gen/double* {:NaN? false :min min :max max})
+        #(gen/one-of
+          [(gen/large-integer :min min :max max)
+           (gen/double* {:NaN? false :infinite? false :min min :max max})])))))

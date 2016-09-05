@@ -11,22 +11,22 @@
 (def items [:a :b :c :d :e :f :g :h :i :j])
 (def saccades [-1 0 1 2])
 
-(def higher-level-spec-diff
+(def higher-level-params-diff
   {:column-dimensions [800]
    :proximal {:max-segments 5
               :new-synapse-count 12
               :learn-threshold 6}})
 
-(def spec
+(def params
   {:column-dimensions [800]
    :depth 5
    :proximal {:perm-inc 0.10
               :perm-dec 0.01}
    :distal {:punish? false}
-   :layer-3 higher-level-spec-diff})
+   :layer-3 higher-level-params-diff})
 
-(def higher-level-spec
-  (util/deep-merge spec higher-level-spec-diff))
+(def higher-level-params
+  (util/deep-merge params higher-level-params-diff))
 
 (def fields
   (->>
@@ -83,9 +83,9 @@
 
 (defn n-region-model
   ([n]
-   (n-region-model n spec))
-  ([n spec]
+   (n-region-model n params))
+  ([n params]
    (core/regions-in-series n core/sensorimotor-region
-                           (list* spec (repeat higher-level-spec))
+                           (list* params (repeat higher-level-params))
                            {:input block-sensor}
                            {:motor block-motor-sensor})))

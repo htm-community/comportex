@@ -1,6 +1,7 @@
 (ns org.nfrac.comportex.synapses
   (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.util :as util :refer [getx]]))
+            [org.nfrac.comportex.util :as util :refer [getx]]
+            [clojure.spec :as s]))
 
 (defrecord SegUpdate [target-id operation grow-sources die-sources])
 
@@ -57,8 +58,8 @@
                      (if (and (<= p 0.0) cull-zeros?)
                        (conj cull id) cull)))))
         ;; finished loop
-        [up promote down demote cull]
-        ))))
+        [up promote down demote cull]))))
+
 
 (defn- never [_] false)
 (defn- always [_] true)
@@ -87,12 +88,12 @@
                  (transient {}))
          (persistent!)
          (reduce-kv (fn [m id exc]
-                   (if (>= exc stimulus-threshold)
-                     (assoc! m id exc)
-                     m))
+                     (if (>= exc stimulus-threshold)
+                       (assoc! m id exc)
+                       m))
                  (transient {}))
          (persistent!)))
-  (bulk-learn
+  (bulk-learn*
     [this seg-updates active-sources pinc pdec pinit]
     (loop [seg-updates (seq seg-updates)
            syns-by-target (transient syns-by-target)
@@ -135,7 +136,9 @@
 (defn empty-synapse-graph
   [n-targets n-sources pcon cull-zeros?]
   (map->SynapseGraph
-   {:syns-by-target (vec (repeat n-targets {}))
+   {::p/n-synapse-targets n-targets
+    ::p/n-synapse-sources n-sources
+    :syns-by-target (vec (repeat n-targets {}))
     :targets-by-source (vec (repeat n-sources #{}))
     :pcon pcon
     :cull-zeros? cull-zeros?}))
@@ -151,10 +154,17 @@
                     (transient (vec (repeat n-sources #{})))
                     syns-by-target))]
     (map->SynapseGraph
-     {:syns-by-target syns-by-target
+     {::p/n-synapse-targets (count syns-by-target)
+      ::p/n-synapse-sources n-sources
+      :syns-by-target syns-by-target
       :targets-by-source targets-by-source
       :pcon pcon
       :cull-zeros? cull-zeros?})))
+
+(defmethod p/synapse-graph-spec SynapseGraph [_]
+  (s/keys :req [::p/n-synapse-targets
+                ::p/n-synapse-sources]
+          :req-un [])) ;; TODO
 
 ;;; ## Dendrite segments
 
@@ -192,7 +202,7 @@
       (zipmap (map (fn [i] (seg-path depth max-segs i))
                    (keys exc-m))
               (vals exc-m))))
-  (bulk-learn
+  (bulk-learn*
     [this seg-updates active-sources pinc pdec pinit]
     (update-in this [:int-sg] p/bulk-learn
                (map (fn [seg-up]
@@ -219,7 +229,10 @@
   (let [n-targets (* n-cols depth max-segs)
         int-sg (empty-synapse-graph n-targets n-sources pcon cull-zeros?)]
     (map->CellSegmentsSynapseGraph
-     {:int-sg int-sg
+     {::p/n-synapse-targets n-targets
+      ::p/n-synapse-sources n-sources
+      :pcon pcon
+      :int-sg int-sg
       :depth depth
       :max-segs max-segs})))
 
@@ -241,6 +254,14 @@
                                     (map-indexed vector syns-by-col)))
         int-sg (synapse-graph int-syns-by-target n-sources pcon cull-zeros?)]
     (map->CellSegmentsSynapseGraph
-     {:int-sg int-sg
+     {::p/n-synapse-targets n-targets
+      ::p/n-synapse-sources n-sources
+      :pcon pcon
+      :int-sg int-sg
       :depth 1
       :max-segs max-segs})))
+
+(defmethod p/synapse-graph-spec CellSegmentsSynapseGraph [_]
+  (s/keys :req [::p/n-synapse-targets
+                ::p/n-synapse-sources]
+          :req-un [])) ;; TODO

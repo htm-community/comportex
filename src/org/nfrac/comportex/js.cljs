@@ -10,16 +10,16 @@
 ;; constituent regions and layers are not converted to native javascript types.
 ;; They are left as black box values intended to be used with other API fns.
 
-;;  `spec` is the parameter specification map.
+;;  `params` is the parameter specification map.
 
-(defn js->spec
-  [spec]
+(defn js->params
+  [params]
   ;; TODO: handle keyword values such as for :spatial-pooling key
-  (js->clj spec :keywordize-keys true))
+  (js->clj params :keywordize-keys true))
 
-(defn spec->js
-  [spec]
-  (clj->js spec))
+(defn params->js
+  [params]
+  (clj->js params))
 
 (defn js->selector
   [selector]
@@ -57,14 +57,14 @@
   Encoders should be passed as clojure objects (as from encoder fns).
   Selectors should be passed as strings or arrays of strings, which
   select the value at that key or nested path of keys in an input value."
-  ([n specs sensors]
-   (regions-in-series n specs sensors nil))
-  ([n specs main-sensors motor-sensors]
+  ([n paramseq sensors]
+   (regions-in-series n paramseq sensors nil))
+  ([n paramseq main-sensors motor-sensors]
    (let [build-region core/sensory-region
-         specs (map js->spec specs)
+         paramseq (map js->params paramseq)
          main-sensors (js->sensors main-sensors)
          motor-sensors (js->sensors motor-sensors)]
-     (core/regions-in-series n build-region specs main-sensors motor-sensors))))
+     (core/regions-in-series n build-region paramseq main-sensors motor-sensors))))
 
 ;; ===================================================================
 
@@ -85,28 +85,28 @@
 (defn ^:export bursting-columns
   "The set of bursting column ids."
   [lyr]
-  (clj->js (p/bursting-columns lyr)))
+  (clj->js (:bursting-columns (p/layer-state lyr))))
 
 (defn ^:export active-columns
   "The set of active column ids."
   [lyr]
-  (clj->js (p/active-columns lyr)))
+  (clj->js (:active-columns (p/layer-state lyr))))
 
 (defn ^:export active-cells
   "The set of active cell ids."
   [lyr]
-  (clj->js (p/active-cells lyr)))
+  (clj->js (:active-cells (p/layer-state lyr))))
 
 (defn ^:export predictive-cells
   "The set of predictive cell ids derived from the current active
   cells. If the depolarise phase has not been applied yet, returns
   nil."
   [lyr]
-  (clj->js (p/predictive-cells lyr)))
+  (clj->js (:predictive-cells (p/layer-state lyr))))
 
 (defn ^:export prior-predictive-cells
   [lyr]
-  (clj->js (p/prior-predictive-cells lyr)))
+  (clj->js (:prior-predictive-cells (p/layer-state lyr))))
 
 ;; ===================================================================
 
@@ -132,7 +132,7 @@
 
 (defn ^:export params
   [rgn-or-lyr]
-  (spec->js (p/params rgn-or-lyr)))
+  (params->js (p/params rgn-or-lyr)))
 
 (defn ^:export encode
   [encoder x]

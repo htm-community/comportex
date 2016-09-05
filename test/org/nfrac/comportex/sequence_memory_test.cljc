@@ -3,10 +3,8 @@
             [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
-            #?(:clj [clojure.test :as t
-                     :refer (is deftest testing run-tests)]
-               :cljs [cemerick.cljs.test :as t
-                      :refer-macros (is deftest testing run-tests)])))
+            [clojure.test :as t
+             :refer (is deftest testing run-tests)]))
 
 (def bit-width 200)
 (def items [:a :b :c :d :e :f :g :h])
@@ -31,12 +29,12 @@
   [[]
    (enc/category-encoder [bit-width] items)])
 
-(def spec
+(def params
   {})
 
 (defn model
   []
-  (core/regions-in-series 1 core/sensory-region [spec] {:input sensor}))
+  (core/regions-in-series 1 core/sensory-region [params] {:input sensor}))
 
 (deftest sm-test
   (let [[warmups continued] (split-at 500 (input-seq))

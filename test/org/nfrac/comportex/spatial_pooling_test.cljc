@@ -5,10 +5,8 @@
             [org.nfrac.comportex.util :as util]
             [clojure.test.check.random :as random]
             [clojure.set :as set]
-            #?(:clj [clojure.test :as t
-                     :refer (is deftest testing run-tests)]
-               :cljs [cemerick.cljs.test :as t
-                      :refer-macros (is deftest testing run-tests)])))
+            [clojure.test :as t
+             :refer (is deftest testing run-tests)]))
 
 (def numb-bits 127)
 (def numb-on-bits 21)
@@ -29,13 +27,13 @@
        (map first)
        (rest)))
 
-(def spec {:column-dimensions [1000]
-           :ff-potential-radius 0.5
-           :duty-cycle-period 600
-           :depth 1
-           :distal {:max-segments 1}
-           :lateral-synapses? false
-           })
+(def params {:column-dimensions [1000]
+             :ff-potential-radius 0.5
+             :duty-cycle-period 600
+             :depth 1
+             :distal {:max-segments 1}
+             :lateral-synapses? false})
+
 
 (def sensor
   [[]
@@ -44,7 +42,7 @@
 
 (defn model
   []
-  (core/regions-in-series 1 core/sensory-region [spec]
+  (core/regions-in-series 1 core/sensory-region [params]
                           {:input sensor}))
 
 (deftest sp-test
@@ -53,13 +51,14 @@
                           (assoc-in x [:active-columns-at (p/timestep x)]
                                     (-> (first (core/region-seq x))
                                         :layer-3
-                                        p/active-columns))))
+                                        p/layer-state
+                                        :active-columns))))
         m1 (reduce htm-step+cols (model) (take 500 (input-seq)))
         rgn (first (core/region-seq m1))
         lyr (:layer-3 rgn)
         n-cols (p/size-of lyr)]
     (testing "Column activation is distributed and moderated."
-      (is (pos? (count (p/active-columns lyr)))
+      (is (pos? (count (:active-columns (p/layer-state lyr))))
           "Some columns are active.")
       (is (pos? (util/quantile (:active-duty-cycles lyr) 0.9))
           "At least 10% of columns have been active.")
@@ -87,7 +86,7 @@
                            [_ encoder] sensor
                            ff-bits (into #{} (p/encode encoder this-in))
                            rgn2 (p/region-step rgn ff-bits)]]
-                 [k (p/active-columns (:layer-3 rgn2))])
+                 [k (:active-columns (p/layer-state (:layer-3 rgn2)))])
                (into {}))]
         (is (> (count (set/intersection (:orig m) (:near m)))
                (* (count (:orig m)) 0.5))

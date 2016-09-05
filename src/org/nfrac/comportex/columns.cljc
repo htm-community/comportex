@@ -18,16 +18,15 @@
    dimension, and of those, `ff-init-frac` are chosen from a
    uniform random distribution.
 
-   Initial permanence values are uniformly distributed between
-   `ff-perm-init-lo` and `ff-perm-init-hi`."
-  [topo itopo spec rng]
-  (let [p-hi (:ff-perm-init-hi spec)
-        p-lo (:ff-perm-init-lo spec)
-        global? (>= (:ff-potential-radius spec) 1.0)
+   Initial permanence values are uniformly distributed in the range of
+   `ff-perm-init`."
+  [topo itopo params rng]
+  (let [[p-lo p-hi] (:ff-perm-init params)
+        global? (>= (:ff-potential-radius params) 1.0)
         ;; radius in input space, fraction of longest dimension
-        radius (long (* (:ff-potential-radius spec)
+        radius (long (* (:ff-potential-radius params)
                         (apply max (p/dimensions itopo))))
-        frac (:ff-init-frac spec)
+        frac (:ff-init-frac params)
         input-size (p/size itopo)
         n-cols (p/size topo)
         one-d? (or (== 1 (count (p/dimensions topo)))
@@ -141,25 +140,27 @@
 (defn boost-factor
   "y is the duty cycle value."
   [y neighbour-max crit-ratio max-boost]
-  (let [crit-y (double (* neighbour-max crit-ratio))
-        maxb max-boost]
-    (-> (- maxb (* (- maxb 1)
-                   (/ y crit-y)))
-        (max 1.0))))
+  (if (zero? neighbour-max)
+    max-boost
+    (let [crit-y (double (* neighbour-max crit-ratio))
+          maxb max-boost]
+      (-> (- maxb (* (- maxb 1)
+                     (/ y crit-y)))
+          (max 1.0)))))
 
 (defn boost-factors-global
-  [ys spec]
-  (let [crit-ratio (:boost-active-duty-ratio spec)
-        max-boost (:max-boost spec)
+  [ys params]
+  (let [crit-ratio (:boost-active-duty-ratio params)
+        max-boost (:max-boost params)
         max-y (apply max 0 ys)]
     (mapv (fn [y]
             (boost-factor y max-y crit-ratio max-boost))
           ys)))
 
 (defn boost-factors-local
-  [ys topo inh-radius spec]
-  (let [crit-ratio (:boost-active-duty-ratio spec)
-        max-boost (:max-boost spec)]
+  [ys topo inh-radius params]
+  (let [crit-ratio (:boost-active-duty-ratio params)
+        max-boost (:max-boost params)]
     (mapv (fn [col y]
             (let [nb-is (p/neighbours-indices topo col inh-radius 0)
                   max-y (apply max 0 (map ys nb-is))]
@@ -172,60 +173,60 @@
    of activation (active duty cycle) compared to the maximum from its
    neighbours."
   [lyr]
-  (if-not (pos? (:boost-active-duty-ratio (:spec lyr)))
+  (if-not (pos? (:boost-active-duty-ratio (:params lyr)))
     ;; disabled
     lyr
-    (let [global? (>= (:ff-potential-radius (:spec lyr)) 1)]
+    (let [global? (>= (:ff-potential-radius (:params lyr)) 1)]
       (assoc lyr :boosts
              (if global?
                (boost-factors-global (:active-duty-cycles lyr)
-                                     (:spec lyr))
+                                     (:params lyr))
                (boost-factors-local (:active-duty-cycles lyr)
                                     (:topology lyr)
                                     (:inh-radius lyr)
-                                    (:spec lyr)))))))
+                                    (:params lyr)))))))
 
 (defn adjust-overlap-global
-  [sg ys spec]
-  (let [crit-ratio (:adjust-overlap-duty-ratio spec)
+  [sg ys params]
+  (let [crit-ratio (:adjust-overlap-duty-ratio params)
         max-y (apply max 0 ys)
         crit-y (double (* max-y crit-ratio))
         upds (keep (fn [[col y]]
                      (when (<= y crit-y)
                        (syn/seg-update [col 0 0] :reinforce nil nil)))
                    (map vector (range) ys))
-        pcon (:perm-connected (:proximal spec))]
-    (p/bulk-learn sg upds (constantly true) (* 0.1 pcon) 0 0)))
+        pcon (:perm-connected (:proximal params))]
+    (p/bulk-learn sg upds (constantly true) (* 0.1 pcon) 0.0 0.0)))
 
 (defn adjust-overlap-local
-  [sg ys topo inh-radius spec]
+  [sg ys topo inh-radius params]
   ;; TODO:
-  (adjust-overlap-global sg ys spec))
+  (adjust-overlap-global sg ys params))
 
 (defn adjust-overlap
   [lyr]
-  (if-not (pos? (:adjust-overlap-duty-ratio (:spec lyr)))
+  (if-not (pos? (:adjust-overlap-duty-ratio (:params lyr)))
     ;; disabled
     lyr
-    (let [global? (>= (:ff-potential-radius (:spec lyr)) 1)]
+    (let [global? (>= (:ff-potential-radius (:params lyr)) 1)]
       (update-in
        lyr [:proximal-sg]
        (fn [sg]
          (if global?
            (adjust-overlap-global sg
                                   (:overlap-duty-cycles lyr)
-                                  (:spec lyr))
+                                  (:params lyr))
            (adjust-overlap-local sg
                                  (:overlap-duty-cycles lyr)
                                  (:topology lyr)
                                  (:inh-radius lyr)
-                                 (:spec lyr))))))))
+                                 (:params lyr))))))))
 
 (defn float-overlap-global
-  [sg ys spec]
-  (let [ref-y (:activation-level spec)
-        lo-z (:float-overlap-duty-ratio spec)
-        hi-z (:float-overlap-duty-ratio-hi spec)
+  [sg ys params]
+  (let [ref-y (:activation-level params)
+        lo-z (:float-overlap-duty-ratio params)
+        hi-z (:float-overlap-duty-ratio-hi params)
         weaks (keep (fn [[col y]]
                       (let [z (/ y ref-y)]
                         (when (< z lo-z)
@@ -236,22 +237,22 @@
                           (when (> z hi-z)
                             (syn/seg-update [col 0 0] :punish nil nil))))
                       (map vector (range) ys))
-        pcon (:perm-connected (:proximal spec))]
+        pcon (:perm-connected (:proximal params))]
     (p/bulk-learn sg (concat weaks strongs)
-                  (constantly true) (* 0.1 pcon) (* 0.1 pcon) 0)
-    )
-  )
+                  (constantly true) (* 0.1 pcon) (* 0.1 pcon) 0.0)))
+
+
 
 (defn layer-float-overlap
   [lyr]
-  (if-not (pos? (:float-overlap-duty-ratio (:spec lyr)))
+  (if-not (pos? (:float-overlap-duty-ratio (:params lyr)))
     ;; disabled
     lyr
     (update-in lyr [:proximal-sg]
                (fn [sg]
                  (float-overlap-global sg
                                        (:active-duty-cycles lyr)
-                                       (:spec lyr))))))
+                                       (:params lyr))))))
 
 (defn update-duty-cycles
   "Records a set of events with indices `is` in the vector `v`

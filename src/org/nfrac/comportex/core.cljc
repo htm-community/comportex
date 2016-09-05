@@ -79,16 +79,16 @@
 (defn sensory-region
   "Constructs a cortical region with one layer.
 
-  `spec` is the parameter specification map. See documentation on
+  `params` is the parameter specification map. See documentation on
   `cells/parameter-defaults` for possible keys. Any keys given here
   will override those default values."
-  [spec]
-  (let [unk (set/difference (set (keys spec))
+  [params]
+  (let [unk (set/difference (set (keys params))
                             (set (keys cells/parameter-defaults)))]
     (when (seq unk)
-      (println "Warning: unknown keys in spec:" unk)))
+      (println "Warning: unknown keys in params:" unk)))
   (map->SensoryRegion
-   {:layer-3 (cells/layer-of-cells spec)}))
+   {:layer-3 (cells/layer-of-cells params)}))
 
 ;;; # Sensorimotor = L3 + L4
 
@@ -162,33 +162,33 @@
     (sensorimotor-region (p/params this))))
 
 (defn sensorimotor-region
-  "Constructs a cortical region with two layers. `spec` can contain
+  "Constructs a cortical region with two layers. `params` can contain
   nested maps under :layer-3 and :layer-4 that are merged in for
   specific layers.
 
   This sets `:lateral-synapses? false` in Layer 4, and true in Layer
   3."
-  [spec]
-  (let [unk (set/difference (set (keys spec))
+  [params]
+  (let [unk (set/difference (set (keys params))
                             (set (keys cells/parameter-defaults))
                             #{:layer-4 :layer-3})]
     (when (seq unk)
-      (println "Warning: unknown keys in spec:" unk)))
-  (let [l4-spec (-> (assoc spec
-                      :lateral-synapses? false)
-                    (util/deep-merge (:layer-4 spec {}))
+      (println "Warning: unknown keys in params:" unk)))
+  (let [l4-params (-> (assoc params
+                       :lateral-synapses? false)
+                      (util/deep-merge (:layer-4 params {}))
+                      (dissoc :layer-3 :layer-4))
+        l4 (cells/layer-of-cells l4-params)
+        l3-params (-> (assoc params
+                       :input-dimensions (p/dimensions (p/ff-topology l4))
+                       :distal-motor-dimensions [0]
+                       :lateral-synapses? true)
+                    (util/deep-merge (:layer-3 params {}))
                     (dissoc :layer-3 :layer-4))
-        l4 (cells/layer-of-cells l4-spec)
-        l3-spec (-> (assoc spec
-                      :input-dimensions (p/dimensions (p/ff-topology l4))
-                      :distal-motor-dimensions [0]
-                      :lateral-synapses? true)
-                    (util/deep-merge (:layer-3 spec {}))
-                    (dissoc :layer-3 :layer-4))
-        l3 (cells/layer-of-cells l3-spec)]
+        l3 (cells/layer-of-cells l3-params)]
     (map->SensoriMotorRegion
-    {:layer-3 l3
-     :layer-4 l4})))
+     {:layer-3 l3
+      :layer-4 l4})))
 
 (defrecord SenseNode
     [topo bits sensory? motor?]
@@ -262,21 +262,21 @@
   If i is an index into the feed-forward field, type is :ff-deps, if i
   is an index into the feed-back field, type is :fb-deps."
   ([htm rgn-id i type]
-     (source-of-incoming-bit htm rgn-id i type p/ff-topology))
+   (source-of-incoming-bit htm rgn-id i type p/ff-topology))
   ([htm rgn-id i type topology-fn]
-     (let [senses (:senses htm)
-           regions (:regions htm)
-           node-ids (get-in htm [type rgn-id])]
-       (loop [node-ids node-ids
-              offset 0]
-         (when-let [node-id (first node-ids)]
-           (let [node (or (senses node-id)
-                          (regions node-id))
-                 width (long (p/size (topology-fn node)))]
-             (if (< i (+ offset width))
-               [node-id (- i offset)]
-               (recur (next node-ids)
-                      (+ offset width)))))))))
+   (let [senses (:senses htm)
+         regions (:regions htm)
+         node-ids (get-in htm [type rgn-id])]
+     (loop [node-ids node-ids
+            offset 0]
+       (when-let [node-id (first node-ids)]
+         (let [node (or (senses node-id)
+                        (regions node-id))
+               width (long (p/size (topology-fn node)))]
+           (if (< i (+ offset width))
+             [node-id (- i offset)]
+             (recur (next node-ids)
+                    (+ offset width)))))))))
 
 (defn source-of-distal-bit
   "Returns [src-id src-lyr-id j] where src-id may be a region key or
@@ -285,8 +285,8 @@
   [htm rgn-id lyr-id i]
   (let [rgn (get-in htm [:regions rgn-id])
         lyr (get rgn lyr-id)
-        spec (p/params lyr)
-        [src-type adj-i] (cells/id->source spec i)]
+        params (p/params lyr)
+        [src-type adj-i] (cells/id->source params i)]
     (case src-type
       :this [rgn-id lyr-id i]
       :ff (if (= lyr-id (first (layers rgn)))
@@ -305,7 +305,7 @@
   [htm rgn-id lyr-id i]
   (let [rgn (get-in htm [:regions rgn-id])
         lyr (get rgn lyr-id)
-        spec (p/params lyr)]
+        params (p/params lyr)]
     (if (= lyr-id (last (layers rgn)))
       (let [[src-id j] (source-of-incoming-bit htm rgn-id i :fb-deps)
             src-rgn (get-in htm [:regions src-id])]
@@ -321,11 +321,11 @@
          (map p/dimensions topos)))
 
 ;; TODO - better way to do this
-(defn fb-dim-from-spec
-  [spec]
-  (let [spec (util/deep-merge cells/parameter-defaults spec)]
-    (topology/make-topology (conj (:column-dimensions spec)
-                                  (:depth spec)))))
+(defn fb-dim-from-params
+  [params]
+  (let [params (util/deep-merge cells/parameter-defaults params)]
+    (topology/make-topology (conj (:column-dimensions params)
+                                  (:depth params)))))
 
 (do #?(:cljs (def pmap map)))
 
@@ -454,11 +454,11 @@
 
   For each node, the combined dimensions of its feed-forward sources
   is calculated and used to set the `:input-dimensions` parameter in
-  its `spec`. Also, the combined dimensions of feed-forward motor
+  its `params`. Also, the combined dimensions of feed-forward motor
   inputs are used to set the `:distal-motor-dimensions` parameter, and
   the combined dimensions of its feed-back superior regions is used to
-  set the `:distal-topdown-dimensions` parameter. The updated spec is
-  passed to a function (typically `sensory-region`) to build a
+  set the `:distal-topdown-dimensions` parameter. The updated params
+  are passed to a function (typically `sensory-region`) to build a
   region. The build function is found by calling `region-builders`
   with the region id keyword.
 
@@ -470,18 +470,18 @@
      :v2 [:v1]}
     {:v1 sensory-region
      :v2 sensory-region}
-    {:v1 spec
-     :v2 spec}
+    {:v1 params
+     :v2 params}
     {:input sensor}
     nil)`"
-  [ff-deps region-builders region-specs main-sensors motor-sensors]
+  [ff-deps region-builders region-params main-sensors motor-sensors]
   {:pre [;; all regions must have dependencies
-         (every? ff-deps (keys region-specs))
+         (every? ff-deps (keys region-params))
          ;; all sense nodes must not have dependencies
          (every? (in-vals-not-keys ff-deps) (keys main-sensors))
          (every? (in-vals-not-keys ff-deps) (keys motor-sensors))
          ;; all ids in dependency map must be defined
-         (every? region-specs (keys ff-deps))
+         (every? region-params (keys ff-deps))
          (every? (merge main-sensors motor-sensors) (in-vals-not-keys ff-deps))]}
   (merge-with (fn [main-sensor motor-sensor]
                 (assert (= main-sensor motor-sensor)
@@ -492,8 +492,8 @@
         ff-dag (graph/directed-graph all-ids ff-deps)
         strata (graph/dependency-list ff-dag)
         fb-deps (->> (graph/reverse-graph ff-dag)
-                         :neighbors
-                         (util/remap seq))
+                     :neighbors
+                     (util/remap seq))
         ;; sensors may appear with same key in both main- and motor-
         sm (->> (merge-with merge
                             (util/remap (fn [[_ e]]
@@ -505,7 +505,7 @@
                 (util/remap (fn [{:keys [topo sensory? motor?]}]
                               (sense-node topo sensory? motor?))))
         rm (-> (reduce (fn [m id]
-                         (let [spec (region-specs id)
+                         (let [params (region-params id)
                                build-region (region-builders id)
                                ;; feed-forward
                                ff-ids (ff-deps id)
@@ -514,9 +514,9 @@
                                ffm-dim (topo-union  (map p/ff-motor-topology ffs))
                                ;; top-down feedback (if any)
                                fb-ids (fb-deps id)
-                               fb-specs (map region-specs fb-ids)
-                               fb-dim (topo-union (map fb-dim-from-spec fb-specs))]
-                           (->> (assoc spec :input-dimensions ff-dim
+                               fb-params (map region-params fb-ids)
+                               fb-dim (topo-union (map fb-dim-from-params fb-params))]
+                           (->> (assoc params :input-dimensions ff-dim
                                        :distal-motor-dimensions ffm-dim
                                        :distal-topdown-dimensions fb-dim)
                                 (build-region)
@@ -525,7 +525,7 @@
                        ;; topological sort. drop 1st stratum i.e. senses
                        (apply concat (rest strata)))
                ;; get rid of the sense nodes which were seeded into the reduce
-               (select-keys (keys region-specs)))]
+               (select-keys (keys region-params)))]
     (map->RegionNetwork
      {:ff-deps ff-deps
       :fb-deps fb-deps
@@ -541,19 +541,19 @@
   keyword keys. Sensors are defined to be the form `[selector encoder]`.
 
   This is a convenience wrapper around `region-network`."
-  ([n build-region specs sensors]
+  ([n build-region paramseq sensors]
    (regions-in-series
-    n build-region specs sensors nil))
-  ([n build-region specs main-sensors motor-sensors]
-   {:pre [(sequential? specs)
-          (= n (count (take n specs)))]}
+    n build-region paramseq sensors nil))
+  ([n build-region paramseq main-sensors motor-sensors]
+   {:pre [(sequential? paramseq)
+          (= n (count (take n paramseq)))]}
    (let [rgn-keys (map #(keyword (str "rgn-" %)) (range n))
          sense-keys (keys (merge main-sensors motor-sensors))
          ;; make {:rgn-0 [senses], :rgn-1 [:rgn-0], :rgn-2 [:rgn-1], ...}
          deps (zipmap rgn-keys (list* sense-keys (map vector rgn-keys)))]
      (region-network deps
                      (constantly build-region)
-                     (zipmap rgn-keys specs)
+                     (zipmap rgn-keys paramseq)
                      main-sensors
                      motor-sensors))))
 
@@ -566,20 +566,21 @@
   Argument `layer-fn` is called on the region to obtain a layer of
   cells; if omitted it defaults to the output layer."
   ([rgn]
-     (column-state-freqs rgn (last (layers rgn))))
+   (column-state-freqs rgn (last (layers rgn))))
   ([rgn layer-fn]
-     (let [lyr (layer-fn rgn)
-           a-cols (p/active-columns lyr)
-           ppc (p/prior-predictive-cells lyr)
-           pp-cols (into #{} (map first ppc))
-           hit-cols (set/intersection pp-cols a-cols)
-           col-states (merge (zipmap pp-cols (repeat :predicted))
-                             (zipmap a-cols (repeat :active))
-                             (zipmap hit-cols (repeat :active-predicted)))]
-       (-> {:active 0, :predicted 0, :active-predicted 0}
-           (merge (frequencies (vals col-states)))
-           (assoc :timestep (p/timestep rgn)
-                  :size (p/size (p/topology rgn)))))))
+   (let [lyr (layer-fn rgn)
+         lstate (p/layer-state lyr)
+         a-cols (:active-columns lstate)
+         ppc (:prior-predictive-cells lstate)
+         pp-cols (into #{} (map first ppc))
+         hit-cols (set/intersection pp-cols a-cols)
+         col-states (merge (zipmap pp-cols (repeat :predicted))
+                           (zipmap a-cols (repeat :active))
+                           (zipmap hit-cols (repeat :active-predicted)))]
+     (-> {:active 0, :predicted 0, :active-predicted 0}
+         (merge (frequencies (vals col-states)))
+         (assoc :timestep (p/timestep rgn)
+                :size (p/size (p/topology rgn)))))))
 
 ;;; ## Tracing columns back to senses
 
@@ -605,7 +606,7 @@
 (defn predicted-bit-votes
   [rgn]
   (let [lyr (get rgn (first (layers rgn)))
-        pc (p/predictive-cells lyr)]
+        pc (:predictive-cells (p/layer-state lyr))]
     (cells-proximal-bit-votes lyr pc)))
 
 (defn ff-base
@@ -629,7 +630,7 @@
 (defn predictions
   ([htm sense-id n-predictions]
    (predictions
-    htm sense-id n-predictions p/predictive-cells))
+    htm sense-id n-predictions (comp :predictive-cells p/layer-state)))
   ([htm sense-id n-predictions cells-fn]
    (let [sense-width (-> (get-in htm [:senses sense-id])
                          p/ff-topology
@@ -673,11 +674,11 @@
   (let [rgn (get-in htm [:regions rgn-id])
         lyr (get-in htm [:regions rgn-id lyr-id])
         prior-lyr (get-in prior-htm [:regions rgn-id lyr-id])
-        spec (:spec lyr)
-        ff-stim-thresh (:stimulus-threshold (:proximal spec))
-        d-stim-thresh (:stimulus-threshold (:distal spec))
-        a-stim-thresh (:stimulus-threshold (:apical spec))
-        distal-weight (:distal-vs-proximal-weight spec)
+        params (:params lyr)
+        ff-stim-thresh (:stimulus-threshold (:proximal params))
+        d-stim-thresh (:stimulus-threshold (:distal params))
+        a-stim-thresh (:stimulus-threshold (:apical params))
+        distal-weight (:distal-vs-proximal-weight params)
         state (:state lyr)
         prior-state (:state prior-lyr)
         distal-state (:distal-state prior-lyr)
@@ -719,7 +720,7 @@
           (map (fn [cell-id]
                  (let [[col ci] cell-id
                        ;; breakdown of proximal excitation by source
-                       [ff-seg-path _] (get (:matching-ff-seg-paths state) [col 0])
+                       [ff-seg-path _] (get (:fully-matching-ff-segs state) [col 0])
                        ff-conn-sources (when ff-seg-path
                                          (p/sources-connected-to psg ff-seg-path))
                        active-ff-b (->> (filter ff-b-bits ff-conn-sources)
@@ -729,7 +730,7 @@
                        ff-b-by-src (frequencies (map ff-bits-srcs active-ff-b))
                        ff-s-by-src (frequencies (map ff-bits-srcs active-ff-s))
                        ;; breakdown of distal excitation by source
-                       [d-seg-path _] (get (:matching-seg-paths distal-state) cell-id)
+                       [d-seg-path _] (get (:fully-matching-segs distal-state) cell-id)
                        d-conn-sources (when d-seg-path
                                         (p/sources-connected-to dsg d-seg-path))
                        active-d (->> (filter distal-bits d-conn-sources)
@@ -737,7 +738,7 @@
                        d-by-src (->> (frequencies (map distal-bits-srcs active-d))
                                      (util/remap #(* % distal-weight)))
                        ;; same for apical
-                       [a-seg-path _] (get (:matching-seg-paths apical-state) cell-id)
+                       [a-seg-path _] (get (:fully-matching-segs apical-state) cell-id)
                        a-conn-sources (when a-seg-path
                                         (p/sources-connected-to asg a-seg-path))
                        active-a (->> (filter apical-bits a-conn-sources)

@@ -2,18 +2,25 @@
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [clojure.set :as set]
-            #?(:clj [clojure.test :as t
-                     :refer (is deftest testing run-tests)]
-               :cljs [cemerick.cljs.test :as t
-                      :refer-macros (is deftest testing run-tests)])))
+            [clojure.spec.test :as stest]
+            [clojure.test.check.clojure-test :as ctcc]
+            [clojure.test :as t
+             :refer (is deftest testing run-tests)]))
 
+(stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.protocols))
+(stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.encoders))
+
+(alter-var-root #'ctcc/*report-shrinking* (constantly true))
+(alter-var-root #'ctcc/*report-trials* (constantly ctcc/trial-report-periodic))
+
+(alias 'stc 'clojure.spec.test.check)
 
 (deftest encode-decode-test
   (let [e (enc/category-encoder [10] [:a :b :c])]
     (is (= :a (:value (first (p/decode e (frequencies (p/encode e :a)) 1)))))
     (is (= :b (:value (first (p/decode e (frequencies (p/encode e :b)) 1)))))
-    (is (= :c (:value (first (p/decode e (frequencies (p/encode e :c)) 1))))))
-  )
+    (is (= :c (:value (first (p/decode e (frequencies (p/encode e :c)) 1)))))))
+
 
 (deftest coordinate-encoder-test
   (let [radius 80
@@ -30,5 +37,20 @@
     (is (> (overlap (bitsets 30) (bitsets 10))
            (overlap (bitsets 30) (bitsets 90))))
     (is (> (overlap (bitsets 90) (bitsets 30))
-           (overlap (bitsets 90) (bitsets 270))))
-    ))
+           (overlap (bitsets 90) (bitsets 270))))))
+
+(def opts {::stc/opts {:num-tests 200}})
+
+(deftest exercise-encoders-test
+  (-> `p/encode
+      (stest/check opts)
+      (stest/summarize-results)))
+
+(comment
+ ;; this is kind of the same thing but is faster, not sure why:
+ (let [e-gen (s/gen ::p/encoder)]
+   (doseq [e (gen/sample e-gen 200)
+           :let [_ (prn e)
+                 inval-gen (p/input-generator e)]
+           inval (gen/sample inval-gen 20)]
+     (p/encode e inval))))

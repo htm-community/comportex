@@ -18,11 +18,11 @@
         inputs = [{"value": 1, "index": 0},
                   {"value": 2, "index": 1},
                   {"value": 3, "index": 2}];
-        spec = {"column-dimensions": [1000],
-                "proximal": {"stimulus-threshold": 1}};
-        out += "spec: " + JSON.stringify(spec) + "\n";
+        params = {"column-dimensions": [1000],
+                  "proximal": {"stimulus-threshold": 1}};
+        out += "params: " + JSON.stringify(params) + "\n";
         sensor = ["value", e];
-        model = comportex.regions_in_series(1, [spec], {"input": sensor});
+        model = comportex.regions_in_series(1, [params], {"input": sensor});
         out += "inval: " + JSON.stringify(inputs[0]) + "\n";
         model_1 = comportex.htm_step(model, inputs[0]);
         out += "timestep: " + comportex.timestep(model_1) + "\n";
@@ -35,7 +35,7 @@
         out += "bursting columns: " + comportex.bursting_columns(lyr).sort() + "\n";
         out += "active cells: " + JSON.stringify(comportex.active_cells(lyr)) + "\n";
         out += "predictive cells: " + JSON.stringify(comportex.predictive_cells(lyr)) + "\n";
-        out += "spec: \n";
+        out += "params: \n";
         out += JSON.stringify(comportex.params(lyr));
         document.getElementById("content").innerHTML = out;
         </script>

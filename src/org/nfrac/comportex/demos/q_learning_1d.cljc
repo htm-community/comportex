@@ -15,8 +15,8 @@
 (def surface [0 0.5 1 1.5 2 1.5 1 0.5
               0 1 2 3 4 5 4 3 2
               1 1 1 1 1 1
-              1 2 3 4 5 6 7 8 6 4 2
-              ])
+              1 2 3 4 5 6 7 8 6 4 2])
+
 
 (def initial-inval
   {:x 5
@@ -24,7 +24,7 @@
    :dy 0
    :action {:dx 0}})
 
-(def spec
+(def params
   {:column-dimensions [1000]
    :depth 4
    :distal {:punish? true}
@@ -33,7 +33,7 @@
    :ff-potential-radius 0.15
    :ff-init-frac 0.5})
 
-(def action-spec
+(def action-params
   {:column-dimensions [30]
    :activation-level 0.20
    :ff-potential-radius 1.0
@@ -41,8 +41,7 @@
    :proximal {:perm-inc 0.05
               :perm-dec 0.05
               :perm-connected 0.10}
-   :ff-perm-init-lo 0.35
-   :ff-perm-init-hi 0.45
+   :ff-perm-init [0.35 0.45]
    ;; chosen for exploration - fresh connections fully boosted > 1.0:
    :max-boost 3.0
    :boost-active-every 1
@@ -70,7 +69,7 @@
 (defn select-action
   [htm]
   (let [alyr (get-in htm [:regions :action :layer-3])
-        acols (p/active-columns alyr)
+        acols (:active-columns (p/layer-state alyr))
         signals (map column->signal acols)]
     (->> signals
          (reduce (fn [m [motion influence]]
@@ -157,8 +156,8 @@
     (core/region-network {:rgn-1 [:input :motor]
                           :action [:rgn-1]}
                          (constantly core/sensory-region)
-                         {:rgn-1 (assoc spec :lateral-synapses? false)
-                          :action action-spec}
+                         {:rgn-1 (assoc params :lateral-synapses? false)
+                          :action action-params}
                          {:input sensor}
                          {:input sensor
                           :motor msensor})))
@@ -207,6 +206,4 @@
 
   inval
   (get-in @model [:regions :action :layer-3 :Q-info])
-  (get-in @model [:regions :action :layer-3 :state :active-cols])
-
-  )
+  (get-in @model [:regions :action :layer-3 :state :active-cols]))

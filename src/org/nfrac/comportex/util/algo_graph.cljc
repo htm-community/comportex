@@ -80,13 +80,13 @@ Updated to use records not structs."}
    provide a set of visited notes (v) and a collection of nodes to
    visit (ns)."
   ([g n]
-     (lazy-walk g [n] #{}))
+   (lazy-walk g [n] #{}))
   ([g ns v]
-     (lazy-seq (let [s (seq (drop-while v ns))
-                     n (first s)
-                     ns (rest s)]
-                 (when s
-                   (cons n (lazy-walk g (concat (get-neighbors g n) ns) (conj v n))))))))
+   (lazy-seq (let [s (seq (drop-while v ns))
+                   n (first s)
+                   ns (rest s)]
+               (when s
+                 (cons n (lazy-walk g (concat (get-neighbors g n) ns) (conj v n))))))))
 
 (defn transitive-closure
   "Returns the transitive closure of a graph.  The neighbors are lazily computed.
@@ -146,17 +146,17 @@ Updated to use records not structs."}
    These sets are the strongly connected components.  Each edge will
    be the union of the corresponding edges of the prior graph."
   ([g]
-     (component-graph g (scc g)))
+   (component-graph g (scc g)))
   ([g sccs]
-     (let [find-node-set (fn [n]
-                           (some #(if (% n) % nil) sccs))
-           find-neighbors (fn [ns]
-                            (let [nbs1 (map (partial get-neighbors g) ns)
-                                  nbs2 (map set nbs1)
-                                  nbs3 (apply union nbs2)]
-                              (set (map find-node-set nbs3))))
-           nm (into {} (map (fn [ns] [ns (find-neighbors ns)]) sccs))]
-       (directed-graph (set sccs) nm))))
+   (let [find-node-set (fn [n]
+                         (some #(if (% n) % nil) sccs))
+         find-neighbors (fn [ns]
+                          (let [nbs1 (map (partial get-neighbors g) ns)
+                                nbs2 (map set nbs1)
+                                nbs3 (apply union nbs2)]
+                            (set (map find-node-set nbs3))))
+         nm (into {} (map (fn [ns] [ns (find-neighbors ns)]) sccs))]
+     (directed-graph (set sccs) nm))))
 
 (defn recursive-component?
   "Is the component (recieved from scc) self recursive?"

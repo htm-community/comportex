@@ -11,14 +11,14 @@
 (def n-on-bits 20)
 (def bit-width (* n-on-bits (count tokens)))
 
-(def spec
+(def params
   {:column-dimensions [1000]
    :depth 5
    :distal {:punish? false}})
 
-(def higher-level-spec
+(def higher-level-params
   (util/deep-merge
-   spec
+   params
    {:column-dimensions [400]
     :proximal {:max-segments 5}}))
 
@@ -46,8 +46,8 @@
 
 (defn n-region-model
   ([n]
-   (n-region-model n spec))
-  ([n spec]
+   (n-region-model n params))
+  ([n params]
    (core/regions-in-series n core/sensory-region
-                           (list* spec (repeat higher-level-spec))
+                           (list* params (repeat higher-level-params))
                            {:input block-sensor})))

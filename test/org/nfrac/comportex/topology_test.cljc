@@ -1,10 +1,8 @@
 (ns org.nfrac.comportex.topology-test
   (:require [org.nfrac.comportex.topology :as topology
              :refer [combined-dimensions]]
-            #?(:clj [clojure.test :as t
-                    :refer (is deftest testing run-tests)]
-               :cljs [cemerick.cljs.test :as t
-                      :refer-macros (is deftest testing run-tests)])))
+            [clojure.test :as t
+             :refer (is deftest testing run-tests)]))
 
 (deftest combined-dimensions-test
   (testing "Combining dimensions"

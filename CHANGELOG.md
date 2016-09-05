@@ -2,11 +2,22 @@
 
 ## [Unreleased]
 ### Changed
+- The parameter specification map now referred to as params instead of spec.
+  To avoid confusion with `clojure.spec` where specs define function usage.
+  The breaking part of this is renaming key :spec to :params in LayerOfCells.
+- within layer, state key :matching-seg-paths is now :fully-matching-segs.
+- protocols namespace functions active-columns, bursting-columns, active-cells,
+  winner-cells, predictive-cells and prior-predictive-cells replaced with just
+  layer-state, which returns all the above under keys of the same names.
+  This seems more clojurey in avoiding inventing detailed APIs, while still
+  allowing for different implementations... and is easier to spec.
+- some protocols fns renamed adding a star*, to allow global specs on wrappers.
+- params `:ff-perm-init-lo, :ff-perm-init-hi` now `:ff-perm-init [lo hi]`.
 
 ### Added
 - minimal Javascript API in new `js` namespace.
 - Javascript API demo in `public/comportexjs.html`
-
+- function specification and testing using `clojure.spec`.
 
 ## [0.0.14] - 2016-07-01
 ### Changed
