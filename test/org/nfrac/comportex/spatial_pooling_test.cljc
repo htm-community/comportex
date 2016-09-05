@@ -1,6 +1,6 @@
 (ns org.nfrac.comportex.spatial-pooling-test
   (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.core :as core]
+            [org.nfrac.comportex.hierarchy :as hier]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.test.check.random :as random]
@@ -42,19 +42,19 @@
 
 (defn model
   []
-  (core/regions-in-series 1 core/sensory-region [params]
+  (hier/regions-in-series 1 hier/sensory-region [params]
                           {:input sensor}))
 
 (deftest sp-test
   (let [htm-step+cols (fn [this input]
                         (let [x (p/htm-step this input)]
                           (assoc-in x [:active-columns-at (p/timestep x)]
-                                    (-> (first (core/region-seq x))
+                                    (-> (first (hier/region-seq x))
                                         :layer-3
                                         p/layer-state
                                         :active-columns))))
         m1 (reduce htm-step+cols (model) (take 500 (input-seq)))
-        rgn (first (core/region-seq m1))
+        rgn (first (hier/region-seq m1))
         lyr (:layer-3 rgn)
         n-cols (p/size-of lyr)]
     (testing "Column activation is distributed and moderated."

@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.demos.coordinates-2d
-  (:require [org.nfrac.comportex.core :as core]
+  (:require [org.nfrac.comportex.hierarchy :as hier]
             [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util :refer [abs round]]))
@@ -67,6 +67,6 @@
   ([n]
    (n-region-model n params))
   ([n params]
-   (core/regions-in-series n core/sensory-region
+   (hier/regions-in-series n hier/sensory-region
                            (list* params (repeat higher-level-params))
                            {:input sensor})))

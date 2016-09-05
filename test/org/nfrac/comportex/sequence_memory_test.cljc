@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.sequence-memory-test
-  (:require [org.nfrac.comportex.core :as core]
+  (:require [org.nfrac.comportex.hierarchy :as hier]
             [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
@@ -34,12 +34,12 @@
 
 (defn model
   []
-  (core/regions-in-series 1 core/sensory-region [params] {:input sensor}))
+  (hier/regions-in-series 1 hier/sensory-region [params] {:input sensor}))
 
 (deftest sm-test
   (let [[warmups continued] (split-at 500 (input-seq))
         m1 (reduce p/htm-step (model) warmups)
-        rgn (first (core/region-seq m1))]
+        rgn (first (hier/region-seq m1))]
     (testing "Numbers of lateral dendrite segments"
       (let [n-cols (p/size (p/topology rgn))
             lyr (:layer-3 rgn)
@@ -61,8 +61,8 @@
     (testing "Column / cell activation"
       (let [sums (->> (take 100 continued)
                       (reductions p/htm-step m1)
-                      (map (comp first core/region-seq))
-                      (map core/column-state-freqs)
+                      (map (comp first hier/region-seq))
+                      (map hier/column-state-freqs)
                       (apply merge-with +))]
         (is (> (+ (:active sums) (:active-predicted sums)) 0)
             "Some columns were active.")

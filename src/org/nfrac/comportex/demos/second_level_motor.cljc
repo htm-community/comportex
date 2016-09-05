@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.demos.second-level-motor
-  (:require [org.nfrac.comportex.core :as core]
+  (:require [org.nfrac.comportex.hierarchy :as hier]
             [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
@@ -104,9 +104,9 @@ the three little pigs.
   ([]
    (two-region-model params))
   ([params]
-   (core/region-network {:rgn-0 [:input :letter-motor]
+   (hier/region-network {:rgn-0 [:input :letter-motor]
                          :rgn-1 [:rgn-0 :word-motor]}
-                        (constantly core/sensory-region)
+                        (constantly hier/sensory-region)
                         {:rgn-0 params
                          :rgn-1 higher-level-params}
                         {:input letter-sensor}

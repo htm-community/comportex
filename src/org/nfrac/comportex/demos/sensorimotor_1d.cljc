@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.demos.sensorimotor-1d
-  (:require [org.nfrac.comportex.core :as core]
+  (:require [org.nfrac.comportex.hierarchy :as hier]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.test.check.random :as random]))
@@ -85,7 +85,7 @@
   ([n]
    (n-region-model n params))
   ([n params]
-   (core/regions-in-series n core/sensorimotor-region
+   (hier/regions-in-series n hier/sensorimotor-region
                            (list* params (repeat higher-level-params))
                            {:input block-sensor}
                            {:motor block-motor-sensor})))

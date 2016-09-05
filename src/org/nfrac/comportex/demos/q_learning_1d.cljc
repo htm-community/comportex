@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.demos.q-learning-1d
-  (:require [org.nfrac.comportex.core :as core]
+  (:require [org.nfrac.comportex.hierarchy :as hier]
             [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.synapses :as syn]
             [org.nfrac.comportex.encoders :as enc]
@@ -152,9 +152,9 @@
                                         [coord-radius])]
         msensor [[:action :dx]
                  (enc/linear-encoder [100] 30 [-1 1])]]
-    (core/region-network {:rgn-1 [:input :motor]
+    (hier/region-network {:rgn-1 [:input :motor]
                           :action [:rgn-1]}
-                         (constantly core/sensory-region)
+                         (constantly hier/sensory-region)
                          {:rgn-1 (assoc params :lateral-synapses? false)
                           :action action-params}
                          {:input sensor}

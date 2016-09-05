@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.demos.q-learning-2d
-  (:require [org.nfrac.comportex.core :as core]
+  (:require [org.nfrac.comportex.hierarchy :as hier]
             [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util :refer [round abs]]
@@ -131,9 +131,9 @@
         dx-sensor [[:action :dx] (enc/linear-encoder [100] 30 [-1 1])]
         dy-sensor [[:action :dy] (enc/linear-encoder [100] 30 [-1 1])]
         msensor (enc/sensor-cat dx-sensor dy-sensor)]
-    (core/region-network {:rgn-1 [:input :motor]
+    (hier/region-network {:rgn-1 [:input :motor]
                           :action [:rgn-1]}
-                         (constantly core/sensory-region)
+                         (constantly hier/sensory-region)
                          {:rgn-1 (assoc params :lateral-synapses? false)
                           :action action-params}
                          {:input sensor}

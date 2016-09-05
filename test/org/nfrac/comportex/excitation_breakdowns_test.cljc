@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.excitation-breakdowns-test
-  (:require [org.nfrac.comportex.core :as core]
+  (:require [org.nfrac.comportex.hierarchy :as hier]
             [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
@@ -37,7 +37,7 @@
 
 (defn model
   []
-  (core/regions-in-series 2 core/sensory-region (repeat params)
+  (hier/regions-in-series 2 hier/sensory-region (repeat params)
                           {:input sensor}))
 
 (deftest exc-bd-test
@@ -47,7 +47,7 @@
     (testing "Cell excitation breakdowns"
       (let [lyr (get-in htm [:regions :rgn-0 :layer-3])
             wc (:winner-cells (p/layer-state lyr))
-            bd (core/cell-excitation-breakdowns htm prev-htm :rgn-0 :layer-3
+            bd (hier/cell-excitation-breakdowns htm prev-htm :rgn-0 :layer-3
                                                 (conj wc [0 0]))]
         (is (every? (comp pos? :total) (map bd wc))
             "All total excitation in range.")

@@ -1,8 +1,4 @@
-(ns org.nfrac.comportex.core
-  "A _region_ is the main composable unit in this library. It
-   represents a bank of neurons arranged in columns, responding to an
-   array of feed-forward input bits, as well as distal connections to
-   itself and possibly other regions."
+(ns org.nfrac.comportex.hierarchy
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.layer :as layer]

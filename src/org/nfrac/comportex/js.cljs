@@ -1,16 +1,16 @@
 (ns org.nfrac.comportex.js
+  "Minimal public javascript API.
+
+  Complex clojurescript objects such as encoders and HTM models and their
+  constituent regions and layers are not converted to native javascript types.
+  They are left as black box values intended to be used with other API fns."
   (:require
-    [org.nfrac.comportex.core :as core]
+    [org.nfrac.comportex.hierarchy :as hier]
     [org.nfrac.comportex.encoders :as encoders]
     [org.nfrac.comportex.protocols :as p]))
 
-;; Minimal public API
-
-;; Complex clojurescript objects such as encoders and HTM models and their
-;; constituent regions and layers are not converted to native javascript types.
-;; They are left as black box values intended to be used with other API fns.
-
-;;  `params` is the parameter specification map.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Helpers
 
 (defn js->params
   [params]
@@ -36,10 +36,6 @@
       (.push arr x))
     arr))
 
-;; .core
-
-;; ===================================================================
-
 (defn js->sensors
   [sensors]
   (into {} (for [k (js-keys sensors)]
@@ -48,6 +44,9 @@
                   [(js->selector selector)
                     ;; do not convert encoders
                    encoder]]))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Hierarchy
 
 (defn ^:export regions-in-series
   "Constructs an HTM network consisting of n regions in a linear
@@ -60,18 +59,16 @@
   ([n paramseq sensors]
    (regions-in-series n paramseq sensors nil))
   ([n paramseq main-sensors motor-sensors]
-   (let [build-region core/sensory-region
+   (let [build-region hier/sensory-region
          paramseq (map js->params paramseq)
          main-sensors (js->sensors main-sensors)
          motor-sensors (js->sensors motor-sensors)]
-     (core/regions-in-series n build-region paramseq main-sensors motor-sensors))))
-
-;; ===================================================================
+     (hier/regions-in-series n build-region paramseq main-sensors motor-sensors))))
 
 (defn ^:export region-seq
   "Returns a js array of regions, each a clojure object."
   [htm]
-  (->array (core/region-seq htm)))
+  (->array (hier/region-seq htm)))
 
 (defn ^:export layer-seq
   "Returns a js array of layers in a region, each a clojure object.
@@ -79,8 +76,45 @@
    into a single array."
   [rgn-or-htm]
   (if (:regions rgn-or-htm)
-    (->array (mapcat layer-seq (core/region-seq rgn-or-htm)))
-    (->array (map #(get rgn-or-htm %) (core/layers rgn-or-htm)))))
+    (->array (mapcat layer-seq (hier/region-seq rgn-or-htm)))
+    (->array (map #(get rgn-or-htm %) (hier/layers rgn-or-htm)))))
+
+(defn ^:export column-state-freqs
+  "Returns a map with the frequencies of columns in states
+  `active` (bursting), `predicted`, `active-predicted`. Note that
+  these are distinct categories. The names are possibly misleading."
+  [rgn]
+  (clj->js (hier/column-state-freqs rgn)))
+
+(defn ^:export predictions
+  [htm sense-id n-predictions]
+  (clj->js (hier/predictions htm (keyword sense-id) n-predictions)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Protocols fns
+
+(defn ^:export htm-step
+  "Compute the next time step. Pass `htm` as a clojure object, but `inval` as
+  a js value which will be converted to a clojurescript value, including
+  keywordizing keys."
+  [htm inval]
+  (p/htm-step htm (js->clj inval :keywordize-keys true)))
+
+(defn ^:export params
+  [rgn-or-lyr]
+  (params->js (p/params rgn-or-lyr)))
+
+(defn ^:export encode
+  [encoder x]
+  (clj->js (p/encode encoder (js->clj x))))
+
+(defn ^:export decode
+  [encoder bit-votes n]
+  (clj->js (p/decode encoder (js->clj bit-votes) n)))
+
+(defn ^:export timestep
+  [htm]
+  (p/timestep htm))
 
 (defn ^:export bursting-columns
   "The set of bursting column ids."
@@ -108,45 +142,8 @@
   [lyr]
   (clj->js (:prior-predictive-cells (p/layer-state lyr))))
 
-;; ===================================================================
-
-(defn ^:export column-state-freqs
-  "Returns a map with the frequencies of columns in states
-  `active` (bursting), `predicted`, `active-predicted`. Note that
-  these are distinct categories. The names are possibly misleading."
-  [rgn]
-  (clj->js (core/column-state-freqs rgn)))
-
-;; ===================================================================
-
-(defn ^:export predictions
-  [htm sense-id n-predictions]
-  (clj->js (core/predictions htm (keyword sense-id) n-predictions)))
-
-(defn ^:export htm-step
-  "Compute the next time step. Pass `htm` as a clojure object, but `inval` as
-  a js value which will be converted to a clojurescript value, including
-  keywordizing keys."
-  [htm inval]
-  (p/htm-step htm (js->clj inval :keywordize-keys true)))
-
-(defn ^:export params
-  [rgn-or-lyr]
-  (params->js (p/params rgn-or-lyr)))
-
-(defn ^:export encode
-  [encoder x]
-  (clj->js (p/encode encoder (js->clj x))))
-
-(defn ^:export decode
-  [encoder bit-votes n]
-  (clj->js (p/decode encoder (js->clj bit-votes) n)))
-
-(defn ^:export timestep
-  [htm]
-  (p/timestep htm))
-
-;; encoders
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Encoders
 
 (defn ^:export encat
   "Returns an encoder for a sequence of values, where each is encoded

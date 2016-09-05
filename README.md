@@ -29,8 +29,8 @@ For an applied exploration of HTM using Comportex, try the essay
 [Predicting power consumptions with HTM](http://mrcslws.com/gorilla/?path=hotgym.clj)
 by Marcus Lewis.
 
-The main API is in the namespaces `core`, `protocols` and `encoders`, while the
-algorithms are mainly in `cells`, `synapses` and `inhibition`.
+The main API is in the namespaces `hierarchy`, `protocols` and `encoders`, while
+the algorithms are mainly in `layer`.
 
 Parameter descriptions can be found on [`org.nfrac.comportex.cells/parameter-defaults`](https://github.com/htm-community/comportex/blob/master/src/org/nfrac/comportex/cells.cljc#L31).
 
