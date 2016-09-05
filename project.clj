@@ -1,4 +1,4 @@
-(defproject org.nfrac/comportex "0.0.15"
+(defproject org.nfrac/comportex "0.0.16-SNAPSHOT"
   :description "Hierarchical Temporal Memory in Clojure"
   :url "http://github.com/htm-community/comportex/"
   :license {:name "GNU Affero General Public Licence"
