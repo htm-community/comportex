@@ -294,15 +294,17 @@
   [this seg-updates active-sources pinc pdec pinit]
   (bulk-learn* this seg-updates active-sources pinc pdec pinit))
 
-(defn valid-seg-update?
+(defn validate-seg-update
   [upd sg]
   (let [n (::n-synapse-sources sg)
         syns (in-synapses sg (:target-id upd))]
-    (and (map? syns)
-         (every? #(< % n) (:grow-sources upd))
-         (every? #(< % n) (:die-sources upd))
-         (not-any? #(contains? syns %) (:grow-sources upd))
-         (every? #(contains? syns %) (:die-sources upd)))))
+    (s/assert map? syns)
+    (when (:grow-sources upd)
+      (s/assert (s/every #(< % n)) (:grow-sources upd)))
+    (when (:die-sources upd)
+      (s/assert (s/every #(< % n)) (:die-sources upd))
+      (s/assert (s/every #(contains? syns %)) (:die-sources upd)))
+    true))
 
 (s/def ::bulk-learn-args
   #_"Args spec for bulk-learn, given an id here to allow generator override."
@@ -316,7 +318,7 @@
           :pdec ::permanence
           :pinit ::permanence)
    (fn [v]
-     (every? #(valid-seg-update? % (:sg v)) (:seg-updates v)))))
+     (every? #(validate-seg-update % (:sg v)) (:seg-updates v)))))
 
 (s/fdef bulk-learn
         :args ::bulk-learn-args
