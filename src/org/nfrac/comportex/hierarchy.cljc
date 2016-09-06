@@ -675,13 +675,13 @@
         d-stim-thresh (:stimulus-threshold (:distal params))
         a-stim-thresh (:stimulus-threshold (:apical params))
         distal-weight (:distal-vs-proximal-weight params)
-        state (:state lyr)
-        prior-state (:state prior-lyr)
+        active-state (:active-state lyr)
+        prior-active-state (:active-state prior-lyr)
         distal-state (:distal-state prior-lyr)
         apical-state (:apical-state prior-lyr)
         ;; inputs to layer
-        ff-bits (:in-ff-bits state)
-        ff-s-bits (:in-stable-ff-bits state)
+        ff-bits (:in-ff-bits active-state)
+        ff-s-bits (:in-stable-ff-bits active-state)
         ff-b-bits (set/difference ff-bits ff-s-bits)
         distal-bits (:active-bits distal-state)
         apical-bits (:active-bits apical-state)
@@ -716,7 +716,7 @@
           (map (fn [cell-id]
                  (let [[col ci] cell-id
                        ;; breakdown of proximal excitation by source
-                       [ff-seg-path _] (get (:fully-matching-ff-segs state) [col 0])
+                       [ff-seg-path _] (get (:fully-matching-ff-segs active-state) [col 0])
                        ff-conn-sources (when ff-seg-path
                                          (p/sources-connected-to psg ff-seg-path))
                        active-ff-b (->> (filter ff-b-bits ff-conn-sources)

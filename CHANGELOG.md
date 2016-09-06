@@ -8,6 +8,7 @@
   - `.core` renamed to `.hierarchy`.
   - `.topology` renamed to `.topography`.
 - Renames: p/topology, p/PTopology, p/PTopological (to p/PTopographic).
+- Rename in LayerOfCells, :state to :active-state, also :prior-active-state.
 
 ## [0.0.15] - 2016-09-05
 ### Changed

@@ -114,10 +114,10 @@
              (fn [lyr]
                (let [prev-lyr (get-in prev-htm [:regions :action :layer-3])
                      {:keys [ff-perm-init-lo q-alpha q-discount]} (p/params lyr)
-                     ff-bits (or (:in-ff-bits (:state lyr)) #{})
-                     acols (:active-cols (:state lyr))
-                     prev-ff-bits (or (:in-ff-bits (:state prev-lyr)) #{})
-                     prev-acols (:active-cols (:state prev-lyr))
+                     ff-bits (or (:in-ff-bits (:active-state lyr)) #{})
+                     acols (:active-cols (:active-state lyr))
+                     prev-ff-bits (or (:in-ff-bits (:active-state prev-lyr)) #{})
+                     prev-acols (:active-cols (:active-state prev-lyr))
                      psg (:proximal-sg lyr)
                      ;; Q = estimate of optimal future value = average active perm.
                      aperms (mapcat (fn [col]
@@ -205,4 +205,4 @@
 
   inval
   (get-in @model [:regions :action :layer-3 :Q-info])
-  (get-in @model [:regions :action :layer-3 :state :active-cols]))
+  (get-in @model [:regions :action :layer-3 :active-state :active-cols]))
