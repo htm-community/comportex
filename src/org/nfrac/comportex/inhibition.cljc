@@ -34,9 +34,9 @@
 
    * `sg` is the synapse graph linking the inputs to targets.
 
-   * `topo` is the topology of the targets (e.g. columns).
+   * `topo` is the topography of the targets (e.g. columns).
 
-   * `itopo` is the topology of the inputs."
+   * `itopo` is the topography of the inputs."
   [sg topo itopo]
   (let [shared-frac 0.0
         max-dim (apply max (p/dimensions topo))
@@ -102,7 +102,7 @@
 
 (defn inhibit-locally
   "Returns the set of column ids which should become active given the
-   map of column excitations `exc` and the column topology. Applies
+   map of column excitations `exc` and the column topography. Applies
    local inhibition to remove any columns dominated by their
    neighbours."
   [exc topo inh-radius inh-base-dist n-on]

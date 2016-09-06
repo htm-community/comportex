@@ -2,7 +2,7 @@
   "Methods of encoding data as distributed bit sets, for feeding as
    input to a cortical region."
   (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.topology :as topology]
+            [org.nfrac.comportex.topography :as topography]
             [org.nfrac.comportex.util :as util :refer [abs spec-finite]]
             [clojure.test.check.random :as random]
             [clojure.spec :as s]
@@ -96,11 +96,11 @@
 
 (defrecord ConcatEncoder
     [encoders]
-  p/PTopological
-  (topology [_]
+  p/PTopographic
+  (topography [_]
     (let [dim (->> (map p/dims-of encoders)
-                   (apply topology/combined-dimensions))]
-      (topology/make-topology dim)))
+                   (apply topography/combined-dimensions))]
+      (topography/make-topography dim)))
   p/PEncoder
   (encode* [_ xs]
    (concat-encode xs encoders))
@@ -140,9 +140,9 @@
 
 (defrecord SplatEncoder
     [encoder]
-  p/PTopological
-  (topology [_]
-    (p/topology encoder))
+  p/PTopographic
+  (topography [_]
+    (p/topography encoder))
   p/PEncoder
   (encode* [_ xs]
     (splat-encode xs encoder))
@@ -197,8 +197,8 @@
 
 (defrecord LinearEncoder
     [topo n-active lower upper periodic?]
-  p/PTopological
-  (topology [_]
+  p/PTopographic
+  (topography [_]
     topo)
   p/PEncoder
   (encode*
@@ -238,7 +238,7 @@
   ([dimensions n-active [lower upper]]
    (linear-encoder dimensions n-active [lower upper] false))
   ([dimensions n-active [lower upper] periodic?]
-   (let [topo (topology/make-topology dimensions)]
+   (let [topo (topography/make-topography dimensions)]
      (map->LinearEncoder {:topo topo
                           :n-active n-active
                           :lower lower
@@ -273,8 +273,8 @@
 
 (defrecord CategoryEncoder
     [topo value->index]
-  p/PTopological
-  (topology [_]
+  p/PTopographic
+  (topography [_]
     topo)
   p/PEncoder
   (encode*
@@ -290,7 +290,7 @@
 
 (defn category-encoder
   [dimensions values]
-  (let [topo (topology/make-topology dimensions)]
+  (let [topo (topography/make-topography dimensions)]
     (map->CategoryEncoder {:topo topo
                            :value->index (zipmap values (range))})))
 
@@ -308,8 +308,8 @@
 
 (defrecord NoEncoder
     [topo]
-  p/PTopological
-  (topology [_]
+  p/PTopographic
+  (topography [_]
     topo)
   p/PEncoder
   (encode*
@@ -328,7 +328,7 @@
 
 (defn no-encoder
   [dimensions]
-  (let [topo (topology/make-topology dimensions)]
+  (let [topo (topography/make-topography dimensions)]
     (map->NoEncoder {:topo topo})))
 
 (s/fdef no-encoder
@@ -363,8 +363,8 @@
 
 (defrecord UniqueEncoder
     [topo n-active cache]
-  p/PTopological
-  (topology [_]
+  p/PTopographic
+  (topography [_]
     topo)
   p/PEncoder
   (encode*
@@ -383,7 +383,7 @@
   "This encoder generates a unique bit set for each distinct value,
   based on its hash. `dimensions` is given as a vector."
   [dimensions n-active]
-  (let [topo (topology/make-topology dimensions)]
+  (let [topo (topography/make-topography dimensions)]
     (map->UniqueEncoder {:topo topo
                          :n-active n-active
                          :cache (atom {})})))
@@ -421,8 +421,8 @@
 
 (defrecord Linear2DEncoder
     [topo n-active x-max y-max]
-  p/PTopological
-  (topology [_]
+  p/PTopographic
+  (topography [_]
     topo)
   p/PEncoder
   (encode*
@@ -455,7 +455,7 @@
   cover. The numbers will be clamped to this range, and below by
   zero."
   [dimensions n-active [x-max y-max]]
-  (let [topo (topology/make-topology dimensions)]
+  (let [topo (topography/make-topography dimensions)]
     (map->Linear2DEncoder {:topo topo
                            :n-active n-active
                            :x-max x-max
@@ -534,8 +534,8 @@
 
 (defrecord CoordinateEncoder
     [topo n-active scale-factors radii]
-  p/PTopological
-  (topology [_]
+  p/PTopographic
+  (topography [_]
     topo)
   p/PEncoder
   (encode*
@@ -557,7 +557,7 @@
   coordinates. Each dimension has an associated radius within which
   there is some similarity in encoded SDRs."
   [dimensions n-active scale-factors radii]
-  (let [topo (topology/make-topology dimensions)]
+  (let [topo (topography/make-topography dimensions)]
     (map->CoordinateEncoder {:topo topo
                              :n-active n-active
                              :scale-factors scale-factors
@@ -710,8 +710,8 @@
 
 (defrecord SamplingLinearEncoder
   [topo n-active lower upper radius periodic?]
-  p/PTopological
-  (topology
+  p/PTopographic
+  (topography
     [_]
     topo)
   p/PEncoder
@@ -756,7 +756,7 @@
   ([dimensions n-active [lower upper] radius]
    (sampling-linear-encoder dimensions n-active [lower upper] radius false))
   ([dimensions n-active [lower upper] radius periodic?]
-   (let [topo (topology/make-topology dimensions)]
+   (let [topo (topography/make-topography dimensions)]
      (map->SamplingLinearEncoder {:topo topo
                                   :n-active n-active
                                   :lower lower

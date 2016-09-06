@@ -1,6 +1,6 @@
 (ns org.nfrac.comportex.hierarchy
   (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.topology :as topology]
+            [org.nfrac.comportex.topography :as topography]
             [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.util :as util]
             [org.nfrac.comportex.util.algo-graph :as graph]
@@ -37,12 +37,12 @@
     (assoc this
         :layer-3 (p/layer-depolarise layer-3 distal-ff-bits apical-fb-bits apical-fb-wc-bits)))
 
-  p/PTopological
-  (topology [_]
-    (p/topology layer-3))
+  p/PTopographic
+  (topography [_]
+    (p/topography layer-3))
   p/PFeedForward
-  (ff-topology [_]
-    (p/ff-topology layer-3))
+  (ff-topography [_]
+    (p/ff-topography layer-3))
   (bits-value [_]
     (p/bits-value layer-3))
   (stable-bits-value [_]
@@ -53,8 +53,8 @@
   (wc-bits-value [_]
     (p/wc-bits-value layer-3))
   p/PFeedForwardMotor
-  (ff-motor-topology [_]
-    topology/empty-topology)
+  (ff-motor-topography [_]
+    topography/empty-topography)
   (motor-bits-value
     [_]
     (sequence nil))
@@ -120,12 +120,12 @@
        :layer-4 l4
        :layer-3 l3)))
 
-  p/PTopological
-  (topology [_]
-    (p/topology layer-3))
+  p/PTopographic
+  (topography [_]
+    (p/topography layer-3))
   p/PFeedForward
-  (ff-topology [_]
-    (p/ff-topology layer-3))
+  (ff-topography [_]
+    (p/ff-topography layer-3))
   (bits-value [_]
     (p/bits-value layer-3))
   (stable-bits-value [_]
@@ -136,9 +136,9 @@
   (wc-bits-value [_]
     (p/wc-bits-value layer-3))
   p/PFeedForwardMotor
-  (ff-motor-topology [_]
+  (ff-motor-topography [_]
     ;; TODO
-    topology/empty-topology)
+    topography/empty-topography)
   (motor-bits-value
     [_]
     (sequence nil))
@@ -176,7 +176,7 @@
                       (dissoc :layer-3 :layer-4))
         l4 (layer/layer-of-cells l4-params)
         l3-params (-> (assoc params
-                       :input-dimensions (p/dimensions (p/ff-topology l4))
+                       :input-dimensions (p/dimensions (p/ff-topography l4))
                        :distal-motor-dimensions [0]
                        :lateral-synapses? true)
                     (util/deep-merge (:layer-3 params {}))
@@ -188,14 +188,14 @@
 
 (defrecord SenseNode
     [topo bits sensory? motor?]
-  p/PTopological
-  (topology [_]
+  p/PTopographic
+  (topography [_]
     topo)
   p/PFeedForward
-  (ff-topology [_]
+  (ff-topography [_]
     (if sensory?
       topo
-      topology/empty-topology))
+      topography/empty-topography))
   (bits-value
     [_]
     (if sensory?
@@ -208,10 +208,10 @@
     [_ i]
     [i])
   p/PFeedForwardMotor
-  (ff-motor-topology [_]
+  (ff-motor-topography [_]
     (if motor?
       topo
-      topology/empty-topology))
+      topography/empty-topography))
   (motor-bits-value
     [_]
     (if motor?
@@ -222,7 +222,7 @@
     (assoc this :bits bits)))
 
 (defn sense-node
-  "Creates a sense node with given topology, matching the encoder that
+  "Creates a sense node with given topography, matching the encoder that
   will generate its bits."
   [topo sensory? motor?]
   (->SenseNode topo () sensory? motor?))
@@ -237,8 +237,8 @@
   (let [topo-fn (case flavour
                   (:standard
                    :stable
-                   :wc) p/ff-topology
-                   :motor p/ff-motor-topology)
+                   :wc) p/ff-topography
+                   :motor p/ff-motor-topography)
         bits-fn (case flavour
                   :standard p/bits-value
                   :stable p/stable-bits-value
@@ -258,8 +258,8 @@
   If i is an index into the feed-forward field, type is :ff-deps, if i
   is an index into the feed-back field, type is :fb-deps."
   ([htm rgn-id i type]
-   (source-of-incoming-bit htm rgn-id i type p/ff-topology))
-  ([htm rgn-id i type topology-fn]
+   (source-of-incoming-bit htm rgn-id i type p/ff-topography))
+  ([htm rgn-id i type topography-fn]
    (let [senses (:senses htm)
          regions (:regions htm)
          node-ids (get-in htm [type rgn-id])]
@@ -268,7 +268,7 @@
        (when-let [node-id (first node-ids)]
          (let [node (or (senses node-id)
                         (regions node-id))
-               width (long (p/size (topology-fn node)))]
+               width (long (p/size (topography-fn node)))]
            (if (< i (+ offset width))
              [node-id (- i offset)]
              (recur (next node-ids)
@@ -287,7 +287,7 @@
       :this [rgn-id lyr-id i]
       :ff (if (= lyr-id (first (layers rgn)))
             (let [[src-id j] (source-of-incoming-bit htm rgn-id adj-i :ff-deps
-                                                     p/ff-motor-topology)
+                                                     p/ff-motor-topography)
                   src-rgn (get-in htm [:regions src-id])]
               [src-id
                (when src-rgn (last (layers src-rgn))) ;; nil for senses
@@ -313,15 +313,15 @@
 
 (defn topo-union
   [topos]
-  (apply topology/combined-dimensions
+  (apply topography/combined-dimensions
          (map p/dimensions topos)))
 
 ;; TODO - better way to do this
 (defn fb-dim-from-params
   [params]
   (let [params (util/deep-merge layer/parameter-defaults params)]
-    (topology/make-topology (conj (:column-dimensions params)
-                                  (:depth params)))))
+    (topography/make-topography (conj (:column-dimensions params)
+                                      (:depth params)))))
 
 (do #?(:cljs (def pmap map)))
 
@@ -493,10 +493,10 @@
         ;; sensors may appear with same key in both main- and motor-
         sm (->> (merge-with merge
                             (util/remap (fn [[_ e]]
-                                          {:topo (p/topology e), :sensory? true})
+                                          {:topo (p/topography e), :sensory? true})
                                         main-sensors)
                             (util/remap (fn [[_ e]]
-                                          {:topo (p/topology e), :motor? true})
+                                          {:topo (p/topography e), :motor? true})
                                         motor-sensors))
                 (util/remap (fn [{:keys [topo sensory? motor?]}]
                               (sense-node topo sensory? motor?))))
@@ -506,8 +506,8 @@
                                ;; feed-forward
                                ff-ids (ff-deps id)
                                ffs (map m ff-ids)
-                               ff-dim (topo-union (map p/ff-topology ffs))
-                               ffm-dim (topo-union  (map p/ff-motor-topology ffs))
+                               ff-dim (topo-union (map p/ff-topography ffs))
+                               ffm-dim (topo-union  (map p/ff-motor-topography ffs))
                                ;; top-down feedback (if any)
                                fb-ids (fb-deps id)
                                fb-params (map region-params fb-ids)
@@ -576,7 +576,7 @@
      (-> {:active 0, :predicted 0, :active-predicted 0}
          (merge (frequencies (vals col-states)))
          (assoc :timestep (p/timestep rgn)
-                :size (p/size (p/topology rgn)))))))
+                :size (p/size (p/topography rgn)))))))
 
 ;;; ## Tracing columns back to senses
 
@@ -619,7 +619,7 @@
                        (not= id ff-id)))
          (map (fn [[id ff]]
                 ff))
-         (map p/ff-topology)
+         (map p/ff-topography)
          (map p/size)
          (reduce + 0))))
 
@@ -629,7 +629,7 @@
     htm sense-id n-predictions (comp :predictive-cells p/layer-state)))
   ([htm sense-id n-predictions cells-fn]
    (let [sense-width (-> (get-in htm [:senses sense-id])
-                         p/ff-topology
+                         p/ff-topography
                          p/size)
          pr-votes (->> (get-in htm [:fb-deps sense-id])
                        (mapcat (fn [rgn-id]

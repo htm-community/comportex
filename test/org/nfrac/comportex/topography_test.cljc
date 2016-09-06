@@ -1,5 +1,5 @@
-(ns org.nfrac.comportex.topology-test
-  (:require [org.nfrac.comportex.topology :as topology
+(ns org.nfrac.comportex.topography-test
+  (:require [org.nfrac.comportex.topography :as topography
              :refer [combined-dimensions]]
             [clojure.test :as t
              :refer (is deftest testing run-tests)]))

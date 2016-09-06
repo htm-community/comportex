@@ -3,7 +3,7 @@
             [org.nfrac.comportex.spatial-pooling-test]
             [org.nfrac.comportex.sequence-memory-test]
             [org.nfrac.comportex.encoders-test]
-            [org.nfrac.comportex.topology-test]
+            [org.nfrac.comportex.topography-test]
             [clojure.spec.test :as stest]
             [clojure.test :as t
              :refer (is deftest testing run-tests)]
@@ -17,4 +17,4 @@
 
 (run-tests 'org.nfrac.comportex.spatial-pooling-test
            'org.nfrac.comportex.sequence-memory-test
-           'org.nfrac.comportex.topology-test)
+           'org.nfrac.comportex.topography-test)

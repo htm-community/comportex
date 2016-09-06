@@ -2,7 +2,6 @@
   "Homeostasis algorithms, including boosting."
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.synapses :as syn]
-            [org.nfrac.comportex.topology :as topology]
             [org.nfrac.comportex.util :as util]
             [clojure.test.check.random :as random]))
 
@@ -63,7 +62,7 @@
                (boost-factors-global (:active-duty-cycles lyr)
                                      (:params lyr))
                (boost-factors-local (:active-duty-cycles lyr)
-                                    (:topology lyr)
+                                    (:topography lyr)
                                     (:inh-radius lyr)
                                     (:params lyr)))))))
 
@@ -99,7 +98,7 @@
                                   (:params lyr))
            (adjust-overlap-local sg
                                  (:overlap-duty-cycles lyr)
-                                 (:topology lyr)
+                                 (:topography lyr)
                                  (:inh-radius lyr)
                                  (:params lyr))))))))
 

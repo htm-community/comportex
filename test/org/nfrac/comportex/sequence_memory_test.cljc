@@ -41,7 +41,7 @@
         m1 (reduce p/htm-step (model) warmups)
         rgn (first (hier/region-seq m1))]
     (testing "Numbers of lateral dendrite segments"
-      (let [n-cols (p/size (p/topology rgn))
+      (let [n-cols (p/size (p/topography rgn))
             lyr (:layer-3 rgn)
             depth (p/layer-depth lyr)
             distal-sg (:distal-sg lyr)

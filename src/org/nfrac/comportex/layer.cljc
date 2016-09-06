@@ -24,7 +24,7 @@
             [org.nfrac.comportex.homeostasis :as homeo]
             [org.nfrac.comportex.synapses :as syn]
             [org.nfrac.comportex.inhibition :as inh]
-            [org.nfrac.comportex.topology :as topology]
+            [org.nfrac.comportex.topography :as topography]
             [org.nfrac.comportex.util :as util
              :refer [count-filter remap round spec-finite]]
             [clojure.test.check.random :as random]
@@ -519,8 +519,8 @@
   (->
    (s/keys :req-un [::params
                     ::rng
-                    ::topology
-                    ::input-topology
+                    ::topography
+                    ::input-topography
                     ::proximal-sg
                     ::distal-sg
                     ::apical-sg
@@ -1301,8 +1301,8 @@
 (defn update-inhibition-radius
   [layer]
   (assoc layer :inh-radius
-         (inh/inhibition-radius (:proximal-sg layer) (:topology layer)
-                                (:input-topology layer))))
+         (inh/inhibition-radius (:proximal-sg layer) (:topography layer)
+                                (:input-topography layer))))
 
 ;; these are records only so as to work with repl/truncate-large-data-structures
 (defrecord LayerActiveState [])
@@ -1402,7 +1402,7 @@
                                         (:depth params))
         n-on (max 1 (round (* (:activation-level params) (p/size-of layer))))
         a-cols (-> (best-by-column abs-cell-exc)
-                   (inh/inhibit-locally (:topology layer)
+                   (inh/inhibit-locally (:topography layer)
                                         (* (:inh-radius layer) (:inh-radius-scale params))
                                         (:inhibition-base-distance params)
                                         n-on)
@@ -1582,7 +1582,7 @@
                                          (:apical params) timestep))))
 
 (defrecord LayerOfCells
-    [params rng topology
+    [params rng topography
      proximal-sg distal-sg apical-sg ilateral-sg state prior-state tp-state
      distal-state prior-distal-state apical-state prior-apical-state learn-state]
 
@@ -1631,13 +1631,13 @@
       :syns (update-in this [:state :stable-cells-buffer] empty)
       :winners (assoc-in this [:learn-state :break-winners?] true)))
 
-  p/PTopological
-  (topology [this]
-    (:topology this))
+  p/PTopographic
+  (topography [this]
+    (:topography this))
   p/PFeedForward
-  (ff-topology [this]
-    (topology/make-topology (conj (p/dims-of this)
-                                  (p/layer-depth this))))
+  (ff-topography [this]
+    (topography/make-topography (conj (p/dims-of this)
+                                      (p/layer-depth this))))
   (bits-value [_]
     (set/union (:out-immediate-ff-bits state)
                (:out-stable-ff-bits tp-state)))
@@ -1728,8 +1728,8 @@
                  (range))))))
 
 (s/fdef uniform-ff-synapses
-        :args (s/cat :topo #(satisfies? p/PTopological %)
-                     :itopo #(satisfies? p/PTopological %)
+        :args (s/cat :topo #(satisfies? p/PTopography %)
+                     :itopo #(satisfies? p/PTopography %)
                      :params (s/keys :req-un [::ff-perm-init
                                               ::ff-init-frac
                                               ::ff-potential-radius])
@@ -1745,8 +1745,8 @@
   [params]
   (let [params (->> (util/deep-merge parameter-defaults params)
                     (s/assert ::params))
-        input-topo (topology/make-topology (:input-dimensions params))
-        col-topo (topology/make-topology (:column-dimensions params))
+        input-topo (topography/make-topography (:input-dimensions params))
+        col-topo (topography/make-topography (:column-dimensions params))
         n-cols (p/size col-topo)
         depth (:depth params)
         n-distal (+ (if (:lateral-synapses? params)
@@ -1783,8 +1783,8 @@
     (check-param-deprecations params)
     {:params params
      :rng rng
-     :topology col-topo
-     :input-topology input-topo
+     :topography col-topo
+     :input-topography input-topo
      :inh-radius 1
      :proximal-sg proximal-sg
      :distal-sg distal-sg

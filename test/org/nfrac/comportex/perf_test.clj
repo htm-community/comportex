@@ -1,7 +1,7 @@
 (ns org.nfrac.comportex.perf-test
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.inhibition :as inh]
-            [org.nfrac.comportex.topology :as topology]
+            [org.nfrac.comportex.topography :as topography]
             [org.nfrac.comportex.util :as util]
             [clojure.test.check.random :as random]
             [org.nfrac.comportex.demos.isolated-1d :as demoi1d]
@@ -65,7 +65,7 @@
                      (demoi1d/input-seq)))))
 
 (deftest perf-inh-test
-  (let [topo (topology/make-topology [20 50])
+  (let [topo (topography/make-topography [20 50])
         n (p/size topo)
         n-on (util/round (* n 0.02))
         inh-radius 15

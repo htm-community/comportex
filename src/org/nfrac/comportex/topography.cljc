@@ -1,13 +1,13 @@
-(ns org.nfrac.comportex.topology
+(ns org.nfrac.comportex.topography
   (:require [org.nfrac.comportex.protocols :as p]))
 
 (defn- abs
   [x]
   (if (neg? x) (- x) x))
 
-(defrecord OneDTopology
+(defrecord OneDTopography
     [size]
-  p/PTopology
+  p/PTopography
   (dimensions [_]
     [size])
   (coordinates-of-index [_ idx]
@@ -24,17 +24,17 @@
     [_ coord-a coord-b]
     (abs (- coord-b coord-a))))
 
-(defn one-d-topology
+(defn one-d-topography
   [size]
-  (->OneDTopology size))
+  (->OneDTopography size))
 
-(defrecord TwoDTopology
+(defrecord TwoDTopography
     [width height]
   ;; Represents coordinates [x y], with x changing faster over
   ;; indices: they are layed out by row, like pixels in an image.
   ;; Uses Chebyshev distance (max coord diff) for neighbours and
   ;; distance.
-  p/PTopology
+  p/PTopography
   (dimensions [_]
     [width height])
   (coordinates-of-index
@@ -63,18 +63,18 @@
       (max (abs (- xb xa))
            (abs (- yb ya))))))
 
-(defn two-d-topology
+(defn two-d-topography
   [width height]
-  (->TwoDTopology width height))
+  (->TwoDTopography width height))
 
-(defrecord ThreeDTopology
+(defrecord ThreeDTopography
     [width height depth]
   ;; Represents coordinates [x y z], with x changing fastest over
   ;; indices. Like a stack of images. The indexing is as in a
   ;; concatenation of multiple 2D xy images.
   ;; Uses Chebyshev distance (max coord diff) for neighbours and
   ;; distance.
-  p/PTopology
+  p/PTopography
   (dimensions [_]
     [width height depth])
   (coordinates-of-index
@@ -109,23 +109,23 @@
            (abs (- yb ya))
            (abs (- zb za))))))
 
-(defn three-d-topology
+(defn three-d-topography
   [w h d]
-  (->ThreeDTopology w h d))
+  (->ThreeDTopography w h d))
 
-(defn make-topology
+(defn make-topography
   [dims]
   (let [[w h d q] dims]
     (case (count dims)
-      0 (one-d-topology 0)
-      1 (one-d-topology w)
-      2 (two-d-topology w h)
-      3 (three-d-topology w h d)
-      4 (three-d-topology w h (* d q)))))
+      0 (one-d-topography 0)
+      1 (one-d-topography w)
+      2 (two-d-topography w h)
+      3 (three-d-topography w h d)
+      4 (three-d-topography w h (* d q)))))
 
 
-(def empty-topology
-  (make-topology [0]))
+(def empty-topography
+  (make-topography [0]))
 
 (defn squash-last-dimension
   "Project n dimensions to n-1 dimensions by eliminating the last dimension.
@@ -154,16 +154,16 @@
             (assoc dims 0 xsection-length)))))
 
 ;; We will pour the concatenated indices (and offsets) into this
-;; combined topology. Note that region output is its cells, so will
-;; add another dimension to column topology. e.g. 2D columns [x y]
+;; combined topography. Note that region output is its cells, so will
+;; add another dimension to column topography. e.g. 2D columns [x y]
 ;; becomes [x y z], where z = cell depth.
 
 (defn combined-dimensions
-  "Align n topologies along the x axis into a single topology.
-  If the topologies don't stack neatly, force compatibility via two
+  "Align n topographies along the x axis into a single topography.
+  If the topographies don't stack neatly, force compatibility via two
   strategies:
 
-  1. Add dimensions to the lower-dimensional topology by splitting its first
+  1. Add dimensions to the lower-dimensional topography by splitting its first
   dimension into cross sections. This is analogous to summing numbers encoded
   in a mixed radix. If the sum of `higher` and `lower` can be expressed by only
   changing the first digit of `higher`, then the two can be stacked in
@@ -172,10 +172,10 @@
   Default behavior: don't redistribute / mangle `lower`'s lower dimensions
   (i.e. [y, z, ...]). To force mangling, provide a 1-dimensional `lower`.
 
-  2. Remove dimensions from the higher-dimension topology by squashing its
+  2. Remove dimensions from the higher-dimension topography by squashing its
   last two dimensions into one.
 
-  It's best to hand-pick compatible topologies if topology matters."
+  It's best to hand-pick compatible topographies if topography matters."
   ([]
    [0])
   ([& all-dims]

@@ -46,12 +46,12 @@
     "A parameter set as map with keyword keys."))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Topology
+;;; Topography
 
-(defprotocol PTopological
-  (topology [this]))
+(defprotocol PTopographic
+  (topography [this]))
 
-(defprotocol PTopology
+(defprotocol PTopography
   "Operating on a regular grid of certain dimensions, where each
    coordinate is an n-tuple vector---or integer for 1D---and also has
    a unique integer index."
@@ -62,19 +62,19 @@
   (coord-distance [this coord-a coord-b]))
 
 (defn size
-  "The total number of elements indexed in the topology."
+  "The total number of elements indexed in the topography."
   [topo]
   (reduce * (dimensions topo)))
 
 (defn dims-of
-  "The dimensions of a PTopological as an n-tuple vector."
+  "The dimensions of a topography as an n-tuple vector."
   [x]
-  (dimensions (topology x)))
+  (dimensions (topography x)))
 
 (defn size-of
-  "The total number of elements in a PTopological."
+  "The total number of elements in a topography."
   [x]
-  (size (topology x)))
+  (size (topography x)))
 
 (defn neighbours
   "Returns the coordinates away from `coord` at distances
@@ -127,7 +127,7 @@
       (htm-depolarise)))
 
 (defprotocol PRegion
-  "Cortical regions need to extend this together with PTopological,
+  "Cortical regions need to extend this together with PTopographic,
    PFeedForward, PTemporal, PParameterised."
   (region-activate [this ff-bits stable-ff-bits])
   (region-learn [this])
@@ -145,7 +145,7 @@
 (defprotocol PFeedForward
   "A feed-forward input source with a bit set representation. Could be
    sensory input or a region (where cells are bits)."
-  (ff-topology [this])
+  (ff-topography [this])
   (bits-value [this]
     "The set of indices of all active bits/cells.")
   (stable-bits-value [this]
@@ -161,7 +161,7 @@
     "The set of indices of all winner cells."))
 
 (defprotocol PFeedForwardMotor
-  (ff-motor-topology [this])
+  (ff-motor-topography [this])
   (motor-bits-value [this]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -345,7 +345,7 @@
 (s/def ::selector #(satisfies? PSelector %))
 
 (defprotocol PEncoder
-  "Encoders need to extend this together with PTopological."
+  "Encoders need to extend this together with PTopographic."
   (encode* [this x])
   (decode* [this bit-votes n])
   (input-generator [this]))
