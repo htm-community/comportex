@@ -17,10 +17,13 @@
 (def opts {::stc/opts {:num-tests 50}
            :gen fancy-gens})
 
-(stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.layer))
-(stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.protocols))
+(def instr-syms
+  (concat
+   (stest/enumerate-namespace 'org.nfrac.comportex.layer)
+   (stest/enumerate-namespace 'org.nfrac.comportex.protocols)))
 
-(deftest layer-light-fns-test
+(deftest layer-fns-test
+  (stest/instrument instr-syms)
   (-> `[layer/segment-activation
         layer/best-matching-segment
         layer/best-segment-excitations-and-paths
@@ -31,7 +34,8 @@
         layer/new-segment-id
         layer/segment-new-synapse-source-ids]
       (stest/check opts)
-      (stest/summarize-results)))
+      (stest/summarize-results))
+  (stest/unstrument))
 
 ;; requires synapse graph generator
 #_
@@ -48,9 +52,11 @@
 
 ;; requires layer-of-cells generator
 (deftest layer-heavy-fns-test
+  (stest/instrument instr-syms)
   (->
    `[p/layer-activate]
      ;layer/spatial-pooling
      ;layer/temporal-pooling]
    (stest/check (assoc-in opts [::stc/opts :num-tests] 100))
-   (stest/summarize-results)))
+   (stest/summarize-results))
+  (stest/unstrument))

@@ -7,9 +7,6 @@
             [clojure.test :as t
              :refer (is deftest testing run-tests)]))
 
-(stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.protocols))
-(stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.encoders))
-
 (alter-var-root #'ctcc/*report-shrinking* (constantly true))
 (alter-var-root #'ctcc/*report-trials* (constantly ctcc/trial-report-periodic))
 
@@ -42,9 +39,14 @@
 (def opts {::stc/opts {:num-tests 200}})
 
 (deftest exercise-encoders-test
+  (stest/instrument
+   (concat (stest/enumerate-namespace 'org.nfrac.comportex.protocols)
+           (stest/enumerate-namespace 'org.nfrac.comportex.encoders)))
+  ;; generate random encoders with random parameters and encode random inputs!
   (-> `p/encode
       (stest/check opts)
-      (stest/summarize-results)))
+      (stest/summarize-results))
+  (stest/unstrument))
 
 (comment
  ;; this is kind of the same thing but is faster, not sure why:
