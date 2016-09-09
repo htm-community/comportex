@@ -1,6 +1,7 @@
 (ns org.nfrac.comportex.demos.cortical-io-channel
   (:require [org.nfrac.comportex.hierarchy :as hier]
             [org.nfrac.comportex.protocols :as p]
+            [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.cortical-io :refer [cortical-io-encoder
                                                      cache-fingerprint!]]
             [clojure.string :as str]
@@ -29,11 +30,11 @@
        ;(mapv #(conj % "."))
 
 
-(defn n-region-model
+(defn build
   [api-key cache n]
-  (hier/regions-in-series n hier/sensory-region
-                          (list* params (repeat higher-level-params))
-                          {:input (cortical-io-encoder api-key cache)}))
+  (hier/layers-in-series n layer/layer-of-cells
+                         (list* params (repeat higher-level-params))
+                         {:input (cortical-io-encoder api-key cache)}))
 
 (comment
 
@@ -46,7 +47,7 @@
   (def input-c (chan 5))
   (def cache (atom {}))
   ;; the HTM model
-  (def current (atom (n-region-model api-key cache 1)))
+  (def current (atom (build api-key cache 1)))
 
   (defn submit
     [txt]

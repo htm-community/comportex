@@ -1,6 +1,6 @@
 (ns org.nfrac.comportex.encoders
   "Methods of encoding data as distributed bit sets, for feeding as
-   input to a cortical region."
+  input to HTM layers."
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.topography :as topography]
             [org.nfrac.comportex.util :as util :refer [abs spec-finite]]
@@ -812,9 +812,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Sensors
 
-(s/def ::sensor (s/cat :selector ::p/selector
-                       :encoder ::p/encoder))
-
 (defn sensor-cat
   [& sensors]
   (let [selectors (map first sensors)
@@ -823,5 +820,5 @@
      (encat encoders)]))
 
 (s/fdef sensor-cat
-        :args (s/coll-of ::sensor :min-count 1)
-        :ret ::sensor)
+        :args (s/coll-of ::p/sensor :min-count 1)
+        :ret ::p/sensor)

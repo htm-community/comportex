@@ -154,7 +154,7 @@
             (assoc dims 0 xsection-length)))))
 
 ;; We will pour the concatenated indices (and offsets) into this
-;; combined topography. Note that region output is its cells, so will
+;; combined topography. Note that layer output is its cells, so will
 ;; add another dimension to column topography. e.g. 2D columns [x y]
 ;; becomes [x y z], where z = cell depth.
 

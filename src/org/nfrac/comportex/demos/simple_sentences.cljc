@@ -1,5 +1,6 @@
 (ns org.nfrac.comportex.demos.simple-sentences
   (:require [org.nfrac.comportex.hierarchy :as hier]
+            [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.string :as str]))
@@ -111,10 +112,10 @@ Chifung has no tail.
   [:word
    (enc/unique-encoder [bit-width] n-on-bits)])
 
-(defn n-region-model
-  ([n]
-   (n-region-model n params))
+(defn build
+  ([]
+   (build 1 params))
   ([n params]
-   (hier/regions-in-series n hier/sensory-region
-                           (list* params (repeat higher-level-params))
-                           {:input random-sensor})))
+   (hier/layers-in-series n layer/layer-of-cells
+                          (list* params (repeat higher-level-params))
+                          {:input random-sensor})))

@@ -1,6 +1,7 @@
 (ns org.nfrac.comportex.demos.coordinates-2d
   (:require [org.nfrac.comportex.hierarchy :as hier]
             [org.nfrac.comportex.protocols :as p]
+            [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util :refer [abs round]]))
 
@@ -63,10 +64,10 @@
   [(enc/vec-selector :x :y)
    (enc/coordinate-encoder input-dim n-on-bits [1 1] [radius radius])])
 
-(defn n-region-model
-  ([n]
-   (n-region-model n params))
+(defn build
+  ([]
+   (build 1 params))
   ([n params]
-   (hier/regions-in-series n hier/sensory-region
-                           (list* params (repeat higher-level-params))
-                           {:input sensor})))
+   (hier/layers-in-series n layer/layer-of-cells
+                          (list* params (repeat higher-level-params))
+                          {:input sensor})))

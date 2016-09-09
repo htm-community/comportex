@@ -2,12 +2,14 @@
   "Minimal public javascript API.
 
   Complex clojurescript objects such as encoders and HTM models and their
-  constituent regions and layers are not converted to native javascript types.
+  constituent layers are not converted to native javascript types.
   They are left as black box values intended to be used with other API fns."
   (:require
     [org.nfrac.comportex.hierarchy :as hier]
     [org.nfrac.comportex.encoders :as encoders]
-    [org.nfrac.comportex.protocols :as p]))
+    [org.nfrac.comportex.protocols :as p]
+    [org.nfrac.comportex.layer :as layer]
+    [clojure.spec :as s]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Helpers
@@ -48,43 +50,35 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Hierarchy
 
-(defn ^:export regions-in-series
-  "Constructs an HTM network consisting of n regions in a linear
-  series. The regions are given keys :rgn-0, :rgn-1, etc. Senses feed
-  only to the first region. Their sensors are given in a map with
+(defn ^:export layers-in-series
+  "Constructs an HTM network consisting of n layers in a linear
+  series. The layers are given keys :layer-a, :layer-b, etc. Senses feed
+  only to the first layer. Their sensors are given in a map with
   keyword keys. Sensors are defined to be the form `[selector encoder]`.
+
   Encoders should be passed as clojure objects (as from encoder fns).
   Selectors should be passed as strings or arrays of strings, which
   select the value at that key or nested path of keys in an input value."
   ([n paramseq sensors]
-   (regions-in-series n paramseq sensors nil))
+   (layers-in-series n paramseq sensors nil))
   ([n paramseq main-sensors motor-sensors]
-   (let [build-region hier/sensory-region
+   (let [build-layer layer/layer-of-cells
          paramseq (map js->params paramseq)
          main-sensors (js->sensors main-sensors)
          motor-sensors (js->sensors motor-sensors)]
-     (hier/regions-in-series n build-region paramseq main-sensors motor-sensors))))
-
-(defn ^:export region-seq
-  "Returns a js array of regions, each a clojure object."
-  [htm]
-  (->array (hier/region-seq htm)))
+     (hier/layers-in-series n build-layer paramseq main-sensors motor-sensors))))
 
 (defn ^:export layer-seq
-  "Returns a js array of layers in a region, each a clojure object.
-   If an HTM model is passed instead, returns layers from all regions flattened
-   into a single array."
-  [rgn-or-htm]
-  (if (:regions rgn-or-htm)
-    (->array (mapcat layer-seq (hier/region-seq rgn-or-htm)))
-    (->array (map #(get rgn-or-htm %) (hier/layers rgn-or-htm)))))
+  "Returns a js array of layers, each a clojure object."
+  [htm]
+  (->array (hier/layer-seq htm)))
 
 (defn ^:export column-state-freqs
   "Returns a map with the frequencies of columns in states
   `active` (bursting), `predicted`, `active-predicted`. Note that
   these are distinct categories. The names are possibly misleading."
-  [rgn]
-  (clj->js (hier/column-state-freqs rgn)))
+  [lyr]
+  (clj->js (hier/column-state-freqs lyr)))
 
 (defn ^:export predictions
   [htm sense-id n-predictions]
@@ -101,8 +95,8 @@
   (p/htm-step htm (js->clj inval :keywordize-keys true)))
 
 (defn ^:export params
-  [rgn-or-lyr]
-  (params->js (p/params rgn-or-lyr)))
+  [lyr]
+  (params->js (p/params lyr)))
 
 (defn ^:export encode
   [encoder x]

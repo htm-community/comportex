@@ -1,6 +1,7 @@
 (ns org.nfrac.comportex.spatial-pooling-test
   (:require [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.hierarchy :as hier]
+            [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.test.check.random :as random]
@@ -40,22 +41,20 @@
    (enc/encat (repeat n-in-items
                       (enc/linear-encoder [numb-bits] numb-on-bits numb-domain)))])
 
-(defn model
+(defn build
   []
-  (hier/regions-in-series 1 hier/sensory-region [params]
+  (hier/layers-in-series 1 layer/layer-of-cells [params]
                           {:input sensor}))
 
 (deftest sp-test
   (let [htm-step+cols (fn [this input]
                         (let [x (p/htm-step this input)]
                           (assoc-in x [:active-columns-at (p/timestep x)]
-                                    (-> (first (hier/region-seq x))
-                                        :layer-3
+                                    (-> (first (hier/layer-seq x))
                                         p/layer-state
                                         :active-columns))))
-        m1 (reduce htm-step+cols (model) (take 500 (input-seq)))
-        rgn (first (hier/region-seq m1))
-        lyr (:layer-3 rgn)
+        htm1 (reduce htm-step+cols (build) (take 500 (input-seq)))
+        lyr (first (hier/layer-seq htm1))
         n-cols (p/size-of lyr)]
     (testing "Column activation is distributed and moderated."
       (is (pos? (count (:active-columns (p/layer-state lyr))))
@@ -63,7 +62,7 @@
       (is (pos? (util/quantile (:active-duty-cycles lyr) 0.9))
           "At least 10% of columns have been active.")
       (let [nactive-ts (for [t (range 400 500)]
-                         (count (get-in m1 [:active-columns-at t])))]
+                         (count (get-in htm1 [:active-columns-at t])))]
         (is (every? #(< % (* n-cols 0.20)) nactive-ts)
             "Inhibition limits active columns in each time step."))
       (let [sg (:proximal-sg lyr)
@@ -83,10 +82,10 @@
                             [:mid 8]
                             [:far 25]]
                      :let [this-in (mapv (partial + d) in)
-                           [_ encoder] sensor
-                           ff-bits (into #{} (p/encode encoder this-in))
-                           rgn2 (p/region-step rgn ff-bits)]]
-                 [k (:active-columns (p/layer-state (:layer-3 rgn2)))])
+                           htm2 (-> (p/htm-sense htm1 this-in nil)
+                                    (p/htm-activate))
+                           lyr (first (hier/layer-seq htm2))]]
+                 [k (:active-columns (p/layer-state lyr))])
                (into {}))]
         (is (> (count (set/intersection (:orig m) (:near m)))
                (* (count (:orig m)) 0.5))

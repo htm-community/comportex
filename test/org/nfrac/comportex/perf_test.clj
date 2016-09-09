@@ -17,15 +17,14 @@
     (testing info
       (println (str (newline) info))
       (crit/quick-bench
-       (demoi1d/n-region-model
-        1 (assoc demoi1d/params :ff-potential-radius 1.0))))))
+       (demoi1d/build 1 (assoc demoi1d/params :ff-potential-radius 1.0))))))
 
 (deftest perf-creation-local-1d-test
   (let [info "[800] local, radius 0.2 * 30% potential, creation time"]
     (testing info
       (println (str (newline) info))
       (crit/quick-bench
-       (demo1d/n-region-model 1)))))
+       (demo1d/build)))))
 
 (defn perf-test-50*
   [htm inseq]
@@ -38,30 +37,30 @@
   (let [info "[1000] global, 30% potential, 50 steps"]
     (testing info
       (println (str (newline) info))
-      (perf-test-50* (demo1d/n-region-model 1 (assoc demo1d/params
-                                                     :spatial-pooling :standard
-                                                     :ff-potential-radius 1.0))
+      (perf-test-50* (demo1d/build 1 (assoc demo1d/params
+                                            :spatial-pooling :standard
+                                            :ff-potential-radius 1.0))
                      (demo1d/input-seq)))))
 
 (deftest perf-local-1d-test
   (let [info "[800] local, radius 0.2 * 30% potential, 50 steps"]
     (testing info
       (println (str (newline) info))
-      (perf-test-50* (demo1d/n-region-model 1 demo1d/params)
+      (perf-test-50* (demo1d/build 1 demo1d/params)
                      (demo1d/input-seq)))))
 
 (deftest perf-global-2d-test
   (let [info "[20 50] global, radius 0.2 * 30% potential, 50 steps"]
     (testing info
       (println (str (newline) info))
-      (perf-test-50* (demo2d/n-region-model 1 demo2d/params)
+      (perf-test-50* (demo2d/build 1 demo2d/params)
                      (demo2d/input-seq)))))
 
 (deftest perf-global-1d-2r-test
   (let [info "[1000] * [400] global, 30% potential, 50 steps"]
     (testing info
       (println (str (newline) info))
-      (perf-test-50* (demoi1d/n-region-model 2 demoi1d/params)
+      (perf-test-50* (demoi1d/build 2 demoi1d/params)
                      (demoi1d/input-seq)))))
 
 (deftest perf-inh-test

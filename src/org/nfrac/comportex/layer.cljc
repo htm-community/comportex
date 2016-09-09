@@ -3,7 +3,7 @@
 
    **Argument name conventions:**
 
-   * `col` -- a column id, an integer index in the region.
+   * `col` -- a column id, an integer index in the layer.
    * `ci` -- a cell id, an integer index in the column.
    * `si` -- a segment id, an integer index in the cell.
    * `cell-id` -- a vector `[col ci]`.
@@ -536,7 +536,7 @@
                     ::boosts
                     ::active-duty-cycles
                     ::overlap-duty-cycles])
-   ;; this only generates fresh (empty) layers; see ./generators ns.
+   ;; this only generates fresh (empty) layers; see ./fancy-generators ns.
    (s/with-gen #(gen/fmap layer-of-cells (s/gen ::params)))))
 
 ;;; ## Synapse tracing
@@ -1634,6 +1634,7 @@
   p/PTopographic
   (topography [this]
     (:topography this))
+
   p/PFeedForward
   (ff-topography [this]
     (topography/make-topography (conj (p/dims-of this)
@@ -1646,12 +1647,15 @@
   (source-of-bit
     [_ i]
     (id->cell (:depth params) i))
+
   p/PFeedBack
   (wc-bits-value [_]
     (:out-wc-bits learn-state))
+
   p/PTemporal
   (timestep [_]
     (:timestep active-state))
+
   p/PParameterised
   (params [_]
     params))
@@ -1743,6 +1747,10 @@
 
 (defn init-layer-state
   [params]
+  (let [unk (set/difference (set (keys params))
+                            (set (keys parameter-defaults)))]
+    (when (seq unk)
+      (println "Warning: unknown keys in params:" unk)))
   (let [params (->> (util/deep-merge parameter-defaults params)
                     (s/assert ::params))
         input-topo (topography/make-topography (:input-dimensions params))

@@ -1,11 +1,11 @@
 (ns org.nfrac.comportex.demos.second-level-motor
   (:require [org.nfrac.comportex.hierarchy :as hier]
+            [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.string :as str]
-            #?(:clj [clojure.core.async :refer [put! >! <! go]]
-               :cljs [cljs.core.async :refer [put! >! <!]]))
+            [clojure.core.async :refer [put! >! <! #?(:clj go)]])
   #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]])))
 
 (def bit-width 600)
@@ -100,18 +100,18 @@ the three little pigs.
   [[:action :next-word-saccade]
    (enc/category-encoder [motor-bit-width] [1 -1])])
 
-(defn two-region-model
+(defn build
   ([]
-   (two-region-model params))
+   (build params))
   ([params]
-   (hier/region-network {:rgn-0 [:input :letter-motor]
-                         :rgn-1 [:rgn-0 :word-motor]}
-                        (constantly hier/sensory-region)
-                        {:rgn-0 params
-                         :rgn-1 higher-level-params}
-                        {:input letter-sensor}
-                        {:letter-motor letter-motor-sensor
-                         :word-motor word-motor-sensor})))
+   (hier/network {:layer-a [:input :letter-motor]
+                  :layer-b [:layer-a :word-motor]}
+                 (constantly layer/layer-of-cells)
+                 {:layer-a params
+                  :layer-b higher-level-params}
+                 {:input letter-sensor}
+                 {:letter-motor letter-motor-sensor
+                  :word-motor word-motor-sensor})))
 
 
 (defn htm-step-with-action-selection
@@ -142,16 +142,16 @@ the three little pigs.
           end-of-word? (= k (dec (count word)))
           end-of-sentence? (= j (dec (count sentence)))
           end-of-passage? (= i (dec (count sentences)))
-          r0-lyr (get-in htm-a [:regions :rgn-0 :layer-3])
-          r1-lyr (get-in htm-a [:regions :rgn-1 :layer-3])
-          r0-stability (/ (count (:out-stable-ff-bits (:active-state r0-lyr)))
-                          (count (:out-ff-bits (:active-state r0-lyr))))
+          lyr-a (get-in htm-a [:layers :layer-a])
+          lyr-b (get-in htm-a [:layers :layer-b])
+          a-stability (/ (count (:out-stable-ff-bits (:active-state lyr-a)))
+                         (count (:out-ff-bits (:active-state lyr-a))))
           word-burst? (cond-> (:word-bursting? (:action inval))
                         ;; ignore burst on first letter of word
-                        (pos? k) (or (< r0-stability 0.5)))
+                        (pos? k) (or (< a-stability 0.5)))
           sent-burst? (cond-> (:sentence-bursting? (:action inval))
                         ;; ignore burst on first letter of word
-                        (pos? k) (or (< r0-stability 0.5)))
+                        (pos? k) (or (< a-stability 0.5)))
           action* (cond
                     ;; not yet at end of word
                     (not end-of-word?)
@@ -196,7 +196,7 @@ the three little pigs.
                      :sentence-bursting? false})
 
           ;; next-letter-saccade represents starting a word (-1) or continuing (1)
-          ;; that is all that rgn-0 knows.
+          ;; that is all that layer-a knows.
           action (merge {:next-word-saccade 0
                          :next-sentence-saccade 0
                          :word-bursting? word-burst?
@@ -215,12 +215,12 @@ the three little pigs.
         (p/htm-depolarise)
         ;; break sequence when repeating word (but keep tp synapses)
         end-of-word?
-        (update-in [:regions :rgn-0] p/break :tm)
+        (update-in [:layers :layer-a] p/break :tm)
         ;; reset context when going on to new word
         (and end-of-word? (not word-burst?))
-        (update-in [:regions :rgn-0] p/break :syns)
+        (update-in [:layers :layer-a] p/break :syns)
         (and end-of-word? (not word-burst?))
-        (update-in [:regions :rgn-1] p/break :winners)))))
+        (update-in [:layers :layer-b] p/break :winners)))))
 
 
 (comment
@@ -229,6 +229,6 @@ the three little pigs.
   (def control-c (chan))
   (def step (htm-step-with-action-selection world-c control-c))
   (def in (initial-inval (parse-sentences test-text)))
-  (def mo (two-region-model))
+  (def mo (build))
   (def mo2 (step mo in))
   (def in2 (<!! world-c)))

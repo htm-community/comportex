@@ -98,7 +98,7 @@
 ;;; Hierarchy
 
 (defprotocol PHTM
-  "A network of regions and senses, forming Hierarchical Temporal Memory."
+  "A network of layers and senses, forming Hierarchical Temporal Memory."
   (htm-sense [this inval mode]
     "Takes an input value. Updates the HTM's senses by applying
     corresponding sensors to the input value. `mode` may be
@@ -126,25 +126,9 @@
       (htm-learn)
       (htm-depolarise)))
 
-(defprotocol PRegion
-  "Cortical regions need to extend this together with PTopographic,
-   PFeedForward, PTemporal, PParameterised."
-  (region-activate [this ff-bits stable-ff-bits])
-  (region-learn [this])
-  (region-depolarise [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]))
-
-(defn region-step
-  ([this ff-bits]
-   (region-step this ff-bits #{} #{} #{} #{}))
-  ([this ff-bits stable-ff-bits distal-ff-bits apical-fb-bits apical-fb-wc-bits]
-   (-> this
-       (region-activate ff-bits stable-ff-bits)
-       (region-learn)
-       (region-depolarise distal-ff-bits apical-fb-bits apical-fb-wc-bits))))
-
 (defprotocol PFeedForward
   "A feed-forward input source with a bit set representation. Could be
-   sensory input or a region (where cells are bits)."
+   sensory input or a layer (where cells are bits)."
   (ff-topography [this])
   (bits-value [this]
     "The set of indices of all active bits/cells.")
@@ -375,6 +359,9 @@
                   (empty? (:ret v))
                   (and (<= (count (:ret v)) w)
                        (every? #(< % w) (:ret v)))))))
+
+(s/def ::sensor (s/cat :selector ::selector
+                       :encoder ::encoder))
 
 (defn decode
   "Finds `n` domain values matching the given bit set in a sequence

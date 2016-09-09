@@ -1,11 +1,11 @@
 (ns org.nfrac.comportex.demos.q-learning-1d
   (:require [org.nfrac.comportex.hierarchy :as hier]
+            [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.synapses :as syn]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util :refer [round abs]]
-            #?(:clj [clojure.core.async :refer [put!]]
-               :cljs [cljs.core.async :refer [put!]])))
+            [clojure.core.async :refer [put!]]))
 
 (def input-dim [400])
 (def n-on-bits 40)
@@ -58,7 +58,7 @@
   {:left {:dx -1}
    :right {:dx 1}})
 
-;; lookup on columns of :action region
+;; lookup on columns of :action layer
 (def column->signal
   (zipmap (range)
           (for [direction [:left :right]
@@ -67,7 +67,7 @@
 
 (defn select-action
   [htm]
-  (let [alyr (get-in htm [:regions :action :layer-3])
+  (let [alyr (get-in htm [:layers :action])
         acols (:active-columns (p/layer-state alyr))
         signals (map column->signal acols)]
     (->> signals
@@ -110,9 +110,9 @@
 
 (defn q-learn
   [htm prev-htm reward]
-  (update-in htm [:regions :action :layer-3]
+  (update-in htm [:layers :action]
              (fn [lyr]
-               (let [prev-lyr (get-in prev-htm [:regions :action :layer-3])
+               (let [prev-lyr (get-in prev-htm [:layers :action])
                      {:keys [ff-perm-init-lo q-alpha q-discount]} (p/params lyr)
                      ff-bits (or (:in-ff-bits (:active-state lyr)) #{})
                      acols (:active-cols (:active-state lyr))
@@ -145,21 +145,21 @@
                                   :adj adjust
                                   :perms (count aperms)}))))))
 
-(defn make-model
+(defn build
   []
   (let [sensor [(enc/vec-selector :x)
                 (enc/coordinate-encoder input-dim n-on-bits [surface-coord-scale]
                                         [coord-radius])]
         msensor [[:action :dx]
                  (enc/linear-encoder [100] 30 [-1 1])]]
-    (hier/region-network {:rgn-1 [:input :motor]
-                          :action [:rgn-1]}
-                         (constantly hier/sensory-region)
-                         {:rgn-1 (assoc params :lateral-synapses? false)
-                          :action action-params}
-                         {:input sensor}
-                         {:input sensor
-                          :motor msensor})))
+    (hier/network {:layer-a [:input :motor]
+                   :action [:layer-a]}
+                  (constantly layer/layer-of-cells)
+                  {:layer-a (assoc params :lateral-synapses? false)
+                   :action action-params}
+                  {:input sensor}
+                  {:input sensor
+                   :motor msensor})))
 
 (defn htm-step-with-action-selection
   [world-c]
@@ -174,7 +174,7 @@
           ;; do the Q learning update on action layer
           upd-htm (q-learn htm-a htm reward)
           ;; maintain map of state+action -> approx Q values, for diagnostics
-          info (get-in upd-htm [:regions :action :layer-3 :Q-info])
+          info (get-in upd-htm [:layers :action :Q-info])
           newQ (-> (+ (:Q-old info 0) (:adj info 0))
                    (max -1.0)
                    (min 1.0))
@@ -196,7 +196,7 @@
 (comment
   (require '[clojure.core.async :as async :refer [>!! <!!]])
   (def world-c (async/chan))
-  (def model (atom (make-model)))
+  (def model (atom (build)))
   (def step (htm-step-with-action-selection world-c))
 
   (def inval initial-inval)
@@ -204,5 +204,5 @@
   (def inval (<!! world-c))
 
   inval
-  (get-in @model [:regions :action :layer-3 :Q-info])
-  (get-in @model [:regions :action :layer-3 :active-state :active-cols]))
+  (get-in @model [:layers :action :Q-info])
+  (get-in @model [:layers :action :active-state :active-cols]))

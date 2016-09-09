@@ -2,13 +2,19 @@
 
 ## [Unreleased]
 ### Changed
+- Removed regions completely. HTM networks now consist only of layers.
+  - region-network => network.
+  - regions-in-series => layers-in-series. (ids :layer-a, :layer-b, etc)
+  - region-seq, region-keys => layer-seq, layer-keys.
+  - corresponding argument changes to these and related functions.
+  - in demos, n-region-model => build.
 - Namespace changes:
   - `.cells` renamed to `.layer`.
   - `.columns` renamed to `.homeostasis` and init fn moved into `.layer`.
   - `.core` renamed to `.hierarchy`.
   - `.topology` renamed to `.topography`.
 - Renames: p/topology, p/PTopology, p/PTopological (to p/PTopographic).
-- Rename in LayerOfCells, :state to :active-state, also :prior-active-state.
+- Rename in LayerOfCells :state to :active-state, also :prior-active-state.
 
 ## [0.0.15] - 2016-09-05
 ### Changed

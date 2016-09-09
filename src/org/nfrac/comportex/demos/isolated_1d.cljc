@@ -1,6 +1,7 @@
 (ns org.nfrac.comportex.demos.isolated-1d
   (:require [org.nfrac.comportex.hierarchy :as hier]
             [org.nfrac.comportex.encoders :as enc]
+            [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.util :as util]
             [clojure.test.check.random :as random]))
 
@@ -92,10 +93,10 @@
   [(enc/vec-selector :value)
    (enc/coordinate-encoder [bit-width] n-on-bits [resolution] [radius])])
 
-(defn n-region-model
-  ([n]
-   (n-region-model n params))
+(defn build
+  ([]
+   (build 1 params))
   ([n params]
-   (hier/regions-in-series n hier/sensory-region
-                           (list* params (repeat higher-level-params))
-                           {:input block-sensor})))
+   (hier/layers-in-series n layer/layer-of-cells
+                          (list* params (repeat higher-level-params))
+                          {:input block-sensor})))

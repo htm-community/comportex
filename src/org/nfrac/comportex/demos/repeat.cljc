@@ -1,5 +1,6 @@
 (ns org.nfrac.comportex.demos.repeat
   (:require [org.nfrac.comportex.hierarchy :as hier]
+            [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]))
 
@@ -44,10 +45,10 @@
                (mapcat #(repeatcat reps (presentation 2 %)) (partition 2 2 stimuli)))
        (map (partial hash-map :value))))
 
-(defn n-region-model
-  ([n]
-   (n-region-model n params))
+(defn build
+  ([]
+   (build 1 params))
   ([n params]
-   (hier/regions-in-series n hier/sensory-region
-                           (list* params (repeat higher-level-params))
-                           {:input block-sensor})))
+   (hier/layers-in-series n layer/layer-of-cells
+                          (list* params (repeat higher-level-params))
+                          {:input block-sensor})))
