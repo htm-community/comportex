@@ -127,15 +127,6 @@
    :punish? true
    :learn? true})
 
-(s/def ::input-dimensions
-  #_"size of input bit grid as a vector, one dimensional `[size]`,
-  two dimensional `[width height]`, etc."
-  (s/coll-of (s/int-in 1 1e7) :kind vector? :min-count 1 :max-count 3
-             :gen (fn []
-                    (s/gen (s/and (s/coll-of (s/int-in 1 2048) :kind vector?
-                                             :min-count 1 :max-count 3)
-                                  #(<= (reduce * %) 2048))))))
-
 (s/def ::column-dimensions
   #_"size of column field as a vector, one dimensional `[size]`,
   or two dimensional `[width height]`"
@@ -249,18 +240,6 @@
   #_"whether distal synapses can connect to top-down feedback cells."
   boolean?)
 
-(s/def ::distal-motor-dimensions
-  #_"defines bit field available for feed-forward motor input to distal synapses."
-  (s/coll-of (s/int-in 0 1e7) :kind vector? :min-count 1 :max-count 2
-             :gen (fn []
-                    (s/gen (s/and (s/coll-of (s/int-in 1 512) :kind vector?
-                                   :min-count 1 :max-count 2))
-                           #(<= (reduce * %) 1024)))))
-
-(s/def ::distal-topdown-dimensions
-  #_"defines bit field available for top-down feedback to distal synapses."
-  ::distal-motor-dimensions)
-
 (s/def ::activation-level
   #_"fraction of columns that can be active; inhibition kicks in to reduce it to
   this level."
@@ -326,8 +305,7 @@
 
 (s/def ::params
   #_"A standard parameter set for a layer."
-  (-> (s/keys :req-un [::input-dimensions
-                       ::column-dimensions
+  (-> (s/keys :req-un [::column-dimensions
                        ::depth
                        ::ff-potential-radius
                        ::ff-init-frac
@@ -338,8 +316,6 @@
                        ::inh-radius-every
                        ::lateral-synapses?
                        ::use-feedback?
-                       ::distal-motor-dimensions
-                       ::distal-topdown-dimensions
                        ::activation-level
                        ::inhibition-base-distance
                        ::distal-vs-proximal-weight
@@ -350,13 +326,13 @@
                        ::transition-similarity
                        ::random-seed
                        ::spatial-pooling
-                       ::temporal-pooling])
+                       ::temporal-pooling]
+              :opt-un [::p/embedding])
       (s/merge ::homeostasis-params)))
 
 (def parameter-defaults
   "Default parameter set for a layer."
-  {:input-dimensions [1]
-   :column-dimensions [1000]
+  {:column-dimensions [1000]
    :depth 5
    :ff-potential-radius 1.0
    :ff-init-frac 0.25
@@ -400,8 +376,6 @@
    :inh-radius-every 1000
    :inh-radius-scale 1.0
    :lateral-synapses? true
-   :distal-motor-dimensions [0]
-   :distal-topdown-dimensions [0]
    :use-feedback? false
    :activation-level 0.02
    :inhibition-base-distance 1
@@ -514,16 +488,11 @@
 
 (declare layer-of-cells)
 
-(s/def ::layer-of-cells
+(s/def ::layer-of-cells-unembedded
   (->
    (s/keys :req-un [::params
                     ::rng
                     ::topography
-                    ::input-topography
-                    ::proximal-sg
-                    ::distal-sg
-                    ::apical-sg
-                    ::ilateral-sg
                     ::active-state
                     ::prior-active-state
                     ::tp-state
@@ -539,6 +508,15 @@
    ;; this only generates fresh (empty) layers; see ./fancy-generators ns.
    (s/with-gen #(gen/fmap layer-of-cells (s/gen ::params)))))
 
+(s/def ::layer-of-cells
+  (->
+   (s/merge ::layer-of-cells-unembedded
+            (s/keys :req-un [::proximal-sg
+                             ::distal-sg
+                             ::apical-sg
+                             ::ilateral-sg]))
+   (s/with-gen #(util/fn->generator #'layer-embed-impl))))
+
 ;;; ## Synapse tracing
 
 (defn distal-sources-widths
@@ -546,7 +524,7 @@
   [(if (:lateral-synapses? params)
      (reduce * (:depth params) (:column-dimensions params))
      0)
-   (reduce * (:distal-motor-dimensions params))])
+   (p/size (-> params :embedding :lat-topo))])
 
 (defn cell->id
   "Converts a cell id to an output bit index.
@@ -574,19 +552,19 @@
         :ret ::p/cell-id)
 
 (defn id->source
-  "Returns a vector [k v] where k is one of :this or :ff. In the
-   case of :this, v is [col ci], otherwise v gives the index in the
-   feed-forward distal input field."
+  "Returns a vector [k v] where k is one of :this or :lat. In the
+  case of :this, v is [col ci], otherwise v gives the index in the
+  lateral input field."
   [params id]
-  (let [[this-w ff-w] (distal-sources-widths params)]
+  (let [[this-w lat-w (distal-sources-widths params)]]
     (cond
      (< id this-w) [:this (id->cell (:depth params) id)]
-     (< id (+ this-w ff-w)) [:ff (- id this-w)])))
+     (< id (+ this-w lat-w)) [:lat (- id this-w)])))
 
 (s/fdef id->source
         :args (s/cat :params ::params, :id nat-int?)
         :ret (s/or :this (s/tuple #{:this} ::p/cell-id)
-                   :ff (s/tuple #{:ff} nat-int?)))
+                   :lat (s/tuple #{:lat} nat-int?)))
 
 ;;; ## Activation
 
@@ -1488,6 +1466,55 @@
                      :t ::p/timestep)
         :ret ::distal-state)
 
+(declare uniform-ff-synapses)
+
+(defn layer-embed-impl
+  [layer embedding]
+  (let [{:keys [ff-topo fb-topo lat-topo]} embedding
+        params (:params layer)
+        col-topo (topography/make-topography (:column-dimensions params))
+        n-cols (p/size col-topo)
+        depth (:depth params)
+        n-distal (+ (if (:lateral-synapses? params)
+                      (* n-cols depth) 0)
+                    (p/size lat-topo))
+        n-apical (p/size fb-topo)
+        [rng rng*] (random/split (:rng layer))
+        col-prox-syns (uniform-ff-synapses col-topo ff-topo
+                                           params rng*)
+        proximal-sg (syn/col-segs-synapse-graph col-prox-syns n-cols
+                                                (:max-segments (:proximal params))
+                                                (p/size ff-topo)
+                                                (:perm-connected (:proximal params))
+                                                (:grow? (:proximal params)))
+        distal-sg (syn/cell-segs-synapse-graph n-cols depth
+                                               (:max-segments (:distal params))
+                                               n-distal
+                                               (:perm-connected (:distal params))
+                                               true)
+        apical-sg (syn/cell-segs-synapse-graph n-cols depth
+                                               (:max-segments (:apical params))
+                                               n-apical
+                                               (:perm-connected (:apical params))
+                                               true)
+        ilateral-sg (syn/cell-segs-synapse-graph n-cols 1
+                                                 (:max-segments (:ilateral params))
+                                                 n-cols
+                                                 (:perm-connected (:ilateral params))
+                                                 true)]
+    (assoc layer
+     :params (assoc params :embedding embedding)
+     :rng rng
+     :proximal-sg proximal-sg
+     :distal-sg distal-sg
+     :apical-sg apical-sg
+     :ilateral-sg ilateral-sg)))
+
+(s/fdef layer-embed-impl
+        :args (s/cat :layer ::layer-of-cells-unembedded
+                     :embedding ::p/embedding)
+        :ret ::layer-of-cells)
+
 (defn layer-activate-impl
   [layer ff-bits stable-ff-bits]
   (let [new-active-state (compute-active-state layer ff-bits stable-ff-bits)
@@ -1588,6 +1615,10 @@
 
   p/PLayerOfCells
 
+  (layer-embed*
+   [this embedding]
+   (layer-embed-impl this embedding))
+
   (layer-activate*
     [this ff-bits stable-ff-bits]
     (layer-activate-impl this ff-bits stable-ff-bits))
@@ -1635,22 +1666,13 @@
   (topography [this]
     (:topography this))
 
-  p/PFeedForward
-  (ff-topography [this]
-    (topography/make-topography (conj (p/dims-of this)
-                                      (p/layer-depth this))))
-  (bits-value [_]
-    (set/union (:out-immediate-ff-bits active-state)
-               (:out-stable-ff-bits tp-state)))
-  (stable-bits-value [_]
-    (:out-stable-ff-bits tp-state))
-  (source-of-bit
-    [_ i]
-    (id->cell (:depth params) i))
-
-  p/PFeedBack
-  (wc-bits-value [_]
-    (:out-wc-bits learn-state))
+  p/PSignalSource
+  (signal* [this]
+    {::p/topography (:topography this)
+     ::p/bits (set/union (:out-immediate-ff-bits active-state)
+                         (:out-stable-ff-bits tp-state))
+     ::stable-bits (:out-stable-ff-bits tp-state)
+     ::winner-bits (:out-wc-bits learn-state)})
 
   p/PTemporal
   (timestep [_]
@@ -1753,51 +1775,18 @@
       (println "Warning: unknown keys in params:" unk)))
   (let [params (->> (util/deep-merge parameter-defaults params)
                     (s/assert ::params))
-        input-topo (topography/make-topography (:input-dimensions params))
         col-topo (topography/make-topography (:column-dimensions params))
         n-cols (p/size col-topo)
         depth (:depth params)
-        n-distal (+ (if (:lateral-synapses? params)
-                      (* n-cols depth) 0)
-                    (reduce * (:distal-motor-dimensions params)))
-        n-apical (reduce * (:distal-topdown-dimensions params))
-        [rng rng*] (-> (random/make-random (:random-seed params))
-                       (random/split))
-        col-prox-syns (uniform-ff-synapses col-topo input-topo
-                                           params rng*)
-        proximal-sg (syn/col-segs-synapse-graph col-prox-syns n-cols
-                                                (:max-segments (:proximal params))
-                                                (p/size input-topo)
-                                                (:perm-connected (:proximal params))
-                                                (:grow? (:proximal params)))
-        distal-sg (syn/cell-segs-synapse-graph n-cols depth
-                                               (:max-segments (:distal params))
-                                               n-distal
-                                               (:perm-connected (:distal params))
-                                               true)
-        apical-sg (syn/cell-segs-synapse-graph n-cols depth
-                                               (:max-segments (:apical params))
-                                               n-apical
-                                               (:perm-connected (:apical params))
-                                               true)
-        ilateral-sg (syn/cell-segs-synapse-graph n-cols 1
-                                                 (:max-segments (:ilateral params))
-                                                 n-cols
-                                                 (:perm-connected (:ilateral params))
-                                                 true)
+        topo (topography/make-topography (conj (:column-dimensions params) depth))
         active-state (assoc empty-active-state :timestep 0)
         learn-state (assoc empty-learn-state :timestep 0)
         distal-state (assoc empty-distal-state :timestep 0)]
     (check-param-deprecations params)
     {:params params
-     :rng rng
-     :topography col-topo
-     :input-topography input-topo
+     :rng (random/make-random (:random-seed params))
+     :topography topo
      :inh-radius 1
-     :proximal-sg proximal-sg
-     :distal-sg distal-sg
-     :apical-sg apical-sg
-     :ilateral-sg ilateral-sg
      :active-state active-state
      :prior-active-state active-state
      :learn-state learn-state
@@ -1817,7 +1806,7 @@
    (map->LayerOfCells)
    (update-inhibition-radius)))
 
-(s/fdef layer-of-cells :ret ::layer-of-cells)
+(s/fdef layer-of-cells :ret ::layer-of-cells-unembedded)
 
 (defmethod p/layer-spec LayerOfCells [_]
   ::layer-of-cells)

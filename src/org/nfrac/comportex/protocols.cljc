@@ -9,6 +9,10 @@
 (s/def ::bit (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
 (s/def ::bits (s/every ::bit :distinct true))
 (s/def ::bits-set (s/every ::bit :kind set?))
+
+(s/def ::signal (s/keys :req [::bits
+                              ::topo/topography]))
+
 (s/def ::column-id (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
 (s/def ::cell-index (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 32)))))
 (s/def ::cell-id (s/tuple ::column-id ::cell-index))
@@ -126,32 +130,24 @@
       (htm-learn)
       (htm-depolarise)))
 
-(defprotocol PFeedForward
-  "A feed-forward input source with a bit set representation. Could be
-   sensory input or a layer (where cells are bits)."
-  (ff-topography [this])
-  (bits-value [this]
-    "The set of indices of all active bits/cells.")
-  (stable-bits-value [this]
-    "The set of indices of active cells where those cells were
-    predicted (so, excluding cells from bursting columns).")
-  (source-of-bit [this i]
-    "Given the index of an output bit from this source, return the
-    corresponding local cell id as [col ci] where col is the column
-    index. If the source is a sense, returns [i]."))
+(defprotocol PSignalSource
+  "Neural information sources with a bit set representation. Could be
+  an encoded sense or a layer (where cells are bits)."
+  (signal* [this]))
 
-(defprotocol PFeedBack
-  (wc-bits-value [this]
-    "The set of indices of all winner cells."))
+(defn signal
+  [this]
+  (signal* this))
 
-(defprotocol PFeedForwardMotor
-  (ff-motor-topography [this])
-  (motor-bits-value [this]))
+(s/fdef signal
+        :args (s/cat :this any?)
+        :ret ::signal)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Layer of cells
 
-(defprotocol PLayerOfCells
+(defprotocol PLayer
+  (layer-embed* [this embedding])
   (layer-activate* [this ff-bits stable-ff-bits])
   (layer-learn* [this])
   (layer-depolarise* [this distal-ff-bits apical-fb-bits apical-fb-wc-bits])
@@ -159,8 +155,29 @@
   (layer-depth* [this]))
 
 (defmulti layer-spec type)
-(s/def ::layer-of-cells (s/and (s/multi-spec layer-spec :gen-type)
-                               #(satisfies? PLayerOfCells %)))
+(s/def ::layer (s/and (s/multi-spec layer-spec :gen-type)
+                      #(satisfies? PLayer %)))
+
+(defmulti layer-unembedded-spec type)
+(s/def ::layer-unembedded (s/multi-spec layer-unembedded-spec :gen-type))
+
+(defn layer-embed
+  "Allows a layer to configure itself to expect the given input topographies
+  on feed-forward, feed-back and lateral signals. To be applied before run."
+  [this embedding]
+  (layer-embed* this embedding))
+
+(s/def ::ff-topo ::topo/topography)
+(s/def ::fb-topo ::topo/topography)
+(s/def ::lat-topo ::topo/topography)
+(s/def ::embedding (s/keys :req-un [::ff-topo
+                                    ::fb-topo
+                                    ::lat-topo]))
+
+(s/fdef layer-embed
+        :args (s/cat :layer ::layer-unembedded
+                     :embedding ::embedding)
+        :ret ::layer)
 
 (defn layer-activate
   [this ff-bits stable-ff-bits]
@@ -169,7 +186,7 @@
 (s/def ::layer-activate-args
   #_"Args spec for layer-activate, given an id here to allow generator override."
   (s/and
-   (s/cat :layer ::layer-of-cells
+   (s/cat :layer ::layer
           :ff-bits ::bits
           :stable-ff-bits ::bits)
    (fn [v]
@@ -182,26 +199,26 @@
         :args ::layer-activate-args
         :fn (s/and #(= (timestep (:ret %))
                        (inc (timestep (-> % :args :layer)))))
-        :ret ::layer-of-cells)
+        :ret ::layer)
 
 (defn layer-learn
   [this]
   (layer-learn* this))
 
 (s/fdef layer-learn
-        :args (s/cat :layer ::layer-of-cells)
-        :ret ::layer-of-cells)
+        :args (s/cat :layer ::layer)
+        :ret ::layer)
 
 (defn layer-depolarise
   [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]
   (layer-depolarise* this distal-ff-bits apical-fb-bits apical-fb-wc-bits))
 
 (s/fdef layer-depolarise
-        :args (s/cat :layer ::layer-of-cells
+        :args (s/cat :layer ::layer
                      :distal-ff-bits ::bits
                      :apical-fb-bits ::bits
                      :apical-fb-wc-bits ::bits)
-        :ret ::layer-of-cells)
+        :ret ::layer)
 
 (defn layer-state
   "The current information content of a layer, including the sets of active and
@@ -233,7 +250,7 @@
                    ::prior-predictive-cells]))
 
 (s/fdef layer-state
-        :args (s/cat :layer ::layer-of-cells)
+        :args (s/cat :layer ::layer)
         :ret ::layer-state)
 
 (defn layer-depth
@@ -314,10 +331,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Sensors and Encoders
-
-(defprotocol PSense
-  "Sense nodes need to extend this together with PFeedForward."
-  (sense-activate [this bits]))
 
 (defprotocol PSelector
   "Pulls out a value according to some pattern, like a path or lens.

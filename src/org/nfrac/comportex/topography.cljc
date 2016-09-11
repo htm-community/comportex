@@ -195,3 +195,13 @@
                  (update-in higher [0] + (first compatible))
                  (recur (squash-last-dimension higher) lower))))
            all-dims)))
+
+(defn topo-union
+  [topos]
+  (make-topography
+    (apply combined-dimensions
+           (map dimensions topos))))
+
+(s/fdef topo-union
+        :args (s/cat :topos (s/coll-of ::topography))
+        :ret ::topography)

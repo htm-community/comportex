@@ -11,110 +11,71 @@
 (s/def ::layer-id keyword?)
 (s/def ::ff-deps (s/map-of ::layer-id (s/coll-of ::layer-id :kind sequential?)))
 (s/def ::fb-deps ::ff-deps)
+(s/def ::lat-deps ::ff-deps)
+(s/def ::linkages (s/keys :req-un [::ff-deps]
+                          :opt-un [::fb-deps
+                                   ::lat-deps]))
 (s/def ::strata (s/coll-of (s/coll-of ::layer-id :kind set?)))
 (s/def ::sensors (s/map-of keyword? ::p/sensor))
 
 (s/def ::network
   (s/keys :req-un [::ff-deps
                    ::fb-deps
+                   ::lat-deps
                    ::strata
                    ::layers
                    ::sensors
                    ::senses]))
 
 (defrecord SenseNode
-    [topo bits sensory? motor?]
+  [topography bits]
   p/PTopographic
   (topography [_]
-    topo)
-  p/PFeedForward
-  (ff-topography [_]
-    (if sensory?
-      topo
-      topography/empty-topography))
-  (bits-value
-    [_]
-    (if sensory?
-      bits
-      (sequence nil)))
-  (stable-bits-value
-    [_]
-    (sequence nil))
-  (source-of-bit
-    [_ i]
-    [i])
-  p/PFeedForwardMotor
-  (ff-motor-topography [_]
-    (if motor?
-      topo
-      topography/empty-topography))
-  (motor-bits-value
-    [_]
-    (if motor?
-      bits
-      (sequence nil)))
-  p/PSense
-  (sense-activate [this bits]
-    (assoc this :bits bits)))
-
-(defn sense-node
-  "Creates a sense node with given topography, matching the encoder that
-  will generate its bits."
-  [topo sensory? motor?]
-  (->SenseNode topo () sensory? motor?))
+    topography)
+  p/PSignalSource
+  (signal* [this]
+    this))
 
 ;;; ## Networks
 
-(defn combined-bits-value
-  "Returns the total bit set from a collection of sources satisfying
-   `PFeedForward` or `PFeedForwardMotor`. `flavour` should
-   be :standard, :stable or :motor."
-  [ffs flavour]
-  (let [topo-fn (case flavour
-                  (:standard
-                   :stable
-                   :wc) p/ff-topography
-                   :motor p/ff-motor-topography)
-        bits-fn (case flavour
-                  :standard p/bits-value
-                  :stable p/stable-bits-value
-                  :wc p/wc-bits-value
-                  :motor p/motor-bits-value)
-        widths (map (comp p/size topo-fn) ffs)]
-    (->> (map bits-fn ffs)
-         (util/align-indices widths)
-         (into #{}))))
+(defn composite-signal
+  [signals]
+  (let [topos (map :topography signals)
+        widths (map p/size topos)]
+    {:bits (util/align-indices widths (map :bits signals))
+     :topography (topography/topo-union topos)}))
+
+(s/fdef composite-signal
+        :args (s/cat :signals (s/coll-of ::signal))
+        :ret ::signal)
 
 (defn source-of-incoming-bit
   "Taking the index of an input bit as received by the given layer, return its
   source element as [src-id j] where src-id is the key of the source layer or
   sense, and j is the index adjusted to refer to the output of that source.
 
-  If i is an index into the feed-forward field, type is :ff-deps, if i
-  is an index into the feed-back field, type is :fb-deps."
-  ([htm lyr-id i type]
-   (source-of-incoming-bit htm lyr-id i type p/ff-topography))
-  ([htm lyr-id i type topography-fn]
-   (let [senses (:senses htm)
-         layers (:layers htm)
-         node-ids (get-in htm [type lyr-id])]
-     (loop [node-ids node-ids
-            offset 0]
-       (when-let [node-id (first node-ids)]
-         (let [node (or (senses node-id)
-                        (layers node-id))
-               width (long (p/size (topography-fn node)))]
-           (if (< i (+ offset width))
-             [node-id (- i offset)]
-             (recur (next node-ids)
-                    (+ offset width)))))))))
+  `field` can be :ff-deps, :fb-deps or :lat-deps depending on which input field
+  `i` is an index into."
+  [htm lyr-id i field]
+  (let [senses (:senses htm)
+        layers (:layers htm)
+        src-ids (get-in htm [field lyr-id])]
+    (loop [src-ids src-ids
+           offset 0]
+      (when-let [src-id (first src-ids)]
+        (let [node (or (senses src-id)
+                       (layers src-id))
+              width (long (p/size (p/topography node)))]
+          (if (< i (+ offset width))
+            [src-id (- i offset)]
+            (recur (next src-ids)
+                   (+ offset width))))))))
 
 (s/fdef source-of-incoming-bit
         :args (s/cat :htm ::network
                      :lyr-id ::layer-id
                      :i nat-int?
-                     :type #{:ff-deps :fb-deps}
-                     :topography-fn (s/fspec :ret ::p/bits))
+                     :field #{:ff-deps :fb-deps :lat-deps})
         :ret (s/cat :src-id keyword?
                     :index nat-int?))
 
@@ -126,7 +87,7 @@
         [src-type j] (layer/id->source params i)]
     (case src-type
       :this [lyr-id i]
-      :ff (source-of-incoming-bit htm lyr-id j :ff-deps p/ff-motor-topography))))
+      :lat (source-of-incoming-bit htm lyr-id j :lat-deps))))
 
 (defn source-of-apical-bit
   "Returns [src-id j] where src-id is a layer key, and j is the index into the
@@ -134,35 +95,16 @@
   [htm lyr-id i]
   (source-of-incoming-bit htm lyr-id i :fb-deps))
 
-(defn topo-union
-  [topos]
-  (apply topography/combined-dimensions
-         (map p/dimensions topos)))
-
-;; TODO - better way to do this
-(defn fb-dim-from-params
-  [params]
-  (let [params (util/deep-merge layer/parameter-defaults params)]
-    (topography/make-topography (conj (:column-dimensions params)
-                                      (:depth params)))))
-
 (do #?(:cljs (def pmap map)))
 
 (defn- htm-sense-impl
   [this inval mode]
-  (let [{:keys [sensors senses]} this
-        sm (reduce-kv (fn [m k sense-node]
-                        (if (case mode
-                              :sensory (:sensory? sense-node)
-                              :motor (:motor? sense-node)
-                              nil true)
-                          (let [[selector encoder] (get sensors k)
-                                in-bits (->> (p/extract selector inval)
-                                             (p/encode encoder))]
-                            (assoc m k (p/sense-activate sense-node in-bits)))
-                          m))
-                      senses
-                      senses)]
+  (let [sm (reduce-kv (fn [m k [selector encoder]]
+                        (let [bits (->> (p/extract selector inval)
+                                        (p/encode encoder))]
+                          (assoc m k (->SenseNode (p/topography encoder) bits))))
+                      {}
+                      (:sensors this))]
     (assoc this
            :senses sm
            :input-value inval)))
@@ -174,12 +116,10 @@
                 (fn [m stratum]
                   (->> stratum
                        (pmap (fn [id]
-                               (let [ff-ids (ff-deps id)
-                                     ffs (map m ff-ids)]
+                               (let [ffs (map m (ff-deps id))]
                                  (p/layer-activate
                                   (get layers id)
-                                  (combined-bits-value ffs :standard)
-                                  (combined-bits-value ffs :stable)))))
+                                  (composite-signal (map p/signal ffs))))))
                        (zipmap stratum)
                        (into m)))
                 senses
@@ -199,24 +139,21 @@
 
 (defn- htm-depolarise-impl
   [this]
-  (let [{:keys [ff-deps fb-deps layers senses]} this
+  (let [{:keys [fb-deps lat-deps layers senses]} this
         lm (->> layers
                 (pmap (fn [[id layer]]
-                        (let [ff-ids (ff-deps id)
-                              fb-ids (fb-deps id)
-                              ffs (map #(or (senses %) (layers %))
-                                       ff-ids)
-                              fbs (map layers fb-ids)]
+                        (let [fbs (map layers (fb-deps id))
+                              lats (map #(or (senses %) (layers %))
+                                        (lat-deps id))]
                           (p/layer-depolarise
                            layer
-                           (combined-bits-value ffs :motor)
-                           (combined-bits-value fbs :standard)
-                           (combined-bits-value fbs :wc)))))
+                           (composite-signal (map p/signal fbs))
+                           (composite-signal (map p/signal lats))))))
                 (zipmap (keys layers)))]
     (assoc this :layers lm)))
 
 (defrecord Network
-    [ff-deps fb-deps strata layers sensors senses]
+    [ff-deps fb-deps lat-deps strata layers sensors senses]
   p/PHTM
   (htm-sense
     [this inval mode]
@@ -266,7 +203,7 @@
 (defn sense-keys
   "A sequence of the keys of all sense nodes."
   [htm]
-  (first (:strata htm)))
+  (keys (:sensors htm)))
 
 (defn layer-seq
   [htm]
@@ -278,149 +215,93 @@
         are-deps (set (apply concat (vals deps)))]
     (set/difference are-deps have-deps)))
 
-(defn network
-  "Builds a network of layers and senses from the given dependency
-  map. The keywords used in the dependency map are used to look up
-  layer-building functions, parameter specifications, and sensors in
-  the remaining argments.
+(defn series-deps
+  [layer-keys sense-keys]
+  (let [ff-deps (zipmap layer-keys (list* sense-keys (map vector layer-keys)))]
+    {:ff-deps ff-deps}))
 
-  Sensors are defined to be the form `[selector encoder]`, satisfying
-  protocols PSelector and PEncoder respectively. Sensors in the
-  `main-sensors` map can make activating (proximal) connections while
-  those in the `motor-sensors` map can make depolarising (distal)
-  connections. The same sensor may also be included in both maps.
-
-  For each node, the combined dimensions of its feed-forward sources
-  is calculated and used to set the `:input-dimensions` parameter in
-  its `params`. Also, the combined dimensions of feed-forward motor
-  inputs are used to set the `:distal-motor-dimensions` parameter, and
-  the combined dimensions of its feed-back superior layers is used to
-  set the `:distal-topdown-dimensions` parameter. The updated params
-  are passed to a function to build a layer. The build function is found
-  by calling `layer-builders` with the layer id keyword.
-
-  So: [params (-> layer-id layer-params attach-dimensions)
-       builder (layer-builders layer-id)
-       layer (builder params)]
-
-  For example to build the network `inp -> v1 -> v2`:
-
-   `
-   (network
-    {:v1 [:input]
-     :v2 [:v1]}
-    (constantly layer/layer-of-cells)
-    {:v1 params
-     :v2 params}
-    {:input sensor}
-    nil)`"
-  [ff-deps layer-builders layer-params main-sensors motor-sensors]
-  {:pre [;; all layers must have dependencies
-         (every? ff-deps (keys layer-params))
-         ;; all sense nodes must not have dependencies
-         (every? (in-vals-not-keys ff-deps) (keys main-sensors))
-         (every? (in-vals-not-keys ff-deps) (keys motor-sensors))
-         ;; all ids in dependency map must be defined
-         (every? layer-params (keys ff-deps))
-         (every? (merge main-sensors motor-sensors) (in-vals-not-keys ff-deps))]}
-  (merge-with (fn [main-sensor motor-sensor]
-                (assert (= main-sensor motor-sensor)
-                        "Equal keys in main-sensors and motor-sensors must be same sensor."))
-              main-sensors motor-sensors)
+(defn add-feedback
+  [{:keys [ff-deps] :as linkages}]
   (let [all-ids (into (set (keys ff-deps))
                       (in-vals-not-keys ff-deps))
         ff-dag (graph/directed-graph all-ids ff-deps)
-        strata (graph/dependency-list ff-dag)
         fb-deps (->> (graph/reverse-graph ff-dag)
                      :neighbors
-                     (util/remap seq))
-        ;; sensors may appear with same key in both main- and motor-
-        sm (->> (merge-with merge
-                            (util/remap (fn [[_ e]]
-                                          {:topo (p/topography e), :sensory? true})
-                                        main-sensors)
-                            (util/remap (fn [[_ e]]
-                                          {:topo (p/topography e), :motor? true})
-                                        motor-sensors))
-                (util/remap (fn [{:keys [topo sensory? motor?]}]
-                              (sense-node topo sensory? motor?))))
-        rm (-> (reduce (fn [m id]
-                         (let [params (layer-params id)
-                               build-layer (layer-builders id)
-                               ;; feed-forward
-                               ff-ids (ff-deps id)
-                               ffs (map m ff-ids)
-                               ff-dim (topo-union (map p/ff-topography ffs))
-                               ffm-dim (topo-union  (map p/ff-motor-topography ffs))
-                               ;; top-down feedback (if any)
-                               fb-ids (fb-deps id)
-                               fb-params (map layer-params fb-ids)
-                               fb-dim (topo-union (map fb-dim-from-params fb-params))]
-                           (->> (assoc params :input-dimensions ff-dim
-                                       :distal-motor-dimensions ffm-dim
-                                       :distal-topdown-dimensions fb-dim)
-                                (build-layer)
-                                (assoc m id))))
-                       sm
-                       ;; topological sort. drop 1st stratum i.e. senses
-                       (apply concat (rest strata)))
-               ;; get rid of the sense nodes which were seeded into the reduce
-               (select-keys (keys layer-params)))]
-    (map->Network
-     {:ff-deps ff-deps
-      :fb-deps fb-deps
-      :strata strata
-      :sensors (merge main-sensors motor-sensors)
-      :senses sm
-      :regions (delay (throw (ex-info "bad key :regions" {})))
-      :layers rm})))
+                     (util/remap seq))]
+    (assoc linkages :fb-deps fb-deps)))
+
+(defn network
+  "Builds a network of layers and senses with the given linkages.
+  Linkages between these nodes are given as direct dependencies:
+  :ff-deps maps each layer to a list of nodes it takes feed-forward
+  input from. Optionally, :fb-deps maps layers to lists of nodes to
+  take feed-back input from. And :lat-deps lateral sources, which
+  may also be senses (like motor senses).
+
+  Sensors are defined to be the form `[selector encoder]`, satisfying
+  protocols PSelector and PEncoder respectively.
+
+  For each layer, the combined dimensions of each of its feed-forward
+  sources, feed-back sources, and lateral sources are calculated and
+  passed on to p/layer-embed to allow the layer to configure itself.
+
+  For example a feed-forward network `inp -> v1 -> v2`:
+
+   (network
+    {:v1 v1-layer
+     :v2 v2-layer}
+    {:inp [sel enc]}
+    {:ff-deps {:v1 [:inp]
+               :v2 [:v1]}})"
+  ([layers sensors]
+   (assert (= 1 (count layers)) "linkages can be omitted only for single layer.")
+   (let [ff-deps (assoc {} (first (keys layers)) (keys sensors))]
+     (network layers sensors {:ff-deps ff-deps})))
+  ([layers sensors {:keys [ff-deps fb-deps lat-deps] :as linkages}]
+   {:pre [;; all layers must have dependencies
+          (every? ff-deps (keys layers))
+          ;; all sense nodes must not have dependencies
+          (every? (in-vals-not-keys ff-deps) (keys sensors))
+          ;; all ids in dependency map must be defined
+          (every? layers (keys ff-deps))
+          (every? sensors (in-vals-not-keys ff-deps))]}
+   (let [all-ids (into (set (keys ff-deps))
+                       (in-vals-not-keys ff-deps))
+         ff-dag (graph/directed-graph all-ids ff-deps)
+         strata (graph/dependency-list ff-dag)
+         senses (util/remap (fn [[_ e]]
+                              (->SenseNode (p/topography e) ()))
+                            sensors)
+         elayers (->
+                  (reduce-kv (fn [m id layer]
+                               (let [ffs (map m (ff-deps id))
+                                     fbs (map m (fb-deps id))
+                                     lats (map m (lat-deps id))
+                                     ff-topo (topo-union (map p/topography ffs))
+                                     fb-topo (topo-union (map p/topography fbs))
+                                     lat-topo (topo-union (map p/topography lats))
+                                     embedding {:ff-topo ff-topo
+                                                :fb-topo fb-topo
+                                                :lat-topo lat-topo}]
+                                 (assoc m id
+                                        (p/layer-embed layer embedding))))
+                             (merge senses layers)
+                             layers)
+                  ;; get rid of the sense nodes which were seeded into the reduce
+                  (select-keys (keys layers)))]
+     (map->Network
+      {:ff-deps ff-deps
+       :fb-deps fb-deps
+       :lat-deps lat-deps
+       :strata strata
+       :sensors sensors
+       :senses senses
+       :layers elayers}))))
 
 (s/fdef network
-        :args (s/cat :ff-deps ::ff-deps
-                     :layer-builders (s/fspec
-                                      :args (s/cat :layer-id ::layer-id)
-                                      :ret (s/fspec
-                                            :args (s/cat :params (s/keys))
-                                            :ret ::p/layer-of-cells))
-                     :layer-params (s/map-of ::layer-id (s/keys))
-                     :main-sensors (s/map-of keyword? ::p/sensor)
-                     :motor-sensors (s/map-of keyword? ::p/sensor))
-        :ret ::network)
-
-(defn layers-in-series
-  "Constructs an HTM network consisting of n layers in a linear
-  series. The layers are given keys :layer-a, :layer-b, etc. Senses feed
-  only to the first layer. Their sensors are given in a map with
-  keyword keys. Sensors are defined to be the form `[selector encoder]`.
-
-  This is a convenience wrapper around `network`."
-  ([n build-layer paramseq sensors]
-   (layers-in-series
-    n build-layer paramseq sensors nil))
-  ([n build-layer paramseq main-sensors motor-sensors]
-   {:pre [(sequential? paramseq)
-          (= n (count (take n paramseq)))]}
-   (let [char-a 97
-         lyr-keys (->> (range n)
-                       (map #(char (+ % char-a)))
-                       (map #(keyword (str "layer-" %))))
-         sense-keys (keys (merge main-sensors motor-sensors))
-         ;; {:layer-a [senses], :layer-b [:layer-a], :layer-c [:layer-b], ...}
-         deps (zipmap lyr-keys (list* sense-keys (map vector lyr-keys)))]
-     (network deps
-              (constantly build-layer)
-              (zipmap lyr-keys paramseq)
-              main-sensors
-              motor-sensors))))
-
-(s/fdef layers-in-series
-        :args (s/cat :n (-> (s/int-in 1 1000)
-                            (s/with-gen #(s/gen (s/int-in 1 2))))
-                     :build-layer (s/fspec :args (s/cat :params (s/keys))
-                                           :ret ::p/layer-of-cells)
-                     :paramseq (s/coll-of (s/keys))
+        :args (s/cat :layers (s/map-of ::layer-id ::layer-unembedded)
                      :sensors (s/map-of keyword? ::p/sensor)
-                     :motor-sensors (s/? (s/map-of keyword? ::p/sensor)))
+                     :linkages ::linkages)
         :ret ::network)
 
 ;;; ## Stats
@@ -485,7 +366,7 @@
                        (not= id ff-id)))
          (map (fn [[id ff]]
                 ff))
-         (map p/ff-topography)
+         (map p/topography)
          (map p/size)
          (reduce + 0))))
 
@@ -494,10 +375,9 @@
    (predictions
     htm sense-id n-predictions (comp :predictive-cells p/layer-state)))
   ([htm sense-id n-predictions cells-fn]
-   (let [sense-width (-> (get-in htm [:senses sense-id])
-                         p/ff-topography
-                         p/size)
-         pr-votes (->> (get-in htm [:fb-deps sense-id])
+   (let [sense-width (p/size-of (get-in htm [:senses sense-id]))
+         {:keys [fb-deps]} (add-feedback (select-keys htm [:ff-deps]))
+         pr-votes (->> (fb-deps sense-id)
                        (mapcat (fn [lyr-id]
                                  (let [lyr (get-in htm [:layers lyr-id])
                                        start (ff-base htm lyr-id sense-id)
