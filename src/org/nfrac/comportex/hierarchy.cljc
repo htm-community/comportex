@@ -1,6 +1,6 @@
 (ns org.nfrac.comportex.hierarchy
   (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.topography :as topography]
+            [org.nfrac.comportex.topography :as topo]
             [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.util :as util]
             [org.nfrac.comportex.util.algo-graph :as graph]
@@ -41,13 +41,13 @@
 (defn composite-signal
   [signals]
   (let [topos (map :topography signals)
-        widths (map p/size topos)]
+        widths (map topo/size topos)]
     {:bits (util/align-indices widths (map :bits signals))
-     :topography (topography/topo-union topos)}))
+     :topography (topo/topo-union topos)}))
 
 (s/fdef composite-signal
-        :args (s/cat :signals (s/coll-of ::signal))
-        :ret ::signal)
+        :args (s/cat :signals (s/coll-of ::p/signal))
+        :ret ::p/signal)
 
 (defn source-of-incoming-bit
   "Taking the index of an input bit as received by the given layer, return its
@@ -65,7 +65,7 @@
       (when-let [src-id (first src-ids)]
         (let [node (or (senses src-id)
                        (layers src-id))
-              width (long (p/size (p/topography node)))]
+              width (long (p/size-of node))]
           (if (< i (+ offset width))
             [src-id (- i offset)]
             (recur (next src-ids)
@@ -277,9 +277,9 @@
                                (let [ffs (map m (ff-deps id))
                                      fbs (map m (fb-deps id))
                                      lats (map m (lat-deps id))
-                                     ff-topo (topo-union (map p/topography ffs))
-                                     fb-topo (topo-union (map p/topography fbs))
-                                     lat-topo (topo-union (map p/topography lats))
+                                     ff-topo (topo/topo-union (map p/topography ffs))
+                                     fb-topo (topo/topo-union (map p/topography fbs))
+                                     lat-topo (topo/topo-union (map p/topography lats))
                                      embedding {:ff-topo ff-topo
                                                 :fb-topo fb-topo
                                                 :lat-topo lat-topo}]
@@ -322,7 +322,7 @@
     (-> {:active 0, :predicted 0, :active-predicted 0}
         (merge (frequencies (vals col-states)))
         (assoc :timestep (p/timestep lyr)
-               :size (p/size (p/topography lyr))))))
+               :size (p/size-of lyr)))))
 
 (s/fdef column-state-freqs
         :args (s/cat :lyr ::p/layer-of-cells)
@@ -366,8 +366,7 @@
                        (not= id ff-id)))
          (map (fn [[id ff]]
                 ff))
-         (map p/topography)
-         (map p/size)
+         (map p/size-of)
          (reduce + 0))))
 
 (defn predictions

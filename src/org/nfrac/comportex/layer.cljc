@@ -24,7 +24,7 @@
             [org.nfrac.comportex.homeostasis :as homeo]
             [org.nfrac.comportex.synapses :as syn]
             [org.nfrac.comportex.inhibition :as inh]
-            [org.nfrac.comportex.topography :as topography]
+            [org.nfrac.comportex.topography :as topo]
             [org.nfrac.comportex.util :as util
              :refer [count-filter remap round spec-finite]]
             [clojure.test.check.random :as random]
@@ -508,6 +508,8 @@
    ;; this only generates fresh (empty) layers; see ./fancy-generators ns.
    (s/with-gen #(gen/fmap layer-of-cells (s/gen ::params)))))
 
+(declare layer-embed-impl)
+
 (s/def ::layer-of-cells
   (->
    (s/merge ::layer-of-cells-unembedded
@@ -524,7 +526,7 @@
   [(if (:lateral-synapses? params)
      (reduce * (:depth params) (:column-dimensions params))
      0)
-   (p/size (-> params :embedding :lat-topo))])
+   (topo/size (-> params :embedding :lat-topo))])
 
 (defn cell->id
   "Converts a cell id to an output bit index.
@@ -556,7 +558,7 @@
   case of :this, v is [col ci], otherwise v gives the index in the
   lateral input field."
   [params id]
-  (let [[this-w lat-w (distal-sources-widths params)]]
+  (let [[this-w lat-w] (distal-sources-widths params)]
     (cond
      (< id this-w) [:this (id->cell (:depth params) id)]
      (< id (+ this-w lat-w)) [:lat (- id this-w)])))
@@ -1472,19 +1474,19 @@
   [layer embedding]
   (let [{:keys [ff-topo fb-topo lat-topo]} embedding
         params (:params layer)
-        col-topo (topography/make-topography (:column-dimensions params))
-        n-cols (p/size col-topo)
+        col-topo (topo/make-topography (:column-dimensions params))
+        n-cols (topo/size col-topo)
         depth (:depth params)
         n-distal (+ (if (:lateral-synapses? params)
                       (* n-cols depth) 0)
-                    (p/size lat-topo))
-        n-apical (p/size fb-topo)
+                    (topo/size lat-topo))
+        n-apical (topo/size fb-topo)
         [rng rng*] (random/split (:rng layer))
         col-prox-syns (uniform-ff-synapses col-topo ff-topo
                                            params rng*)
         proximal-sg (syn/col-segs-synapse-graph col-prox-syns n-cols
                                                 (:max-segments (:proximal params))
-                                                (p/size ff-topo)
+                                                (topo/size ff-topo)
                                                 (:perm-connected (:proximal params))
                                                 (:grow? (:proximal params)))
         distal-sg (syn/cell-segs-synapse-graph n-cols depth
@@ -1613,7 +1615,7 @@
      proximal-sg distal-sg apical-sg ilateral-sg active-state prior-active-state tp-state
      distal-state prior-distal-state apical-state prior-apical-state learn-state]
 
-  p/PLayerOfCells
+  p/PLayer
 
   (layer-embed*
    [this embedding]
@@ -1694,14 +1696,14 @@
         global? (>= (:ff-potential-radius params) 1.0)
         ;; radius in input space, fraction of longest dimension
         radius (long (* (:ff-potential-radius params)
-                        (apply max (p/dimensions itopo))))
+                        (apply max (topo/dimensions itopo))))
         frac (:ff-init-frac params)
-        input-size (p/size itopo)
-        n-cols (p/size topo)
-        one-d? (or (== 1 (count (p/dimensions topo)))
-                   (== 1 (count (p/dimensions itopo))))
-        [cw ch cdepth] (p/dimensions topo)
-        [iw ih idepth] (p/dimensions itopo)
+        input-size (topo/size itopo)
+        n-cols (topo/size topo)
+        one-d? (or (== 1 (count (topo/dimensions topo)))
+                   (== 1 (count (topo/dimensions itopo))))
+        [cw ch cdepth] (topo/dimensions topo)
+        [iw ih idepth] (topo/dimensions itopo)
         ;; range of coordinates usable as focus (adjust for radius at edges)
         focus-ix (fn [frac width]
                    (-> frac
@@ -1728,15 +1730,15 @@
                    (let [focus-i (if one-d?
                                    (round (* input-size (/ col n-cols)))
                                    ;; use corresponding positions in 2D
-                                   (let [[cx cy _] (p/coordinates-of-index topo col)
+                                   (let [[cx cy _] (topo/coordinates-of-index topo col)
                                          ix (focus-ix (/ cx cw) iw)
                                          iy (focus-ix (/ cy ch) ih)
                                          ;; in 3D, choose z coordinate from range
                                          iz (when idepth
                                               (nth focus-izs (mod col (count focus-izs))))
                                          icoord (if idepth [ix iy iz] [ix iy])]
-                                     (p/index-of-coordinates itopo icoord)))
-                         all-ids (vec (p/neighbours-indices itopo focus-i radius -1))
+                                     (topo/index-of-coordinates itopo icoord)))
+                         all-ids (vec (topo/neighbours-indices itopo focus-i radius -1))
                          n (round (* frac (count all-ids)))
                          [rng1 rng2] (random/split col-rng)
                          ids (cond
@@ -1754,8 +1756,8 @@
                  (range))))))
 
 (s/fdef uniform-ff-synapses
-        :args (s/cat :topo #(satisfies? p/PTopography %)
-                     :itopo #(satisfies? p/PTopography %)
+        :args (s/cat :topo ::topo/topography
+                     :itopo ::topo/topography
                      :params (s/keys :req-un [::ff-perm-init
                                               ::ff-init-frac
                                               ::ff-potential-radius])
@@ -1775,10 +1777,10 @@
       (println "Warning: unknown keys in params:" unk)))
   (let [params (->> (util/deep-merge parameter-defaults params)
                     (s/assert ::params))
-        col-topo (topography/make-topography (:column-dimensions params))
-        n-cols (p/size col-topo)
+        col-topo (topo/make-topography (:column-dimensions params))
+        n-cols (topo/size col-topo)
         depth (:depth params)
-        topo (topography/make-topography (conj (:column-dimensions params) depth))
+        topo (topo/make-topography (conj (:column-dimensions params) depth))
         active-state (assoc empty-active-state :timestep 0)
         learn-state (assoc empty-learn-state :timestep 0)
         distal-state (assoc empty-distal-state :timestep 0)]

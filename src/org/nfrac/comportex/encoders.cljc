@@ -2,7 +2,7 @@
   "Methods of encoding data as distributed bit sets, for feeding as
   input to HTM layers."
   (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.topography :as topography]
+            [org.nfrac.comportex.topography :as topo]
             [org.nfrac.comportex.util :as util :refer [abs spec-finite]]
             [clojure.test.check.random :as random]
             [clojure.spec :as s]
@@ -99,8 +99,8 @@
   p/PTopographic
   (topography [_]
     (let [dim (->> (map p/dims-of encoders)
-                   (apply topography/combined-dimensions))]
-      (topography/make-topography dim)))
+                   (apply topo/combined-dimensions))]
+      (topo/make-topography dim)))
   p/PEncoder
   (encode* [_ xs]
    (concat-encode xs encoders))
@@ -204,7 +204,7 @@
   (encode*
     [_ x]
     (if x
-      (let [n-bits (p/size topo)]
+      (let [n-bits (topo/size topo)]
         (if periodic?
           (linear-periodic-encode x lower upper n-bits n-active)
           (linear-encode x lower upper n-bits n-active)))
@@ -238,7 +238,7 @@
   ([dimensions n-active [lower upper]]
    (linear-encoder dimensions n-active [lower upper] false))
   ([dimensions n-active [lower upper] periodic?]
-   (let [topo (topography/make-topography dimensions)]
+   (let [topo (topo/make-topography dimensions)]
      (map->LinearEncoder {:topo topo
                           :n-active n-active
                           :lower lower
@@ -279,7 +279,7 @@
   p/PEncoder
   (encode*
     [_ x]
-    (category-encode x value->index (p/size topo)))
+    (category-encode x value->index (topo/size topo)))
   (decode*
     [this bit-votes n]
     (->> (decode-by-brute-force this (keys value->index) bit-votes)
@@ -290,7 +290,7 @@
 
 (defn category-encoder
   [dimensions values]
-  (let [topo (topography/make-topography dimensions)]
+  (let [topo (topo/make-topography dimensions)]
     (map->CategoryEncoder {:topo topo
                            :value->index (zipmap values (range))})))
 
@@ -314,7 +314,7 @@
   p/PEncoder
   (encode*
     [_ x]
-    (s/assert (let [n (p/size topo)]
+    (s/assert (let [n (topo/size topo)]
                 (s/every (s/and ::p/bit #(< % n))))
               x))
   (decode*
@@ -322,13 +322,13 @@
     [(keys bit-votes)])
   (input-generator
    [_]
-   (let [n (p/size topo)]
+   (let [n (topo/size topo)]
      (gen/vector-distinct (gen/large-integer* {:min 0 :max (dec n)})
                           {:min-elements 1}))))
 
 (defn no-encoder
   [dimensions]
-  (let [topo (topography/make-topography dimensions)]
+  (let [topo (topo/make-topography dimensions)]
     (map->NoEncoder {:topo topo})))
 
 (s/fdef no-encoder
@@ -369,7 +369,7 @@
   p/PEncoder
   (encode*
     [_ x]
-    (unique-encode x (p/size topo) n-active cache))
+    (unique-encode x (topo/size topo) n-active cache))
   (decode*
     [this bit-votes n]
     (->> (decode-by-brute-force this (keys @cache) bit-votes)
@@ -383,7 +383,7 @@
   "This encoder generates a unique bit set for each distinct value,
   based on its hash. `dimensions` is given as a vector."
   [dimensions n-active]
-  (let [topo (topography/make-topography dimensions)]
+  (let [topo (topo/make-topography dimensions)]
     (map->UniqueEncoder {:topo topo
                          :n-active n-active
                          :cache (atom {})})))
@@ -404,7 +404,7 @@
 (defn linear-2d-encode
   [[x y] topo n-active x-max y-max]
   (if x
-    (let [[w h] (p/dimensions topo)
+    (let [[w h] (topo/dimensions topo)
           x (-> x (max 0) (min x-max))
           y (-> y (max 0) (min y-max))
           xz (/ x x-max)
@@ -412,10 +412,10 @@
           xi (long (* xz w))
           yi (long (* yz h))
           coord [xi yi]
-          idx (p/index-of-coordinates topo coord)]
+          idx (topo/index-of-coordinates topo coord)]
       (->> (range 10)
            (mapcat (fn [radius]
-                     (p/neighbours-indices topo idx radius (dec radius))))
+                     (topo/neighbours-indices topo idx radius (dec radius))))
            (take n-active)))
     (sequence nil)))
 
@@ -455,7 +455,7 @@
   cover. The numbers will be clamped to this range, and below by
   zero."
   [dimensions n-active [x-max y-max]]
-  (let [topo (topography/make-topography dimensions)]
+  (let [topo (topo/make-topography dimensions)]
     (map->Linear2DEncoder {:topo topo
                            :n-active n-active
                            :x-max x-max
@@ -540,7 +540,7 @@
   p/PEncoder
   (encode*
     [_ coord]
-    (coordinate-encode coord (p/size topo) n-active scale-factors radii))
+    (coordinate-encode coord (topo/size topo) n-active scale-factors radii))
   (input-generator
    [_]
    (apply gen/tuple
@@ -557,7 +557,7 @@
   coordinates. Each dimension has an associated radius within which
   there is some similarity in encoded SDRs."
   [dimensions n-active scale-factors radii]
-  (let [topo (topography/make-topography dimensions)]
+  (let [topo (topo/make-topography dimensions)]
     (map->CoordinateEncoder {:topo topo
                              :n-active n-active
                              :scale-factors scale-factors
@@ -717,7 +717,7 @@
   p/PEncoder
   (encode*
     [_ x]
-    (sampling-linear-encode x (p/size topo) n-active lower upper radius periodic?))
+    (sampling-linear-encode x (topo/size topo) n-active lower upper radius periodic?))
   (decode*
     [this bit-votes n]
     (let [span (double (- upper lower))
@@ -756,7 +756,7 @@
   ([dimensions n-active [lower upper] radius]
    (sampling-linear-encoder dimensions n-active [lower upper] radius false))
   ([dimensions n-active [lower upper] radius periodic?]
-   (let [topo (topography/make-topography dimensions)]
+   (let [topo (topo/make-topography dimensions)]
      (map->SamplingLinearEncoder {:topo topo
                                   :n-active n-active
                                   :lower lower

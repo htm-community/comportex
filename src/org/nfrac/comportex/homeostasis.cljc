@@ -1,6 +1,7 @@
 (ns org.nfrac.comportex.homeostasis
   "Homeostasis algorithms, including boosting."
   (:require [org.nfrac.comportex.protocols :as p]
+            [org.nfrac.comportex.topography :as topo]
             [org.nfrac.comportex.synapses :as syn]
             [org.nfrac.comportex.util :as util]
             [clojure.test.check.random :as random]))
@@ -42,7 +43,7 @@
   (let [crit-ratio (:boost-active-duty-ratio params)
         max-boost (:max-boost params)]
     (mapv (fn [col y]
-            (let [nb-is (p/neighbours-indices topo col inh-radius 0)
+            (let [nb-is (topo/neighbours-indices topo col inh-radius 0)
                   max-y (apply max 0 (map ys nb-is))]
               (boost-factor y max-y crit-ratio max-boost)))
           (range)

@@ -1,5 +1,41 @@
 (ns org.nfrac.comportex.topography
-  (:require [org.nfrac.comportex.protocols :as p]))
+  (:require [clojure.spec :as s]))
+
+(defprotocol PTopography
+  "Operating on a regular grid of certain dimensions, where each
+   coordinate is an n-tuple vector---or integer for 1D---and also has
+   a unique integer index."
+  (dimensions [this])
+  (coordinates-of-index [this idx])
+  (index-of-coordinates [this coord])
+  (neighbours* [this coord outer-r inner-r])
+  (coord-distance [this coord-a coord-b]))
+
+(defn neighbours
+  "Returns the coordinates away from `coord` at distances
+  `inner-r` (exclusive) out to `outer-r` (inclusive) ."
+  ([topo coord radius]
+   (neighbours* topo coord radius 0))
+  ([topo coord outer-r inner-r]
+   (neighbours* topo coord outer-r inner-r)))
+
+(defn neighbours-indices
+  "Same as `neighbours` but taking and returning indices instead of
+   coordinates."
+  ([topo idx radius]
+   (neighbours-indices topo idx radius 0))
+  ([topo idx outer-r inner-r]
+   (->> (neighbours* topo (coordinates-of-index topo idx)
+                     outer-r inner-r)
+        (map (partial index-of-coordinates topo)))))
+
+(s/def ::topography
+  #(satisfies? PTopography %))
+
+(defn size
+  "The total number of elements indexed in the topography."
+  [topo]
+  (reduce * (dimensions topo)))
 
 (defn- abs
   [x]
@@ -7,7 +43,7 @@
 
 (defrecord OneDTopography
     [size]
-  p/PTopography
+  PTopography
   (dimensions [_]
     [size])
   (coordinates-of-index [_ idx]
@@ -34,7 +70,7 @@
   ;; indices: they are layed out by row, like pixels in an image.
   ;; Uses Chebyshev distance (max coord diff) for neighbours and
   ;; distance.
-  p/PTopography
+  PTopography
   (dimensions [_]
     [width height])
   (coordinates-of-index
@@ -74,7 +110,7 @@
   ;; concatenation of multiple 2D xy images.
   ;; Uses Chebyshev distance (max coord diff) for neighbours and
   ;; distance.
-  p/PTopography
+  PTopography
   (dimensions [_]
     [width height depth])
   (coordinates-of-index

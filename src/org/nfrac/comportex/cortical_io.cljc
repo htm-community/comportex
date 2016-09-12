@@ -1,6 +1,6 @@
 (ns org.nfrac.comportex.cortical-io
   (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.topography :as topography]
+            [org.nfrac.comportex.topography :as topo]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.string :as str]
@@ -122,7 +122,7 @@
 
 (defn cortical-io-encoder
   [api-key cache & {:keys [decode-locally? spatial-scramble?]}]
-  (let [topo (topography/make-topography retina-dim)]
+  (let [topo (topo/make-topography retina-dim)]
     (reify
       p/PTopographic
       (topography [_]

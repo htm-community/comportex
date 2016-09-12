@@ -1,5 +1,6 @@
 (ns org.nfrac.comportex.protocols
-  (:require [org.nfrac.comportex.util :refer [spec-finite]]
+  (:require [org.nfrac.comportex.topography :as topo]
+            [org.nfrac.comportex.util :refer [spec-finite]]
             [clojure.spec :as s]
             [#?(:clj clojure.spec.gen :cljs clojure.spec.impl.gen) :as gen]))
 
@@ -55,48 +56,15 @@
 (defprotocol PTopographic
   (topography [this]))
 
-(defprotocol PTopography
-  "Operating on a regular grid of certain dimensions, where each
-   coordinate is an n-tuple vector---or integer for 1D---and also has
-   a unique integer index."
-  (dimensions [this])
-  (coordinates-of-index [this idx])
-  (index-of-coordinates [this coord])
-  (neighbours* [this coord outer-r inner-r])
-  (coord-distance [this coord-a coord-b]))
-
-(defn size
-  "The total number of elements indexed in the topography."
-  [topo]
-  (reduce * (dimensions topo)))
-
 (defn dims-of
   "The dimensions of a topography as an n-tuple vector."
   [x]
-  (dimensions (topography x)))
+  (topo/dimensions (topography x)))
 
 (defn size-of
   "The total number of elements in a topography."
   [x]
-  (size (topography x)))
-
-(defn neighbours
-  "Returns the coordinates away from `coord` at distances
-  `inner-r` (exclusive) out to `outer-r` (inclusive) ."
-  ([topo coord radius]
-   (neighbours* topo coord radius 0))
-  ([topo coord outer-r inner-r]
-   (neighbours* topo coord outer-r inner-r)))
-
-(defn neighbours-indices
-  "Same as `neighbours` but taking and returning indices instead of
-   coordinates."
-  ([topo idx radius]
-   (neighbours-indices topo idx radius 0))
-  ([topo idx outer-r inner-r]
-   (->> (neighbours* topo (coordinates-of-index topo idx)
-                     outer-r inner-r)
-        (map (partial index-of-coordinates topo)))))
+  (topo/size (topography x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Hierarchy
