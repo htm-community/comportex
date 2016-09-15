@@ -35,14 +35,15 @@
 
 (defn build
   []
-  (hier/layers-in-series 1 layer/layer-of-cells [params] {:input sensor}))
+  (hier/network {:layer-a (layer/layer-of-cells params)}
+                {:input sensor}))
 
 (deftest sm-test
   (let [[warmups continued] (split-at 500 (input-seq))
         m1 (reduce p/htm-step (build) warmups)
         lyr (first (hier/layer-seq m1))]
     (testing "Numbers of lateral dendrite segments"
-      (let [n-cols (p/size (p/topography lyr))
+      (let [n-cols (p/size-of lyr)
             depth (p/layer-depth lyr)
             distal-sg (:distal-sg lyr)
             cells-with-segs (for [col (range n-cols)

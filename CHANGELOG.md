@@ -3,8 +3,12 @@
 ## [Unreleased]
 ### Changed
 - Removed regions completely. HTM networks now consist only of layers.
-  - region-network => network.
-  - regions-in-series => layers-in-series. (ids :layer-a, :layer-b, etc)
+- Layers are constructed in unembedded state, then embedded in a network.
+- Layers receive signals - bits and topography - from other layers/senses.
+  - Layer topography value is that which is exposed as a signal - the cells.
+  - PFeedForward, PFeedBack, PFeedForwardMotor replaced with PSignalSource.
+  - region-network renamed to network and now has simpler args.
+  - regions-in-series removed.
   - region-seq, region-keys => layer-seq, layer-keys.
   - corresponding argument changes to these and related functions.
   - in demos, n-region-model => build.
@@ -15,6 +19,12 @@
   - `.topology` renamed to `.topography`.
 - Renames: p/topology, p/PTopology, p/PTopological (to p/PTopographic).
 - Rename in LayerOfCells :state to :active-state, also :prior-active-state.
+
+### Removed
+- regions-in-series
+- PFeedForward etc
+- parameter :use-feedback?
+
 
 ## [0.0.15] - 2016-09-05
 ### Changed

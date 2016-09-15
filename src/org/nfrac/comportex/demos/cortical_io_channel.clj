@@ -31,10 +31,9 @@
 
 
 (defn build
-  [api-key cache n]
-  (hier/layers-in-series n layer/layer-of-cells
-                         (list* params (repeat higher-level-params))
-                         {:input (cortical-io-encoder api-key cache)}))
+  [api-key cache]
+  (hier/network {:layer-a (layer/layer-of-cells params)}
+                {:input [[] (cortical-io-encoder api-key cache)]}))
 
 (comment
 

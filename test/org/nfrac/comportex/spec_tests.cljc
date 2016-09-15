@@ -11,9 +11,12 @@
 
 (org.nfrac.comportex.repl/truncate-large-data-structures)
 
-(stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.protocols))
-(stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.layer))
-(stest/instrument (stest/enumerate-namespace 'org.nfrac.comportex.encoders))
+(stest/instrument
+ (concat
+  (stest/enumerate-namespace 'org.nfrac.comportex.protocols)
+  (stest/enumerate-namespace 'org.nfrac.comportex.layer)
+  (stest/enumerate-namespace 'org.nfrac.comportex.encoders)
+  (stest/enumerate-namespace 'org.nfrac.comportex.topography)))
 
 (run-tests 'org.nfrac.comportex.spatial-pooling-test
            'org.nfrac.comportex.sequence-memory-test

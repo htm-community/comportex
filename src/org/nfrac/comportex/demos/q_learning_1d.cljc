@@ -50,7 +50,7 @@
    :q-alpha 0.2
    :q-discount 0.8
    ;; do not want temporal pooling here - actions are not static
-   :temporal-pooling-max-exc 0.0
+   :stable-activation-steps 1
    ;; disable learning; custom learning function below
    :freeze? true})
 
@@ -113,10 +113,11 @@
   (update-in htm [:layers :action]
              (fn [lyr]
                (let [prev-lyr (get-in prev-htm [:layers :action])
-                     {:keys [ff-perm-init-lo q-alpha q-discount]} (p/params lyr)
-                     ff-bits (or (:in-ff-bits (:active-state lyr)) #{})
+                     {:keys [ff-perm-init q-alpha q-discount]} (p/params lyr)
+                     [p-ref _] ff-perm-init
+                     ff-bits (or (-> lyr :active-state :in-ff-signal :bits) #{})
+                     prev-ff-bits (or (-> prev-lyr :active-state :in-ff-signal :bits) #{})
                      acols (:active-cols (:active-state lyr))
-                     prev-ff-bits (or (:in-ff-bits (:active-state prev-lyr)) #{})
                      prev-acols (:active-cols (:active-state prev-lyr))
                      psg (:proximal-sg lyr)
                      ;; Q = estimate of optimal future value = average active perm.
@@ -124,7 +125,7 @@
                                       (active-synapse-perms psg [col 0 0] ff-bits))
                                     acols)
                      Q-est (if (seq aperms)
-                             (- (mean aperms) ff-perm-init-lo) ;; TODO include boost
+                             (- (mean aperms) p-ref) ;; TODO include boost
                              0)
                      Q-old (:Q-val (:Q-info lyr) 0)
                      learn-value (+ reward (* q-discount Q-est))
@@ -152,21 +153,21 @@
                                         [coord-radius])]
         msensor [[:action :dx]
                  (enc/linear-encoder [100] 30 [-1 1])]]
-    (hier/network {:layer-a [:input :motor]
-                   :action [:layer-a]}
-                  (constantly layer/layer-of-cells)
-                  {:layer-a (assoc params :lateral-synapses? false)
-                   :action action-params}
-                  {:input sensor}
+    (hier/network {:layer-a (layer/layer-of-cells
+                             (assoc params :lateral-synapses? false))
+                   :action (layer/layer-of-cells action-params)}
                   {:input sensor
-                   :motor msensor})))
+                   :motor msensor}
+                  {:ff-deps {:layer-a [:input]
+                             :action [:layer-a]}
+                   :lat-deps {:layer-a [:motor]}})))
 
 (defn htm-step-with-action-selection
   [world-c]
   (fn [htm inval]
     (let [;; do first part of step, but not depolarise yet (depends on action)
           htm-a (-> htm
-                    (p/htm-sense inval :sensory)
+                    (p/htm-sense inval :ff)
                     (p/htm-activate)
                     (p/htm-learn))
           ;; scale reward to be comparable to [0-1] permanences
@@ -190,7 +191,7 @@
       (let [new-inval (apply-action inval-with-action)]
         (put! world-c new-inval))
       (-> upd-htm
-          (p/htm-sense inval-with-action :motor)
+          (p/htm-sense inval-with-action :lat)
           (p/htm-depolarise)))))
 
 (comment

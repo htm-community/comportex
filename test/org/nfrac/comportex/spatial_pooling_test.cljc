@@ -43,8 +43,8 @@
 
 (defn build
   []
-  (hier/layers-in-series 1 layer/layer-of-cells [params]
-                          {:input sensor}))
+  (hier/network {:layer-a (layer/layer-of-cells params)}
+                {:input sensor}))
 
 (deftest sp-test
   (let [htm-step+cols (fn [this input]

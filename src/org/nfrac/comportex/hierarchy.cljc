@@ -6,7 +6,7 @@
             [org.nfrac.comportex.util.algo-graph :as graph]
             [clojure.set :as set]
             [clojure.spec :as s]
-            [clojure.spec.gen :as gen]))
+            [#?(:clj clojure.spec.gen :cljs clojure.spec.impl.gen) :as gen]))
 
 (s/def ::layer-id keyword?)
 (s/def ::ff-deps (s/map-of ::layer-id (s/coll-of ::layer-id :kind sequential?)))
@@ -99,12 +99,20 @@
 
 (defn- htm-sense-impl
   [this inval mode]
-  (let [sm (reduce-kv (fn [m k [selector encoder]]
-                        (let [bits (->> (p/extract selector inval)
-                                        (p/encode encoder))]
-                          (assoc m k (->SenseNode (p/topography encoder) bits))))
-                      {}
-                      (:sensors this))]
+  (let [{:keys [ff-deps lat-deps sensors senses]} this
+        is-ff-dep? (into #{} cat (vals ff-deps))
+        is-lat-dep? (into #{} cat (vals lat-deps))
+        sm (reduce-kv (fn [m k [selector encoder]]
+                        (if (case mode
+                              :ff (is-ff-dep? k)
+                              :lat (is-lat-dep? k)
+                              nil true)
+                          (let [bits (->> (p/extract selector inval)
+                                          (p/encode encoder))]
+                            (assoc m k (->SenseNode (p/topography encoder) bits)))
+                          m))
+                      senses
+                      sensors)]
     (assoc this
            :senses sm
            :input-value inval)))
@@ -142,9 +150,9 @@
   (let [{:keys [fb-deps lat-deps layers senses]} this
         lm (->> layers
                 (pmap (fn [[id layer]]
-                        (let [fbs (map layers (fb-deps id))
+                        (let [fbs (map layers (get fb-deps id))
                               lats (map #(or (senses %) (layers %))
-                                        (lat-deps id))]
+                                        (get lat-deps id))]
                           (p/layer-depolarise
                            layer
                            (composite-signal (map p/signal fbs))
@@ -212,7 +220,7 @@
 (defn- in-vals-not-keys
   [deps]
   (let [have-deps (set (keys deps))
-        are-deps (set (apply concat (vals deps)))]
+        are-deps (into #{} cat (vals deps))]
     (set/difference are-deps have-deps)))
 
 (defn series-deps
@@ -220,10 +228,9 @@
   (let [ff-deps (zipmap layer-keys (list* sense-keys (map vector layer-keys)))]
     {:ff-deps ff-deps}))
 
-(defn add-feedback
+(defn add-feedback-deps
   [{:keys [ff-deps] :as linkages}]
-  (let [all-ids (into (set (keys ff-deps))
-                      (in-vals-not-keys ff-deps))
+  (let [all-ids (into (set (keys ff-deps)) cat (vals ff-deps))
         ff-dag (graph/directed-graph all-ids ff-deps)
         fb-deps (->> (graph/reverse-graph ff-dag)
                      :neighbors
@@ -261,12 +268,12 @@
    {:pre [;; all layers must have dependencies
           (every? ff-deps (keys layers))
           ;; all sense nodes must not have dependencies
-          (every? (in-vals-not-keys ff-deps) (keys sensors))
+          (every? (in-vals-not-keys (merge-with concat ff-deps lat-deps))
+                  (keys sensors))
           ;; all ids in dependency map must be defined
           (every? layers (keys ff-deps))
-          (every? sensors (in-vals-not-keys ff-deps))]}
-   (let [all-ids (into (set (keys ff-deps))
-                       (in-vals-not-keys ff-deps))
+          (every? sensors (in-vals-not-keys (merge-with concat ff-deps lat-deps)))]}
+   (let [all-ids (into (set (keys ff-deps)) cat (vals ff-deps))
          ff-dag (graph/directed-graph all-ids ff-deps)
          strata (graph/dependency-list ff-dag)
          senses (util/remap (fn [[_ e]]
@@ -274,9 +281,9 @@
                             sensors)
          elayers (->
                   (reduce-kv (fn [m id layer]
-                               (let [ffs (map m (ff-deps id))
-                                     fbs (map m (fb-deps id))
-                                     lats (map m (lat-deps id))
+                               (let [ffs (map m (get ff-deps id))
+                                     fbs (map m (get fb-deps id))
+                                     lats (map m (get lat-deps id))
                                      ff-topo (topo/topo-union (map p/topography ffs))
                                      fb-topo (topo/topo-union (map p/topography fbs))
                                      lat-topo (topo/topo-union (map p/topography lats))
@@ -375,7 +382,7 @@
     htm sense-id n-predictions (comp :predictive-cells p/layer-state)))
   ([htm sense-id n-predictions cells-fn]
    (let [sense-width (p/size-of (get-in htm [:senses sense-id]))
-         {:keys [fb-deps]} (add-feedback (select-keys htm [:ff-deps]))
+         {:keys [fb-deps]} (add-feedback-deps (select-keys htm [:ff-deps]))
          pr-votes (->> (fb-deps sense-id)
                        (mapcat (fn [lyr-id]
                                  (let [lyr (get-in htm [:layers lyr-id])

@@ -20,7 +20,8 @@
 (def instr-syms
   (concat
    (stest/enumerate-namespace 'org.nfrac.comportex.layer)
-   (stest/enumerate-namespace 'org.nfrac.comportex.protocols)))
+   (stest/enumerate-namespace 'org.nfrac.comportex.protocols)
+   (stest/enumerate-namespace 'org.nfrac.comportex.topography)))
 
 (deftest layer-fns-test
   (stest/instrument instr-syms)

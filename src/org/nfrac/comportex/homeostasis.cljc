@@ -57,13 +57,15 @@
   (if-not (pos? (:boost-active-duty-ratio (:params lyr)))
     ;; disabled
     lyr
-    (let [global? (>= (:ff-potential-radius (:params lyr)) 1)]
+    (let [params (:params lyr)
+          global? (>= (:ff-potential-radius params) 1)
+          col-topo (topo/make-topography (:column-dimensions params))]
       (assoc lyr :boosts
              (if global?
                (boost-factors-global (:active-duty-cycles lyr)
                                      (:params lyr))
                (boost-factors-local (:active-duty-cycles lyr)
-                                    (:topography lyr)
+                                    col-topo
                                     (:inh-radius lyr)
                                     (:params lyr)))))))
 
@@ -89,7 +91,9 @@
   (if-not (pos? (:adjust-overlap-duty-ratio (:params lyr)))
     ;; disabled
     lyr
-    (let [global? (>= (:ff-potential-radius (:params lyr)) 1)]
+    (let [params (:params lyr)
+          global? (>= (:ff-potential-radius params) 1)
+          col-topo (topo/make-topography (:column-dimensions params))]
       (update-in
        lyr [:proximal-sg]
        (fn [sg]
@@ -99,7 +103,7 @@
                                   (:params lyr))
            (adjust-overlap-local sg
                                  (:overlap-duty-cycles lyr)
-                                 (:topography lyr)
+                                 col-topo
                                  (:inh-radius lyr)
                                  (:params lyr))))))))
 

@@ -11,8 +11,16 @@
 (s/def ::bits (s/every ::bit :distinct true))
 (s/def ::bits-set (s/every ::bit :kind set?))
 
-(s/def ::signal (s/keys :req [::bits
-                              ::topo/topography]))
+(s/def ::signal (s/keys :req-un [::bits
+                                 ::topo/topography]))
+
+(s/def ::ff-topo (s/and ::topo/topography #(>= (topo/size %) 1)))
+(s/def ::fb-topo ::topo/topography)
+(s/def ::lat-topo ::topo/topography)
+
+(s/def ::embedding (s/keys :req-un [::ff-topo
+                                    ::fb-topo
+                                    ::lat-topo]))
 
 (s/def ::column-id (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
 (s/def ::cell-index (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 32)))))
@@ -22,12 +30,6 @@
                             (s/with-gen #(s/gen (s/int-in 0 500)))))
 (s/def ::seg-exc (s/every-kv ::seg-path ::excitation-amt))
 (s/def ::timestep nat-int?)
-(s/def ::dimensions
-  (s/coll-of nat-int? :kind vector? :min-count 1 :max-count 3
-             :gen (fn []
-                    (s/gen (s/and (s/coll-of (s/int-in 0 2048) :kind vector?
-                                             :min-count 1 :max-count 3)
-                                  #(<= (reduce * %) 2048))))))
 
 (s/def ::permanence (spec-finite :min 0.0 :max 1.0))
 (s/def ::segment (s/every-kv ::bit ::permanence))
@@ -74,7 +76,7 @@
   (htm-sense [this inval mode]
     "Takes an input value. Updates the HTM's senses by applying
     corresponding sensors to the input value. `mode` may be
-    :sensory or :motor to update only such senses, or nil to update
+    :ff or :lat to update only senses with those deps, or nil to update
     all. Also updates :input-value. Returns updated HTM.")
   (htm-activate [this]
     "Propagates feed-forward input through the network to activate
@@ -112,13 +114,13 @@
         :ret ::signal)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Layer of cells
+;;; Layers
 
 (defprotocol PLayer
   (layer-embed* [this embedding])
-  (layer-activate* [this ff-bits stable-ff-bits])
+  (layer-activate* [this ff-signal])
   (layer-learn* [this])
-  (layer-depolarise* [this distal-ff-bits apical-fb-bits apical-fb-wc-bits])
+  (layer-depolarise* [this fb-signal lat-signal])
   (layer-state* [this])
   (layer-depth* [this]))
 
@@ -135,33 +137,24 @@
   [this embedding]
   (layer-embed* this embedding))
 
-(s/def ::ff-topo ::topo/topography)
-(s/def ::fb-topo ::topo/topography)
-(s/def ::lat-topo ::topo/topography)
-(s/def ::embedding (s/keys :req-un [::ff-topo
-                                    ::fb-topo
-                                    ::lat-topo]))
-
 (s/fdef layer-embed
         :args (s/cat :layer ::layer-unembedded
                      :embedding ::embedding)
         :ret ::layer)
 
 (defn layer-activate
-  [this ff-bits stable-ff-bits]
-  (layer-activate* this ff-bits stable-ff-bits))
+  [this ff-signal]
+  (layer-activate* this ff-signal))
 
 (s/def ::layer-activate-args
   #_"Args spec for layer-activate, given an id here to allow generator override."
   (s/and
    (s/cat :layer ::layer
-          :ff-bits ::bits
-          :stable-ff-bits ::bits)
+          :ff-signal ::signal)
    (fn [v]
      (let [par (params (:layer v))
-           n-in (reduce * (:input-dimensions par))]
-       (and (every? #(< % n-in) (:ff-bits v))
-            (every? (set (:ff-bits v)) (:stable-ff-bits v)))))))
+           n-in (topo/size (-> par :embedding :ff-topo))]
+       (every? #(< % n-in) (:bits (:ff-signal v)))))))
 
 (s/fdef layer-activate
         :args ::layer-activate-args
@@ -178,14 +171,13 @@
         :ret ::layer)
 
 (defn layer-depolarise
-  [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]
-  (layer-depolarise* this distal-ff-bits apical-fb-bits apical-fb-wc-bits))
+  [this fb-signal lat-signal]
+  (layer-depolarise* this fb-signal lat-signal))
 
 (s/fdef layer-depolarise
         :args (s/cat :layer ::layer
-                     :distal-ff-bits ::bits
-                     :apical-fb-bits ::bits
-                     :apical-fb-wc-bits ::bits)
+                     :fb-signal ::signal
+                     :lat-signal ::signal)
         :ret ::layer)
 
 (defn layer-state
@@ -282,7 +274,8 @@
           :seg-updates (s/and (s/every ::seg-update)
                               #(->> (map :target-id %) (apply distinct? nil)))
           :active-sources (s/or :set ::bits-set
-                                :fn (s/fspec :args (s/cat :bit ::bit)))
+                                :fn (s/fspec :args (s/cat :bit ::bit)
+                                             :ret any?))
           :pinc ::permanence
           :pdec ::permanence
           :pinit ::permanence)

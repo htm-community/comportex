@@ -1,5 +1,16 @@
 (ns org.nfrac.comportex.topography
-  (:require [clojure.spec :as s]))
+  (:require [clojure.spec :as s]
+            [#?(:clj clojure.spec.gen :cljs clojure.spec.impl.gen) :as gen]))
+
+(s/def ::dimensions
+  (s/coll-of nat-int? :kind vector? :min-count 1 :max-count 3
+             :gen (fn []
+                    (s/gen (s/and (s/coll-of (s/int-in 0 2048) :kind vector?
+                                             :min-count 1 :max-count 3)
+                                  #(<= (reduce * %) 2048))))))
+
+(s/def ::pos-dimensions
+  (s/and ::dimensions #(>= (reduce * %) 1)))
 
 (defprotocol PTopography
   "Operating on a regular grid of certain dimensions, where each
@@ -11,13 +22,37 @@
   (neighbours* [this coord outer-r inner-r])
   (coord-distance [this coord-a coord-b]))
 
+(declare make-topography)
+
+(s/def ::topography
+  (-> #(satisfies? PTopography %)
+      (s/with-gen #(gen/fmap make-topography (s/gen ::dimensions)))))
+
+(defn size
+  "The total number of elements indexed in the topography."
+  [topo]
+  (reduce * (dimensions topo)))
+
 (defn neighbours
-  "Returns the coordinates away from `coord` at distances
-  `inner-r` (exclusive) out to `outer-r` (inclusive) ."
+  "Returns the coordinates away from `coord` at distances `inner-r` (exclusive)
+  out to `outer-r` (inclusive). The default inner-r is 0 which excludes coord
+  itself. To include coord, use inner-r -1."
   ([topo coord radius]
    (neighbours* topo coord radius 0))
   ([topo coord outer-r inner-r]
    (neighbours* topo coord outer-r inner-r)))
+
+(s/fdef neighbours
+        :args (s/and
+               (s/cat :topo ::topography
+                      :coord ::dimensions
+                      :outer-r (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 9))))
+                      :inner-r (s/? (-> (s/int-in -1 1e9)
+                                        (s/with-gen #(s/gen (s/int-in -1 8))))))
+               #(= (count (:coord %)) (count (dimensions (:topo %))))
+               #(every? identity (map < (:coord %) (dimensions (:topo %))))
+               #(< (:outer-r %) (* 3 (apply max (dimensions (:topo %))))))
+        :ret (s/every ::dimensions))
 
 (defn neighbours-indices
   "Same as `neighbours` but taking and returning indices instead of
@@ -29,13 +64,19 @@
                      outer-r inner-r)
         (map (partial index-of-coordinates topo)))))
 
-(s/def ::topography
-  #(satisfies? PTopography %))
-
-(defn size
-  "The total number of elements indexed in the topography."
-  [topo]
-  (reduce * (dimensions topo)))
+(s/fdef neighbours-indices
+        :args (s/and
+               (s/cat :topo ::topography
+                      :idx nat-int?
+                      :outer-r (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 9))))
+                      :inner-r (s/? (-> (s/int-in -1 1e9)
+                                        (s/with-gen #(s/gen (s/int-in -1 8))))))
+               #(< (:idx %) (size (:topo %)))
+               #(< (:outer-r %) (* 3 (apply max (dimensions (:topo %))))))
+        :ret (s/every nat-int?)
+        :fn (fn [m]
+              (let [n (-> m :args :topo size)]
+                (every? #(<= 0 % (dec n)) (:ret m)))))
 
 (defn- abs
   [x]
@@ -52,7 +93,7 @@
     coord)
   (neighbours*
     [this coord outer-r inner-r]
-    (concat (range (min (+ coord inner-r 1) size)
+    (concat (range (min (+ coord inner-r 1) (dec size))
                    (min (+ coord outer-r 1) size))
             (range (max (- coord outer-r) 0)
                    (max (- coord inner-r) 0))))
@@ -159,9 +200,15 @@
       3 (three-d-topography w h d)
       4 (three-d-topography w h (* d q)))))
 
+(s/fdef make-topography
+        :args (s/cat :dims ::dimensions)
+        :ret ::topography)
 
 (def empty-topography
   (make-topography [0]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Combining
 
 (defn squash-last-dimension
   "Project n dimensions to n-1 dimensions by eliminating the last dimension.
@@ -231,6 +278,10 @@
                  (update-in higher [0] + (first compatible))
                  (recur (squash-last-dimension higher) lower))))
            all-dims)))
+
+(s/fdef combined-dimensions
+        :args (s/* ::dimensions)
+        :ret ::dimensions)
 
 (defn topo-union
   [topos]

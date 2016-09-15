@@ -40,7 +40,6 @@ the three little pigs.
               :perm-dec 0.01}
    :lateral-synapses? true
    :distal-vs-proximal-weight 0.0
-   :use-feedback? true
    :apical {:learn? true}})
 
 
@@ -104,15 +103,16 @@ the three little pigs.
   ([]
    (build params))
   ([params]
-   (hier/network {:layer-a [:input :letter-motor]
-                  :layer-b [:layer-a :word-motor]}
-                 (constantly layer/layer-of-cells)
-                 {:layer-a params
-                  :layer-b higher-level-params}
-                 {:input letter-sensor}
-                 {:letter-motor letter-motor-sensor
-                  :word-motor word-motor-sensor})))
-
+   (hier/network {:layer-a (layer/layer-of-cells params)
+                  :layer-b (layer/layer-of-cells higher-level-params)}
+                 {:input letter-sensor
+                  :letter-motor letter-motor-sensor
+                  :word-motor word-motor-sensor}
+                 (hier/add-feedback-deps
+                  {:ff-deps {:layer-a [:input]
+                             :layer-b [:layer-a]}
+                   :lat-deps {:layer-a [:letter-motor]
+                              :layer-b [:word-motor]}}))))
 
 (defn htm-step-with-action-selection
   [world-c control-c]
@@ -131,7 +131,7 @@ the three little pigs.
   (fn [htm inval]
     (let [;; do first part of step, but not depolarise yet (depends on action)
           htm-a (-> htm
-                    (p/htm-sense inval :sensory)
+                    (p/htm-sense inval :ff)
                     (p/htm-activate)
                     (p/htm-learn))
           [i j k] (:position inval)
@@ -144,8 +144,9 @@ the three little pigs.
           end-of-passage? (= i (dec (count sentences)))
           lyr-a (get-in htm-a [:layers :layer-a])
           lyr-b (get-in htm-a [:layers :layer-b])
-          a-stability (/ (count (:out-stable-ff-bits (:active-state lyr-a)))
-                         (count (:out-ff-bits (:active-state lyr-a))))
+          a-signal (p/signal lyr-a)
+          a-stability (/ (count (::stable-bits a-signal))
+                         (count (:bits a-signal)))
           word-burst? (cond-> (:word-bursting? (:action inval))
                         ;; ignore burst on first letter of word
                         (pos? k) (or (< a-stability 0.5)))
@@ -210,7 +211,7 @@ the three little pigs.
       ;; depolarise (predict) based on action, and update :input-value
       (cond-> htm-a
         true
-        (p/htm-sense inval-with-action :motor)
+        (p/htm-sense inval-with-action :lat)
         true
         (p/htm-depolarise)
         ;; break sequence when repeating word (but keep tp synapses)

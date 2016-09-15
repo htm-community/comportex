@@ -63,7 +63,7 @@
    :q-alpha 0.75
    :q-discount 0.9
    ;; do not want temporal pooling here - actions are not static
-   :temporal-pooling-max-exc 0.0
+   :stable-activation-steps 1
    ;; disable learning
    :freeze? true})
 
@@ -131,21 +131,21 @@
         dx-sensor [[:action :dx] (enc/linear-encoder [100] 30 [-1 1])]
         dy-sensor [[:action :dy] (enc/linear-encoder [100] 30 [-1 1])]
         msensor (enc/sensor-cat dx-sensor dy-sensor)]
-    (hier/network {:layer-a [:input :motor]
-                   :action [:layer-a]}
-                  (constantly layer/layer-of-cells)
-                  {:layer-a (assoc params :lateral-synapses? false)
-                   :action action-params}
-                  {:input sensor}
+    (hier/network {:layer-a (layer/layer-of-cells
+                             (assoc params :lateral-synapses? false))
+                   :action (layer/layer-of-cells action-params)}
                   {:input sensor
-                   :motor msensor})))
+                   :motor msensor}
+                  {:ff-deps {:layer-a [:input]
+                             :action [:layer-a]}
+                   :lat-deps {:layer-a [:motor]}})))
 
 (defn htm-step-with-action-selection
   [world-c]
   (fn [htm inval]
     (let [;; do first part of step, but not depolarise yet (depends on action)
           htm-a (-> htm
-                    (p/htm-sense inval :sensory)
+                    (p/htm-sense inval :ff)
                     (p/htm-activate)
                     (p/htm-learn))
           ;; scale reward to be comparable to [0-1] permanences
@@ -177,7 +177,7 @@
         (put! world-c new-inval))
       (cond-> upd-htm
           true
-          (p/htm-sense inval-with-action :motor)
+          (p/htm-sense inval-with-action :lat)
           true
           (p/htm-depolarise)
           terminal-state?

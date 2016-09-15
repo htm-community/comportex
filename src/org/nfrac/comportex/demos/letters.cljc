@@ -32,8 +32,7 @@
 
 (defn build
   ([]
-   (build 1 params))
-  ([n params]
-   (hier/layers-in-series n layer/layer-of-cells
-                          (list* params (repeat higher-level-params))
-                          {:input random-sensor})))
+   (build params))
+  ([params]
+   (hier/network {:layer-a (layer/layer-of-cells params)}
+                 {:input random-sensor})))

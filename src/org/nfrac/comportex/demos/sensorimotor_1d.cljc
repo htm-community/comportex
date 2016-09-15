@@ -23,8 +23,7 @@
    :depth 5
    :proximal {:perm-inc 0.10
               :perm-dec 0.01}
-   :distal {:punish? false}
-   :layer-3 higher-level-params-diff})
+   :distal {:punish? false}})
 
 (def higher-level-params
   (util/deep-merge params higher-level-params-diff))
@@ -69,9 +68,11 @@
 
 (defn input-seq
   "Returns an infinite lazy seq of sensory input values."
-  [world]
-  (->> (iterate world-transform world)
-       (map attach-current-value)))
+  ([]
+   (input-seq (initial-world (first (vals fields)) 42)))
+  ([world]
+   (->> (iterate world-transform world)
+        (map attach-current-value))))
 
 (def block-sensor
   [:value
@@ -84,9 +85,12 @@
 
 (defn build
   ([]
-   (build 1 params))
-  ([n params]
-   (hier/layers-in-series n layer/layer-of-cells
-                          (list* params (repeat higher-level-params))
-                          {:input block-sensor}
-                          {:motor block-motor-sensor})))
+   (build params))
+  ([params]
+   (hier/network {:layer-a (layer/layer-of-cells params)
+                  :layer-b (layer/layer-of-cells higher-level-params)}
+                 {:input block-sensor
+                  :motor block-motor-sensor}
+                 {:ff-deps {:layer-a [:input]
+                            :layer-b [:layer-a]}
+                  :lat-deps {:layer-a [:motor]}})))

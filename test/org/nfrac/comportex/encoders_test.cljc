@@ -36,7 +36,7 @@
     (is (> (overlap (bitsets 90) (bitsets 30))
            (overlap (bitsets 90) (bitsets 270))))))
 
-(def opts {::stc/opts {:num-tests 200}})
+(def opts {::stc/opts {:num-tests 100}})
 
 (deftest exercise-encoders-test
   (stest/instrument
@@ -51,7 +51,7 @@
 (comment
  ;; this is kind of the same thing but is faster, not sure why:
  (let [e-gen (s/gen ::p/encoder)]
-   (doseq [e (gen/sample e-gen 200)
+   (doseq [e (gen/sample e-gen 100)
            :let [_ (prn e)
                  inval-gen (p/input-generator e)]
            inval (gen/sample inval-gen 20)]

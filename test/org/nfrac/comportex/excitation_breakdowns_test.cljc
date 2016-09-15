@@ -38,8 +38,8 @@
 
 (defn build
   []
-  (hier/layers-in-series 2 layer/layer-of-cells (repeat params)
-                         {:input sensor}))
+  (hier/network {:layer-a (layer/layer-of-cells params)}
+                {:input sensor}))
 
 (deftest exc-bd-test
   (let [[warmups continued] (split-at 50 (world-seq))

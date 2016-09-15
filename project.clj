@@ -3,7 +3,7 @@
   :url "http://github.com/htm-community/comportex/"
   :license {:name "GNU Affero General Public Licence"
             :url "http://www.gnu.org/licenses/agpl-3.0.en.html"}
-  :dependencies [[org.clojure/clojure "1.9.0-alpha10"]
+  :dependencies [[org.clojure/clojure "1.9.0-alpha12"]
                  [org.clojure/core.async "0.2.385"]
                  [org.clojure/data.int-map "0.2.3"]
                  [org.clojure/test.check "0.9.0"]

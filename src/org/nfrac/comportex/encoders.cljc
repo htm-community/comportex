@@ -8,9 +8,6 @@
             [clojure.spec :as s]
             [#?(:clj clojure.spec.gen :cljs clojure.spec.impl.gen) :as gen]))
 
-(s/def ::pos-dimensions
-  (s/and ::p/dimensions #(pos? (reduce * %))))
-
 (s/def ::n-active-bits
   (-> pos-int? (s/with-gen #(s/gen (s/int-in 0 600)))))
 
@@ -247,7 +244,7 @@
 
 (s/fdef linear-encoder
         :args (s/and
-               (s/cat :dimensions ::pos-dimensions
+               (s/cat :dimensions ::topo/pos-dimensions
                       :n-active ::n-active-bits
                       :lower-upper (s/and (s/tuple (spec-finite) (spec-finite))
                                           (fn [[a b]] (< a b)))
@@ -295,7 +292,7 @@
                            :value->index (zipmap values (range))})))
 
 (s/fdef category-encoder
-        :args (s/cat :dimensions ::pos-dimensions
+        :args (s/cat :dimensions ::topo/pos-dimensions
                      :values (s/coll-of (s/with-gen some? #(gen/simple-type-printable))
                                         :min-count 1 :distinct true))
         :ret ::p/encoder)
@@ -332,7 +329,7 @@
     (map->NoEncoder {:topo topo})))
 
 (s/fdef no-encoder
-        :args (s/cat :dimensions ::pos-dimensions)
+        :args (s/cat :dimensions ::topo/pos-dimensions)
         :ret ::p/encoder)
 
 (defmethod p/encoder-spec NoEncoder [_]
@@ -340,6 +337,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; unique encoder
+
+(defn- NaN?
+  [x]
+  #?(:clj (when (float? x) (Double/isNaN (double x)))
+     :cljs (when (number? x) (js/isNaN x))))
 
 (defn unique-sdr
   [x n-bits n-active]
@@ -369,6 +371,7 @@
   p/PEncoder
   (encode*
     [_ x]
+    (assert (not (NaN? x)))
     (unique-encode x (topo/size topo) n-active cache))
   (decode*
     [this bit-votes n]
@@ -377,7 +380,8 @@
   (input-generator
    [_]
    ;; really anything except nil, but `any` is messy to print
-   (gen/simple-type-printable)))
+   (gen/such-that #(not (NaN? %))
+                  (gen/simple-type-printable))))
 
 (defn unique-encoder
   "This encoder generates a unique bit set for each distinct value,
@@ -390,7 +394,7 @@
 
 (s/fdef unique-encoder
         :args (s/and
-               (s/cat :dimensions ::pos-dimensions
+               (s/cat :dimensions ::topo/pos-dimensions
                       :n-active ::n-active-bits)
                #(< (:n-active %) (reduce * (:dimensions %))))
         :ret ::p/encoder)
@@ -463,7 +467,7 @@
 
 (s/fdef linear-2d-encoder
         :args (s/and
-               (s/cat :dimensions (s/and ::pos-dimensions #(= 2 (count %)))
+               (s/cat :dimensions (s/and ::topo/pos-dimensions #(= 2 (count %)))
                       :n-active ::n-active-bits
                       :xy-maxs (s/tuple (s/and (spec-finite :min 0) pos?)
                                         (s/and (spec-finite :min 0) pos?)))
@@ -565,7 +569,7 @@
 
 (s/fdef coordinate-encoder
         :args (s/and
-               (s/cat :dimensions ::pos-dimensions
+               (s/cat :dimensions ::topo/pos-dimensions
                       :n-active ::n-active-bits
                       :scale-factors (s/coll-of (s/and (spec-finite)
                                                        (complement zero?))
@@ -768,7 +772,7 @@
   #_"Args spec for sampling-linear-encoder, without the radius constraint.
   Given an id here for generator use."
   (s/and
-   (s/cat :dimensions ::pos-dimensions
+   (s/cat :dimensions ::topo/pos-dimensions
           :n-active ::n-active-bits
           :lower-upper (s/and (s/tuple (spec-finite :min -1e12 :max 1e12)
                                        (spec-finite :min -1e12 :max 1e12))
