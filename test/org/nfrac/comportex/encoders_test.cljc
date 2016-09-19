@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.encoders-test
-  (:require [org.nfrac.comportex.protocols :as p]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.encoders :as enc]
             [clojure.set :as set]
             [clojure.spec.test :as stest]
@@ -14,9 +14,9 @@
 
 (deftest encode-decode-test
   (let [e (enc/category-encoder [10] [:a :b :c])]
-    (is (= :a (:value (first (p/decode e (frequencies (p/encode e :a)) 1)))))
-    (is (= :b (:value (first (p/decode e (frequencies (p/encode e :b)) 1)))))
-    (is (= :c (:value (first (p/decode e (frequencies (p/encode e :c)) 1)))))))
+    (is (= :a (:value (first (cx/decode e (frequencies (cx/encode e :a)) 1)))))
+    (is (= :b (:value (first (cx/decode e (frequencies (cx/encode e :b)) 1)))))
+    (is (= :c (:value (first (cx/decode e (frequencies (cx/encode e :c)) 1)))))))
 
 
 (deftest coordinate-encoder-test
@@ -24,7 +24,7 @@
         e (enc/coordinate-encoder [1000] 40 [1 1] [radius radius])
         coords [0 10 30 90 270]
         bitsets (zipmap coords
-                        (map #(set (p/encode e [%]))
+                        (map #(set (cx/encode e [%]))
                              coords))
         overlap (fn [s1 s2] (count (set/intersection s1 s2)))]
     (is (> (overlap (bitsets 0) (bitsets 10))
@@ -40,19 +40,19 @@
 
 (deftest exercise-encoders-test
   (stest/instrument
-   (concat (stest/enumerate-namespace 'org.nfrac.comportex.protocols)
+   (concat (stest/enumerate-namespace 'org.nfrac.comportex.core)
            (stest/enumerate-namespace 'org.nfrac.comportex.encoders)))
   ;; generate random encoders with random parameters and encode random inputs!
-  (-> `p/encode
+  (-> `cx/encode
       (stest/check opts)
       (stest/summarize-results))
   (stest/unstrument))
 
 (comment
  ;; this is kind of the same thing but is faster, not sure why:
- (let [e-gen (s/gen ::p/encoder)]
+ (let [e-gen (s/gen ::cx/encoder)]
    (doseq [e (gen/sample e-gen 100)
            :let [_ (prn e)
-                 inval-gen (p/input-generator e)]
+                 inval-gen (cx/input-generator e)]
            inval (gen/sample inval-gen 20)]
-     (p/encode e inval))))
+     (cx/encode e inval))))

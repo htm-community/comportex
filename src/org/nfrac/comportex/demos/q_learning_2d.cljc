@@ -1,7 +1,6 @@
 (ns org.nfrac.comportex.demos.q-learning-2d
-  (:require [org.nfrac.comportex.hierarchy :as hier]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.layer :as layer]
-            [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util :refer [round abs]]
             [org.nfrac.comportex.demos.q-learning-1d :refer [q-learn]]
@@ -91,7 +90,7 @@
 (defn select-action
   [htm curr-pos]
   (let [alyr (get-in htm [:layers :action])
-        acols (:active-columns (p/layer-state alyr))
+        acols (:active-columns (cx/layer-state alyr))
         signals (map column->signal acols)
         poss (possible-directions curr-pos)]
     (->> signals
@@ -131,23 +130,23 @@
         dx-sensor [[:action :dx] (enc/linear-encoder [100] 30 [-1 1])]
         dy-sensor [[:action :dy] (enc/linear-encoder [100] 30 [-1 1])]
         msensor (enc/sensor-cat dx-sensor dy-sensor)]
-    (hier/network {:layer-a (layer/layer-of-cells
+    (cx/network {:layer-a (layer/layer-of-cells
                              (assoc params :lateral-synapses? false))
                    :action (layer/layer-of-cells action-params)}
-                  {:input sensor
-                   :motor msensor}
-                  {:ff-deps {:layer-a [:input]
-                             :action [:layer-a]}
-                   :lat-deps {:layer-a [:motor]}})))
+                {:input sensor
+                 :motor msensor}
+                {:ff-deps {:layer-a [:input]
+                           :action [:layer-a]}
+                 :lat-deps {:layer-a [:motor]}})))
 
 (defn htm-step-with-action-selection
   [world-c]
   (fn [htm inval]
     (let [;; do first part of step, but not depolarise yet (depends on action)
           htm-a (-> htm
-                    (p/htm-sense inval :ff)
-                    (p/htm-activate)
-                    (p/htm-learn))
+                    (cx/htm-sense inval :ff)
+                    (cx/htm-activate)
+                    (cx/htm-learn))
           ;; scale reward to be comparable to [0-1] permanences
           reward (* 0.01 (:z inval))
           terminal-state? (>= (abs (:z inval)) 100)
@@ -177,11 +176,11 @@
         (put! world-c new-inval))
       (cond-> upd-htm
           true
-          (p/htm-sense inval-with-action :lat)
+          (cx/htm-sense inval-with-action :lat)
           true
-          (p/htm-depolarise)
+          (cx/htm-depolarise)
           terminal-state?
-          (p/break :tm)))))
+          (cx/break :tm)))))
 
 (comment
   (require '[clojure.core.async :as async :refer [>!! <!!]])

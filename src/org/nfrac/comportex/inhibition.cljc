@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.inhibition
-  (:require [org.nfrac.comportex.protocols :as p]
+  (:require [org.nfrac.comportex.synapses :as syn]
             [org.nfrac.comportex.topography :as topo]
             [org.nfrac.comportex.util :as util
              :refer [abs round mean remap]]))
@@ -12,7 +12,7 @@
   "Returns the span over the input bit array to which this column has
    connected synapses. Takes the maximum span in any one dimension."
   [sg itopo col]
-  (let [ids (p/sources-connected-to sg [col 0 0]) ;; first segment only - good enough?
+  (let [ids (syn/sources-connected-to sg [col 0 0]) ;; first segment only - good enough?
         coords (map (partial topo/coordinates-of-index itopo) ids)]
     (if (seq coords)
       (if (number? (first coords))

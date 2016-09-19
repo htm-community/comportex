@@ -1,7 +1,7 @@
 (ns org.nfrac.comportex.excitation-breakdowns-test
-  (:require [org.nfrac.comportex.hierarchy :as hier]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.layer :as layer]
-            [org.nfrac.comportex.protocols :as p]
+            [org.nfrac.comportex.layer.tools :as lyrt]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.test :as t
@@ -38,17 +38,17 @@
 
 (defn build
   []
-  (hier/network {:layer-a (layer/layer-of-cells params)}
-                {:input sensor}))
+  (cx/network {:layer-a (layer/layer-of-cells params)}
+              {:input sensor}))
 
 (deftest exc-bd-test
   (let [[warmups continued] (split-at 50 (world-seq))
-        prev-htm (reduce p/htm-step (build) warmups)
-        htm (p/htm-step prev-htm (first continued))]
+        prev-htm (reduce cx/htm-step (build) warmups)
+        htm (cx/htm-step prev-htm (first continued))]
     (testing "Cell excitation breakdowns"
       (let [lyr (get-in htm [:layers :layer-a])
-            wc (:winner-cells (p/layer-state lyr))
-            bd (hier/cell-excitation-breakdowns htm prev-htm :layer-a
+            wc (:winner-cells (cx/layer-state lyr))
+            bd (lyrt/cell-excitation-breakdowns htm prev-htm :layer-a
                                                 (conj wc [0 0]))]
         (is (every? (comp pos? :total) (map bd wc))
             "All total excitation in range.")

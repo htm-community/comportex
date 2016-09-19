@@ -1,7 +1,6 @@
 (ns org.nfrac.comportex.homeostasis
   "Homeostasis algorithms, including boosting."
-  (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.topography :as topo]
+  (:require [org.nfrac.comportex.topography :as topo]
             [org.nfrac.comportex.synapses :as syn]
             [org.nfrac.comportex.util :as util]
             [clojure.test.check.random :as random]))
@@ -79,7 +78,7 @@
                        (syn/seg-update [col 0 0] :reinforce nil nil)))
                    (map vector (range) ys))
         pcon (:perm-connected (:proximal params))]
-    (p/bulk-learn sg upds (constantly true) (* 0.1 pcon) 0.0 0.0)))
+    (syn/bulk-learn sg upds (constantly true) (* 0.1 pcon) 0.0 0.0)))
 
 (defn adjust-overlap-local
   [sg ys topo inh-radius params]
@@ -123,8 +122,8 @@
                             (syn/seg-update [col 0 0] :punish nil nil))))
                       (map vector (range) ys))
         pcon (:perm-connected (:proximal params))]
-    (p/bulk-learn sg (concat weaks strongs)
-                  (constantly true) (* 0.1 pcon) (* 0.1 pcon) 0.0)))
+    (syn/bulk-learn sg (concat weaks strongs)
+                    (constantly true) (* 0.1 pcon) (* 0.1 pcon) 0.0)))
 
 
 

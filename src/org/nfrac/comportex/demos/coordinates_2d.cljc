@@ -1,6 +1,5 @@
 (ns org.nfrac.comportex.demos.coordinates-2d
-  (:require [org.nfrac.comportex.hierarchy :as hier]
-            [org.nfrac.comportex.protocols :as p]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util :refer [abs round]]))
@@ -68,5 +67,5 @@
   ([]
    (build params))
   ([params]
-   (hier/network {:layer-a (layer/layer-of-cells params)}
-                 {:input sensor})))
+   (cx/network {:layer-a (layer/layer-of-cells params)}
+               {:input sensor})))

@@ -42,15 +42,18 @@
   ([topo coord outer-r inner-r]
    (neighbours* topo coord outer-r inner-r)))
 
+(defn- cvec [[k v]] (case k :int [v] :vec v))
+
 (s/fdef neighbours
         :args (s/and
                (s/cat :topo ::topography
-                      :coord ::dimensions
+                      :coord (s/or :vec ::dimensions
+                                   :int nat-int?)
                       :outer-r (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 9))))
                       :inner-r (s/? (-> (s/int-in -1 1e9)
                                         (s/with-gen #(s/gen (s/int-in -1 8))))))
-               #(= (count (:coord %)) (count (dimensions (:topo %))))
-               #(every? identity (map < (:coord %) (dimensions (:topo %))))
+               #(= (count (cvec (:coord %))) (count (dimensions (:topo %))))
+               #(every? identity (map < (cvec (:coord %)) (dimensions (:topo %))))
                #(< (:outer-r %) (* 3 (apply max (dimensions (:topo %))))))
         :ret (s/every ::dimensions))
 

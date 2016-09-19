@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.demos.isolated-1d
-  (:require [org.nfrac.comportex.hierarchy :as hier]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.util :as util]
@@ -97,5 +97,5 @@
   ([]
    (build params))
   ([params]
-   (hier/network {:layer-a (layer/layer-of-cells params)}
-                 {:input block-sensor})))
+   (cx/network {:layer-a (layer/layer-of-cells params)}
+               {:input block-sensor})))

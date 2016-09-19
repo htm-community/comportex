@@ -1,7 +1,6 @@
 (ns org.nfrac.comportex.demos.second-level-motor
-  (:require [org.nfrac.comportex.hierarchy :as hier]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.layer :as layer]
-            [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.string :as str]
@@ -103,16 +102,16 @@ the three little pigs.
   ([]
    (build params))
   ([params]
-   (hier/network {:layer-a (layer/layer-of-cells params)
+   (cx/network {:layer-a (layer/layer-of-cells params)
                   :layer-b (layer/layer-of-cells higher-level-params)}
-                 {:input letter-sensor
-                  :letter-motor letter-motor-sensor
-                  :word-motor word-motor-sensor}
-                 (hier/add-feedback-deps
-                  {:ff-deps {:layer-a [:input]
-                             :layer-b [:layer-a]}
-                   :lat-deps {:layer-a [:letter-motor]
-                              :layer-b [:word-motor]}}))))
+               {:input letter-sensor
+                :letter-motor letter-motor-sensor
+                :word-motor word-motor-sensor}
+               (cx/add-feedback-deps
+                {:ff-deps {:layer-a [:input]
+                           :layer-b [:layer-a]}
+                 :lat-deps {:layer-a [:letter-motor]
+                            :layer-b [:word-motor]}}))))
 
 (defn htm-step-with-action-selection
   [world-c control-c]
@@ -131,9 +130,9 @@ the three little pigs.
   (fn [htm inval]
     (let [;; do first part of step, but not depolarise yet (depends on action)
           htm-a (-> htm
-                    (p/htm-sense inval :ff)
-                    (p/htm-activate)
-                    (p/htm-learn))
+                    (cx/htm-sense inval :ff)
+                    (cx/htm-activate)
+                    (cx/htm-learn))
           [i j k] (:position inval)
           ;; work out what the next action (saccade) should be
           sentences (:sentences inval)
@@ -144,7 +143,7 @@ the three little pigs.
           end-of-passage? (= i (dec (count sentences)))
           lyr-a (get-in htm-a [:layers :layer-a])
           lyr-b (get-in htm-a [:layers :layer-b])
-          a-signal (p/signal lyr-a)
+          a-signal (cx/signal lyr-a)
           a-stability (/ (count (::stable-bits a-signal))
                          (count (:bits a-signal)))
           word-burst? (cond-> (:word-bursting? (:action inval))
@@ -211,17 +210,17 @@ the three little pigs.
       ;; depolarise (predict) based on action, and update :input-value
       (cond-> htm-a
         true
-        (p/htm-sense inval-with-action :lat)
+        (cx/htm-sense inval-with-action :lat)
         true
-        (p/htm-depolarise)
+        (cx/htm-depolarise)
         ;; break sequence when repeating word (but keep tp synapses)
         end-of-word?
-        (update-in [:layers :layer-a] p/break :tm)
+        (update-in [:layers :layer-a] cx/break :tm)
         ;; reset context when going on to new word
         (and end-of-word? (not word-burst?))
-        (update-in [:layers :layer-a] p/break :syns)
+        (update-in [:layers :layer-a] cx/break :syns)
         (and end-of-word? (not word-burst?))
-        (update-in [:layers :layer-b] p/break :winners)))))
+        (update-in [:layers :layer-b] cx/break :winners)))))
 
 
 (comment

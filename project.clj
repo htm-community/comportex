@@ -4,17 +4,17 @@
   :license {:name "GNU Affero General Public Licence"
             :url "http://www.gnu.org/licenses/agpl-3.0.en.html"}
   :dependencies [[org.clojure/clojure "1.9.0-alpha12"]
-                 [org.clojure/core.async "0.2.385"]
+                 [org.clojure/core.async "0.2.391"]
                  [org.clojure/data.int-map "0.2.3"]
                  [org.clojure/test.check "0.9.0"]
-                 [org.clojure/clojurescript "1.9.227"]
-                 [clj-http "3.1.0"]
+                 [org.clojure/clojurescript "1.9.229"]
+                 [clj-http "3.2.0"]
                  [cljs-http "0.1.41"]]
 
   :jvm-opts ^:replace ["-server" "-Xmx2500m"
                        "-Dclojure.spec.check-asserts=true"]
 
-  :plugins [[lein-cljsbuild "1.1.3"]]
+  :plugins [[lein-cljsbuild "1.1.4"]]
 
   :codox {:namespaces [#"comportex\.(?!demos)"]
           :ns-aliases {org.nfrac.comportex.protocols p

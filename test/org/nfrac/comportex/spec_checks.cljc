@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.spec-checks
-  (:require [org.nfrac.comportex.protocols :as p]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.fancy-generators :refer [fancy-gens]]
             [clojure.spec.test :as stest]
@@ -20,7 +20,7 @@
 (def instr-syms
   (concat
    (stest/enumerate-namespace 'org.nfrac.comportex.layer)
-   (stest/enumerate-namespace 'org.nfrac.comportex.protocols)
+   (stest/enumerate-namespace 'org.nfrac.comportex.core)
    (stest/enumerate-namespace 'org.nfrac.comportex.topography)))
 
 (deftest layer-fns-test
@@ -55,7 +55,7 @@
 (deftest layer-heavy-fns-test
   (stest/instrument instr-syms)
   (->
-   `[p/layer-activate]
+   `[cx/layer-activate]
      ;layer/spatial-pooling
      ;layer/temporal-pooling]
    (stest/check (assoc-in opts [::stc/opts :num-tests] 100))

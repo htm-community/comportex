@@ -42,6 +42,9 @@
   [xs]
   (/ (apply + xs) (double (count xs))))
 
+(s/def ::rng (-> #(satisfies? random/IRandom %)
+                 (s/with-gen #(gen/fmap random/make-random (gen/int)))))
+
 (defn rand
   [rng lower upper]
   {:pre [(<= lower upper)]}

@@ -1,7 +1,104 @@
 (ns org.nfrac.comportex.synapses
-  (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.util :as util :refer [getx]]
+  (:require [org.nfrac.comportex.util :as util :refer [getx spec-finite]]
             [clojure.spec :as s]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Synapse graphs - protocols
+
+;; copied from .core
+(s/def ::bit (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
+(s/def ::bits (s/every ::bit :distinct true))
+
+;; copied from .htm ... eventually this could use generic tuples as ids
+(s/def ::column-id (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
+(s/def ::cell-index (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 32)))))
+(s/def ::cell-id (s/tuple ::column-id ::cell-index))
+(s/def ::seg-path (s/tuple ::column-id ::cell-index ::cell-index))
+
+(s/def ::excitation-amt (-> (spec-finite :min 0 :max 1e12)
+                            (s/with-gen #(s/gen (s/int-in 0 500)))))
+
+(s/def ::permanence (spec-finite :min 0.0 :max 1.0))
+(s/def ::segment (s/every-kv ::bit ::permanence))
+
+(s/def ::operation #{:learn :punish :reinforce})
+(s/def ::grow-sources (s/nilable ::bits))
+(s/def ::die-sources (s/nilable ::bits))
+(s/def ::seg-update
+  (s/keys :req-un [::target-id
+                   ::operation]
+          :opt-un [::grow-sources
+                   ::die-sources]))
+
+(defprotocol PSynapseGraph
+  "The synaptic connections from a set of sources to a set of targets.
+   Synapses have an associated permanence value between 0 and 1; above
+   some permanence level they are defined to be connected."
+  (in-synapses [this target-id]
+    "All synapses to the target. A map from source ids to permanences.")
+  (sources-connected-to [this target-id]
+    "The collection of source ids actually connected to target id.")
+  (targets-connected-from [this source-id]
+    "The collection of target ids actually connected from source id.")
+  (excitations [this active-sources stimulus-threshold]
+    "Computes a map of target ids to their degree of excitation -- the
+    number of sources in `active-sources` they are connected to -- excluding
+    any below `stimulus-threshold`.")
+  (bulk-learn* [this seg-updates active-sources pinc pdec pinit]
+    "Applies learning updates to a batch of targets. `seg-updates` is
+    a sequence of SegUpdate records, one for each target dendrite
+    segment."))
+
+(s/def ::n-synapse-targets (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
+(s/def ::n-synapse-sources (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
+
+(defmulti synapse-graph-spec type)
+(s/def ::synapse-graph (s/and (s/multi-spec synapse-graph-spec :gen-type)
+                              #(satisfies? PSynapseGraph %)
+                              (s/keys :req [::n-synapse-sources
+                                            ::n-synapse-targets])))
+
+(defn bulk-learn
+  [this seg-updates active-sources pinc pdec pinit]
+  (bulk-learn* this seg-updates active-sources pinc pdec pinit))
+
+(defn validate-seg-update
+  [upd sg]
+  (let [n (::n-synapse-sources sg)
+        syns (in-synapses sg (:target-id upd))]
+    (s/assert map? syns)
+    (when (:grow-sources upd)
+      (s/assert (s/every #(< % n)) (:grow-sources upd)))
+    (when (:die-sources upd)
+      (s/assert (s/every #(< % n)) (:die-sources upd))
+      (s/assert (s/every #(contains? syns %)) (:die-sources upd)))
+    true))
+
+(s/def ::bulk-learn-args
+  #_"Args spec for bulk-learn, given an id here to allow generator override."
+  (s/and
+   (s/cat :sg ::synapse-graph
+          :seg-updates (s/and (s/every ::seg-update)
+                              #(->> (map :target-id %) (apply distinct? nil)))
+          :active-sources (s/or :set ::bits-set
+                                :fn (s/fspec :args (s/cat :bit ::bit)
+                                             :ret any?))
+          :pinc ::permanence
+          :pdec ::permanence
+          :pinit ::permanence)
+   (fn [v]
+     (every? #(validate-seg-update % (:sg v)) (:seg-updates v)))))
+
+(s/fdef bulk-learn
+        :args ::bulk-learn-args
+        :ret ::synapse-graph)
+
+(defprotocol PSegments
+  (cell-segments [this cell-id]
+    "A vector of segments on the cell, each being a synapse map."))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Synapse graphs - implementation
 
 (defrecord SegUpdate [target-id operation grow-sources die-sources])
 
@@ -67,7 +164,7 @@
 
 (defrecord SynapseGraph
     [syns-by-target targets-by-source pcon cull-zeros?]
-  p/PSynapseGraph
+  PSynapseGraph
   (in-synapses
     [this target-id]
     (get syns-by-target target-id))
@@ -85,7 +182,7 @@
                    (reduce (fn [m id]
                              (assoc! m id (inc (get m id 0))))
                            m
-                           (p/targets-connected-from this source-i)))
+                           (targets-connected-from this source-i)))
                  (transient {}))
          (persistent!)
          (reduce-kv (fn [m id exc]
@@ -137,8 +234,8 @@
 (defn empty-synapse-graph
   [n-targets n-sources pcon cull-zeros?]
   (map->SynapseGraph
-   {::p/n-synapse-targets n-targets
-    ::p/n-synapse-sources n-sources
+   {::n-synapse-targets n-targets
+    ::n-synapse-sources n-sources
     :syns-by-target (vec (repeat n-targets {}))
     :targets-by-source (vec (repeat n-sources #{}))
     :pcon pcon
@@ -155,16 +252,16 @@
                     (transient (vec (repeat n-sources #{})))
                     syns-by-target))]
     (map->SynapseGraph
-     {::p/n-synapse-targets (count syns-by-target)
-      ::p/n-synapse-sources n-sources
+     {::n-synapse-targets (count syns-by-target)
+      ::n-synapse-sources n-sources
       :syns-by-target syns-by-target
       :targets-by-source targets-by-source
       :pcon pcon
       :cull-zeros? cull-zeros?})))
 
-(defmethod p/synapse-graph-spec SynapseGraph [_]
-  (s/keys :req [::p/n-synapse-targets
-                ::p/n-synapse-sources]
+(defmethod synapse-graph-spec SynapseGraph [_]
+  (s/keys :req [::n-synapse-targets
+                ::n-synapse-sources]
           :req-un [])) ;; TODO
 
 ;;; ## Dendrite segments
@@ -185,37 +282,37 @@
 
 (defrecord CellSegmentsSynapseGraph
     [int-sg n-cols depth max-segs]
-  p/PSynapseGraph
+  PSynapseGraph
   (in-synapses
     [_ target-id]
-    (p/in-synapses int-sg (seg-uidx depth max-segs target-id)))
+    (in-synapses int-sg (seg-uidx depth max-segs target-id)))
   (sources-connected-to
     [_ target-id]
     (assert target-id)
-    (p/sources-connected-to int-sg (seg-uidx depth max-segs target-id)))
+    (sources-connected-to int-sg (seg-uidx depth max-segs target-id)))
   (targets-connected-from
     [_ source-id]
-    (->> (p/targets-connected-from int-sg source-id)
+    (->> (targets-connected-from int-sg source-id)
          (map (partial seg-path depth max-segs))))
   (excitations
     [_ active-sources stimulus-threshold]
-    (let [exc-m (p/excitations int-sg active-sources stimulus-threshold)]
+    (let [exc-m (excitations int-sg active-sources stimulus-threshold)]
       (zipmap (map (fn [i] (seg-path depth max-segs i))
                    (keys exc-m))
               (vals exc-m))))
   (bulk-learn*
     [this seg-updates active-sources pinc pdec pinit]
-    (update-in this [:int-sg] p/bulk-learn
+    (update-in this [:int-sg] bulk-learn
                (map (fn [seg-up]
                       (assoc seg-up :target-id
                              (seg-uidx depth max-segs (:target-id seg-up))))
                     seg-updates)
                active-sources pinc pdec pinit))
-  p/PSegments
+  PSegments
   (cell-segments
     [this cell-id]
     (let [cell-id (vec cell-id)]
-      (mapv #(p/in-synapses this (conj cell-id %))
+      (mapv #(in-synapses this (conj cell-id %))
             (range max-segs)))))
 
 (defn cell-segs-synapse-graph
@@ -230,8 +327,8 @@
   (let [n-targets (* n-cols depth max-segs)
         int-sg (empty-synapse-graph n-targets n-sources pcon cull-zeros?)]
     (map->CellSegmentsSynapseGraph
-     {::p/n-synapse-targets n-targets
-      ::p/n-synapse-sources n-sources
+     {::n-synapse-targets n-targets
+      ::n-synapse-sources n-sources
       :pcon pcon
       :int-sg int-sg
       :depth depth
@@ -255,14 +352,14 @@
                                     (map-indexed vector syns-by-col)))
         int-sg (synapse-graph int-syns-by-target n-sources pcon cull-zeros?)]
     (map->CellSegmentsSynapseGraph
-     {::p/n-synapse-targets n-targets
-      ::p/n-synapse-sources n-sources
+     {::n-synapse-targets n-targets
+      ::n-synapse-sources n-sources
       :pcon pcon
       :int-sg int-sg
       :depth 1
       :max-segs max-segs})))
 
-(defmethod p/synapse-graph-spec CellSegmentsSynapseGraph [_]
-  (s/keys :req [::p/n-synapse-targets
-                ::p/n-synapse-sources]
+(defmethod synapse-graph-spec CellSegmentsSynapseGraph [_]
+  (s/keys :req [::n-synapse-targets
+                ::n-synapse-sources]
           :req-un [])) ;; TODO

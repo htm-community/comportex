@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.demos.letters
-  (:require [org.nfrac.comportex.hierarchy :as hier]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.util :as util]
@@ -34,5 +34,5 @@
   ([]
    (build params))
   ([params]
-   (hier/network {:layer-a (layer/layer-of-cells params)}
-                 {:input random-sensor})))
+   (cx/network {:layer-a (layer/layer-of-cells params)}
+               {:input random-sensor})))

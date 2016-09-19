@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.demos.sensorimotor-1d
-  (:require [org.nfrac.comportex.hierarchy :as hier]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
@@ -87,10 +87,10 @@
   ([]
    (build params))
   ([params]
-   (hier/network {:layer-a (layer/layer-of-cells params)
+   (cx/network {:layer-a (layer/layer-of-cells params)
                   :layer-b (layer/layer-of-cells higher-level-params)}
-                 {:input block-sensor
-                  :motor block-motor-sensor}
-                 {:ff-deps {:layer-a [:input]
-                            :layer-b [:layer-a]}
-                  :lat-deps {:layer-a [:motor]}})))
+               {:input block-sensor
+                :motor block-motor-sensor}
+               {:ff-deps {:layer-a [:input]
+                          :layer-b [:layer-a]}
+                :lat-deps {:layer-a [:motor]}})))

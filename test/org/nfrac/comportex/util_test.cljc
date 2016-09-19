@@ -1,6 +1,5 @@
 (ns org.nfrac.comportex.util-test
-  (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.util :as util]
+  (:require [org.nfrac.comportex.util :as util]
             [clojure.test :as t
              :refer (is deftest testing run-tests)]))
 

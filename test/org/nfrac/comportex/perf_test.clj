@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.perf-test
-  (:require [org.nfrac.comportex.protocols :as p]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.inhibition :as inh]
             [org.nfrac.comportex.topography :as topo]
             [org.nfrac.comportex.util :as util]
@@ -30,9 +30,9 @@
 (defn perf-test-50*
   [htm inseq]
   (let [[warmups test-ins] (split-at 50 (take 100 inseq))
-        m1 (reduce p/htm-step htm warmups)]
+        m1 (reduce cx/htm-step htm warmups)]
     (crit/quick-bench
-     (reduce p/htm-step m1 test-ins))))
+     (reduce cx/htm-step m1 test-ins))))
 
 (deftest perf-global-test
   (let [info "[1000] global, 30% potential, 50 steps"]

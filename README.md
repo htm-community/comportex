@@ -29,13 +29,28 @@ For an applied exploration of HTM using Comportex, try the essay
 [Predicting power consumptions with HTM](http://mrcslws.com/gorilla/?path=hotgym.clj)
 by Marcus Lewis.
 
-The main API is in the namespaces `hierarchy`, `protocols` and `encoders`, while
-the algorithms are mainly in `layer`.
+The core API is in the namespace `core`, and it is typically used with the layer
+implementation in `layer` and the encoder implementations in `encoders`.
 
-Parameter descriptions can be found on [`org.nfrac.comportex.cells/parameter-defaults`](https://github.com/htm-community/comportex/blob/master/src/org/nfrac/comportex/cells.cljc#L31).
+Parameter descriptions can be found in [`org.nfrac.comportex.layer`](https://github.com/htm-community/comportex/blob/master/src/org/nfrac/comportex/layer.cljc).
 
-[This blog post](http://floybix.github.io/2014/11/05/htm-protocols)
-has some explanation of the protocols.
+
+## Minimum Viable Snippet
+
+```
+(require '[org.nfrac.comportex.core :as cx])
+(require '[org.nfrac.comportex.layer :as layer])
+(require '[org.nfrac.comportex.encoders :as enc])
+
+(def sensor [:val (enc/unique-encoder [127] 21)])
+(def params {})
+(def htm
+  (cx/network {:layer-a (layer/layer-of-cells params)}
+              {:input sensor}))
+(def htm2 (cx/htm-step htm {:val "hi"}))
+(-> htm2 :layers :layer-a (cx/layer-state) :active-columns)
+; #{186 641 898 830 490 805 776 819 758 627 630 485 515 618 872 143 220 392 133 38}
+```
 
 
 ## Usage

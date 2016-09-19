@@ -1,6 +1,5 @@
 (ns org.nfrac.comportex.demos.cortical-io-channel
-  (:require [org.nfrac.comportex.hierarchy :as hier]
-            [org.nfrac.comportex.protocols :as p]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.cortical-io :refer [cortical-io-encoder
                                                      cache-fingerprint!]]
@@ -32,8 +31,8 @@
 
 (defn build
   [api-key cache]
-  (hier/network {:layer-a (layer/layer-of-cells params)}
-                {:input [[] (cortical-io-encoder api-key cache)]}))
+  (cx/network {:layer-a (layer/layer-of-cells params)}
+              {:input [[] (cortical-io-encoder api-key cache)]}))
 
 (comment
 
@@ -78,7 +77,7 @@
 
   (defn predict
     [n]
-    (println (map :value (hier/predictions @current n))))
+    (println (map :value (cx/predictions @current n))))
 
   (submit "greetings earth, greetings earth, greetings earth, greetings earth")
   (submit "neural networks, neural networks, neural networks, neural networks")
@@ -88,7 +87,7 @@
     [n]
     (loop [i n]
       (when (pos? i)
-       (let [p-word (:value (first (hier/predictions @current 1)))]
+       (let [p-word (:value (first (cx/predictions @current 1)))]
          (when p-word
            (submit p-word)
            (Thread/sleep 1000)

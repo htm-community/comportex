@@ -1,7 +1,7 @@
 (ns org.nfrac.comportex.encoders
   "Methods of encoding data as distributed bit sets, for feeding as
   input to HTM layers."
-  (:require [org.nfrac.comportex.protocols :as p]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.topography :as topo]
             [org.nfrac.comportex.util :as util :refer [abs spec-finite]]
             [clojure.test.check.random :as random]
@@ -15,7 +15,7 @@
 ;;; Selectors
 ;;; Implemented as values not functions for serializability.
 
-(extend-protocol p/PSelector
+(extend-protocol cx/PSelector
   #?(:clj clojure.lang.Keyword
      :cljs cljs.core.Keyword)
   (extract [this state]
@@ -27,9 +27,9 @@
 
 (defrecord VecSelector
     [selectors]
-  p/PSelector
+  cx/PSelector
   (extract [_ state]
-    (mapv p/extract selectors (repeat state))))
+    (mapv cx/extract selectors (repeat state))))
 
 (defn vec-selector
   [& selectors]
@@ -59,7 +59,7 @@
     (when (pos? total-votes)
       (->> try-values
            (map (fn [x]
-                  (let [x-bits (p/encode e x)]
+                  (let [x-bits (cx/encode e x)]
                     (-> (prediction-stats x-bits bit-votes total-votes)
                         (assoc :value x)))))
            (filter (comp pos? :votes-frac))
@@ -80,36 +80,36 @@
 
 (defn concat-encode
   [xs encoders]
-  (let [bit-widths (map p/size-of encoders)]
+  (let [bit-widths (map cx/size-of encoders)]
     (->> xs
-         (map p/encode encoders)
+         (map cx/encode encoders)
          (util/align-indices bit-widths))))
 
 (s/fdef concat-encode
         :args (-> (s/cat :xs coll?
-                         :encoders (s/coll-of ::p/encoder))
+                         :encoders (s/coll-of ::cx/encoder))
                   (s/and #(= (count (:xs %)) (count (:encoders %)))))
-        :ret ::p/bits)
+        :ret ::cx/bits)
 
 (defrecord ConcatEncoder
     [encoders]
-  p/PTopographic
+  cx/PTopographic
   (topography [_]
-    (let [dim (->> (map p/dims-of encoders)
+    (let [dim (->> (map cx/dims-of encoders)
                    (apply topo/combined-dimensions))]
       (topo/make-topography dim)))
-  p/PEncoder
+  cx/PEncoder
   (encode* [_ xs]
    (concat-encode xs encoders))
   (decode*
     [_ bit-votes n-values]
-    (let [bit-widths (map p/size-of encoders)]
-      (map #(p/decode % %2 n-values)
+    (let [bit-widths (map cx/size-of encoders)]
+      (map #(cx/decode % %2 n-values)
            encoders
            (unaligned-bit-votes bit-widths bit-votes))))
   (input-generator
    [_]
-   (apply gen/tuple (map p/input-generator encoders))))
+   (apply gen/tuple (map cx/input-generator encoders))))
 
 (defn encat
   "Returns an encoder for a sequence of values, where each is encoded
@@ -120,10 +120,10 @@
   (->ConcatEncoder encoders))
 
 (s/fdef encat
-        :args (s/cat :encoders (s/coll-of ::p/encoder :min-count 1))
-        :ret ::p/encoder)
+        :args (s/cat :encoders (s/coll-of ::cx/encoder :min-count 1))
+        :ret ::cx/encoder)
 
-(defmethod p/encoder-spec ConcatEncoder [_]
+(defmethod cx/encoder-spec ConcatEncoder [_]
   (s/with-gen (s/keys) #(util/fn->generator (var encat))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -132,21 +132,21 @@
 (defn splat-encode
   [xs encoder]
   (->> xs
-       (mapcat (partial p/encode encoder))
+       (mapcat (partial cx/encode encoder))
        (distinct)))
 
 (defrecord SplatEncoder
     [encoder]
-  p/PTopographic
+  cx/PTopographic
   (topography [_]
-    (p/topography encoder))
-  p/PEncoder
+    (cx/topography encoder))
+  cx/PEncoder
   (encode* [_ xs]
     (splat-encode xs encoder))
   (decode* [_ bit-votes n-values]
-    (p/decode encoder bit-votes n-values))
+    (cx/decode encoder bit-votes n-values))
   (input-generator [_]
-    (p/input-generator encoder)))
+    (cx/input-generator encoder)))
 
 (defn ensplat
   "Returns an encoder for a sequence of values. The given encoder will
@@ -156,10 +156,10 @@
   (->SplatEncoder encoder))
 
 (s/fdef ensplat
-        :args (s/cat :encoder ::p/encoder)
-        :ret ::p/encoder)
+        :args (s/cat :encoder ::cx/encoder)
+        :ret ::cx/encoder)
 
-(defmethod p/encoder-spec ConcatEncoder [_]
+(defmethod cx/encoder-spec ConcatEncoder [_]
   (s/with-gen (s/keys) #(util/fn->generator (var ensplat))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -194,10 +194,10 @@
 
 (defrecord LinearEncoder
     [topo n-active lower upper periodic?]
-  p/PTopographic
+  cx/PTopographic
   (topography [_]
     topo)
-  p/PEncoder
+  cx/PEncoder
   (encode*
     [_ x]
     (if x
@@ -250,9 +250,9 @@
                                           (fn [[a b]] (< a b)))
                       :periodic? (s/? boolean?))
                #(< (:n-active %) (reduce * (:dimensions %))))
-        :ret ::p/encoder)
+        :ret ::cx/encoder)
 
-(defmethod p/encoder-spec LinearEncoder [_]
+(defmethod cx/encoder-spec LinearEncoder [_]
   (s/with-gen (s/keys) #(util/fn->generator (var linear-encoder))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -270,10 +270,10 @@
 
 (defrecord CategoryEncoder
     [topo value->index]
-  p/PTopographic
+  cx/PTopographic
   (topography [_]
     topo)
-  p/PEncoder
+  cx/PEncoder
   (encode*
     [_ x]
     (category-encode x value->index (topo/size topo)))
@@ -295,9 +295,9 @@
         :args (s/cat :dimensions ::topo/pos-dimensions
                      :values (s/coll-of (s/with-gen some? #(gen/simple-type-printable))
                                         :min-count 1 :distinct true))
-        :ret ::p/encoder)
+        :ret ::cx/encoder)
 
-(defmethod p/encoder-spec CategoryEncoder [_]
+(defmethod cx/encoder-spec CategoryEncoder [_]
   (s/with-gen (s/keys) #(util/fn->generator (var category-encoder))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -305,14 +305,14 @@
 
 (defrecord NoEncoder
     [topo]
-  p/PTopographic
+  cx/PTopographic
   (topography [_]
     topo)
-  p/PEncoder
+  cx/PEncoder
   (encode*
     [_ x]
     (s/assert (let [n (topo/size topo)]
-                (s/every (s/and ::p/bit #(< % n))))
+                (s/every (s/and ::cx/bit #(< % n))))
               x))
   (decode*
     [this bit-votes n]
@@ -330,9 +330,9 @@
 
 (s/fdef no-encoder
         :args (s/cat :dimensions ::topo/pos-dimensions)
-        :ret ::p/encoder)
+        :ret ::cx/encoder)
 
-(defmethod p/encoder-spec NoEncoder [_]
+(defmethod cx/encoder-spec NoEncoder [_]
   (s/with-gen (s/keys) #(util/fn->generator (var no-encoder))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -365,10 +365,10 @@
 
 (defrecord UniqueEncoder
     [topo n-active cache]
-  p/PTopographic
+  cx/PTopographic
   (topography [_]
     topo)
-  p/PEncoder
+  cx/PEncoder
   (encode*
     [_ x]
     (assert (not (NaN? x)))
@@ -397,9 +397,9 @@
                (s/cat :dimensions ::topo/pos-dimensions
                       :n-active ::n-active-bits)
                #(< (:n-active %) (reduce * (:dimensions %))))
-        :ret ::p/encoder)
+        :ret ::cx/encoder)
 
-(defmethod p/encoder-spec UniqueEncoder [_]
+(defmethod cx/encoder-spec UniqueEncoder [_]
   (s/with-gen (s/keys) #(util/fn->generator (var unique-encoder))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -425,10 +425,10 @@
 
 (defrecord Linear2DEncoder
     [topo n-active x-max y-max]
-  p/PTopographic
+  cx/PTopographic
   (topography [_]
     topo)
-  p/PEncoder
+  cx/PEncoder
   (encode*
     [_ [x y]]
     (linear-2d-encode [x y] topo n-active x-max y-max))
@@ -472,9 +472,9 @@
                       :xy-maxs (s/tuple (s/and (spec-finite :min 0) pos?)
                                         (s/and (spec-finite :min 0) pos?)))
                #(< (:n-active %) (reduce * (:dimensions %))))
-        :ret ::p/encoder)
+        :ret ::cx/encoder)
 
-(defmethod p/encoder-spec Linear2DEncoder [_]
+(defmethod cx/encoder-spec Linear2DEncoder [_]
   (s/with-gen (s/keys) #(util/fn->generator (var linear-2d-encoder))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -538,10 +538,10 @@
 
 (defrecord CoordinateEncoder
     [topo n-active scale-factors radii]
-  p/PTopographic
+  cx/PTopographic
   (topography [_]
     topo)
-  p/PEncoder
+  cx/PEncoder
   (encode*
     [_ coord]
     (coordinate-encode coord (topo/size topo) n-active scale-factors radii))
@@ -579,9 +579,9 @@
                #(< (:n-active %) (reduce * (:dimensions %)))
                #(= (count (:scale-factors %)) (count (:radii %))))
 
-        :ret ::p/encoder)
+        :ret ::cx/encoder)
 
-(defmethod p/encoder-spec CoordinateEncoder [_]
+(defmethod cx/encoder-spec CoordinateEncoder [_]
   (s/with-gen (s/keys) #(util/fn->generator (var coordinate-encoder))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -714,11 +714,11 @@
 
 (defrecord SamplingLinearEncoder
   [topo n-active lower upper radius periodic?]
-  p/PTopographic
+  cx/PTopographic
   (topography
     [_]
     topo)
-  p/PEncoder
+  cx/PEncoder
   (encode*
     [_ x]
     (sampling-linear-encode x (topo/size topo) n-active lower upper radius periodic?))
@@ -808,9 +808,9 @@
                      radius-gen (gen/double* {:min rmin :max rmax :NaN? false})]
                  (gen/fmap #(-> (take 3 args) (vec) (conj %) (conj periodic?))
                            radius-gen)))))))
- :ret ::p/encoder)
+ :ret ::cx/encoder)
 
-(defmethod p/encoder-spec SamplingLinearEncoder [_]
+(defmethod cx/encoder-spec SamplingLinearEncoder [_]
   (s/with-gen (s/keys) #(util/fn->generator (var sampling-linear-encoder))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -824,5 +824,5 @@
      (encat encoders)]))
 
 (s/fdef sensor-cat
-        :args (s/coll-of ::p/sensor :min-count 1)
-        :ret ::p/sensor)
+        :args (s/coll-of ::cx/sensor :min-count 1)
+        :ret ::cx/sensor)

@@ -1,5 +1,5 @@
 (ns org.nfrac.comportex.cortical-io
-  (:require [org.nfrac.comportex.protocols :as p]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.topography :as topo]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
@@ -124,10 +124,10 @@
   [api-key cache & {:keys [decode-locally? spatial-scramble?]}]
   (let [topo (topo/make-topography retina-dim)]
     (reify
-      p/PTopographic
+      cx/PTopographic
       (topography [_]
         topo)
-      p/PEncoder
+      cx/PEncoder
       (encode*
         [_ term]
         (if (seq term)

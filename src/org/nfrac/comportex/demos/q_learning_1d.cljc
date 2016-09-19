@@ -1,7 +1,6 @@
 (ns org.nfrac.comportex.demos.q-learning-1d
-  (:require [org.nfrac.comportex.hierarchy :as hier]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.layer :as layer]
-            [org.nfrac.comportex.protocols :as p]
             [org.nfrac.comportex.synapses :as syn]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util :refer [round abs]]
@@ -68,7 +67,7 @@
 (defn select-action
   [htm]
   (let [alyr (get-in htm [:layers :action])
-        acols (:active-columns (p/layer-state alyr))
+        acols (:active-columns (cx/layer-state alyr))
         signals (map column->signal acols)]
     (->> signals
          (reduce (fn [m [motion influence]]
@@ -98,13 +97,13 @@
   [sg target-id ff-bits]
   (filter (fn [[in-id p]]
             (ff-bits in-id))
-          (p/in-synapses sg target-id)))
+          (syn/in-synapses sg target-id)))
 
 (defn active-synapse-perms
   [sg target-id ff-bits]
   (keep (fn [[in-id p]]
           (when (ff-bits in-id) p))
-        (p/in-synapses sg target-id)))
+        (syn/in-synapses sg target-id)))
 
 (defn mean [xs] (/ (apply + xs) (count xs)))
 
@@ -113,7 +112,7 @@
   (update-in htm [:layers :action]
              (fn [lyr]
                (let [prev-lyr (get-in prev-htm [:layers :action])
-                     {:keys [ff-perm-init q-alpha q-discount]} (p/params lyr)
+                     {:keys [ff-perm-init q-alpha q-discount]} (cx/params lyr)
                      [p-ref _] ff-perm-init
                      ff-bits (or (-> lyr :active-state :in-ff-signal :bits) #{})
                      prev-ff-bits (or (-> prev-lyr :active-state :in-ff-signal :bits) #{})
@@ -135,10 +134,10 @@
                                         (syn/seg-update [col 0 0] op nil nil))
                                       prev-acols)]
                  (->
-                  (p/layer-learn lyr)
+                  (cx/layer-learn lyr)
                   (assoc :proximal-sg
-                         (p/bulk-learn psg seg-updates prev-ff-bits
-                                       (abs adjust) (abs adjust) 0.0))
+                         (syn/bulk-learn psg seg-updates prev-ff-bits
+                                         (abs adjust) (abs adjust) 0.0))
                   (assoc :Q-info {:Q-val Q-est
                                   :Q-old Q-old
                                   :reward reward
@@ -153,23 +152,23 @@
                                         [coord-radius])]
         msensor [[:action :dx]
                  (enc/linear-encoder [100] 30 [-1 1])]]
-    (hier/network {:layer-a (layer/layer-of-cells
+    (cx/network {:layer-a (layer/layer-of-cells
                              (assoc params :lateral-synapses? false))
                    :action (layer/layer-of-cells action-params)}
-                  {:input sensor
-                   :motor msensor}
-                  {:ff-deps {:layer-a [:input]
-                             :action [:layer-a]}
-                   :lat-deps {:layer-a [:motor]}})))
+                {:input sensor
+                 :motor msensor}
+                {:ff-deps {:layer-a [:input]
+                           :action [:layer-a]}
+                 :lat-deps {:layer-a [:motor]}})))
 
 (defn htm-step-with-action-selection
   [world-c]
   (fn [htm inval]
     (let [;; do first part of step, but not depolarise yet (depends on action)
           htm-a (-> htm
-                    (p/htm-sense inval :ff)
-                    (p/htm-activate)
-                    (p/htm-learn))
+                    (cx/htm-sense inval :ff)
+                    (cx/htm-activate)
+                    (cx/htm-learn))
           ;; scale reward to be comparable to [0-1] permanences
           reward (* 0.5 (:dy inval))
           ;; do the Q learning update on action layer
@@ -191,8 +190,8 @@
       (let [new-inval (apply-action inval-with-action)]
         (put! world-c new-inval))
       (-> upd-htm
-          (p/htm-sense inval-with-action :lat)
-          (p/htm-depolarise)))))
+          (cx/htm-sense inval-with-action :lat)
+          (cx/htm-depolarise)))))
 
 (comment
   (require '[clojure.core.async :as async :refer [>!! <!!]])

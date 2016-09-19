@@ -13,7 +13,7 @@
 
 (stest/instrument
  (concat
-  (stest/enumerate-namespace 'org.nfrac.comportex.protocols)
+  (stest/enumerate-namespace 'org.nfrac.comportex.core)
   (stest/enumerate-namespace 'org.nfrac.comportex.layer)
   (stest/enumerate-namespace 'org.nfrac.comportex.encoders)
   (stest/enumerate-namespace 'org.nfrac.comportex.topography)))
