@@ -4,7 +4,7 @@
 ### Changed - in summary
 - Removed regions completely. HTM networks now consist only of layers.
 - Layers are constructed in unembedded state, then embedded in a network.
-- Layers receive signals - bits and topography - from other layers/senses.
+- Layers receive signals - consisting of SDRs - from surrounding layers/senses.
 - core namespace now largely abstract and separate from layer implementation.
 
 ### Changed - in detail

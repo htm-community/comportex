@@ -1730,8 +1730,7 @@
 
   cx/PSignalSource
   (signal* [this]
-    {:topography (:topography this)
-     :bits (set/union (:out-immediate-ff-bits active-state)
+    {:bits (set/union (:out-immediate-ff-bits active-state)
                       (:out-stable-ff-bits tp-state))
      ::stable-bits (:out-stable-ff-bits tp-state)
      ::winner-bits (:out-wc-bits learn-state)})

@@ -14,16 +14,14 @@
     (gen'/for [bits (s/gen (s/every (s/int-in 0 n-in) :distinct true))
                sbits (gen'/subsequence bits)]
       {:bits bits
-       ::layer/stable-bits sbits
-       :topography src-topo})))
+       ::layer/stable-bits sbits})))
 
 (defn layer-of-cells-stepped-gen
   []
   (gen'/for [layer (s/gen ::layer/layer-of-cells)
              :let [embedding (:embedding (cx/params layer))]
              ff-sig (signal-generator (:ff-topo embedding))
-             :let [fb-sig {:bits ()
-                           :topography topo/empty-topography}]]
+             :let [fb-sig {:bits ()}]]
      (-> layer
          (cx/layer-activate ff-sig)
          (cx/layer-learn)

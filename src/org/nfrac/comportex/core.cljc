@@ -16,8 +16,8 @@
 (s/def ::bits (s/every ::bit :distinct true))
 (s/def ::bits-set (s/every ::bit :kind set?))
 
-(s/def ::signal (s/keys :req-un [::bits
-                                 ::topo/topography]))
+(s/def ::signal (s/and (s/map-of keyword? ::bits)
+                       #(contains? % :bits)))
 
 (s/def ::ff-topo (s/and ::topo/topography #(>= (topo/size %) 1)))
 (s/def ::fb-topo ::topo/topography)
@@ -303,17 +303,20 @@
     topography)
   PSignalSource
   (signal* [this]
-    this))
+    {:bits bits}))
 
 (defn composite-signal
-  [signals]
-  (let [topos (map :topography signals)
-        widths (map topo/size topos)]
-    {:bits (util/align-indices widths (map :bits signals))
-     :topography (topo/topo-union topos)}))
+  [ffs]
+  (let [signals (map signal ffs)
+        widths (map size-of ffs)
+        sigkeys (distinct (mapcat keys signals))]
+    (reduce (fn [m k]
+              (assoc m k (util/align-indices widths (map k signals))))
+            {:bits ()}
+            sigkeys)))
 
 (s/fdef composite-signal
-        :args (s/cat :signals (s/coll-of ::signal))
+        :args (s/cat :ffs (s/coll-of #(s/valid? ::signal (signal %))))
         :ret ::signal)
 
 (defn source-of-incoming-bit
@@ -376,9 +379,8 @@
                   (->> stratum
                        (pmap (fn [id]
                                (let [ffs (map m (ff-deps id))]
-                                 (layer-activate
-                                  (get layers id)
-                                  (composite-signal (map signal ffs))))))
+                                 (layer-activate (get layers id)
+                                                 (composite-signal ffs)))))
                        (zipmap stratum)
                        (into m)))
                 senses
@@ -404,10 +406,9 @@
                         (let [fbs (map layers (get fb-deps id))
                               lats (map #(or (senses %) (layers %))
                                         (get lat-deps id))]
-                          (layer-depolarise
-                           layer
-                           (composite-signal (map signal fbs))
-                           (composite-signal (map signal lats))))))
+                          (layer-depolarise layer
+                                            (composite-signal fbs)
+                                            (composite-signal lats)))))
                 (zipmap (keys layers)))]
     (assoc this :layers lm)))
 
