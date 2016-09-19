@@ -20,6 +20,7 @@
   - `.columns` renamed to `.homeostasis` and init fn moved into `.layer`.
   - `.protocols` absorbed into `.core`.
   - `.layer.tools` created and holds cell-excitation-breakdowns.
+  - `.layer.params` created for parameter defaults and specs - helps with docs.
   - `.synapses` hosts its own protocols.
   - `.topology` renamed to `.topography` and hosts its own protocols.
 - column-state-freqs moved into `.layer`.

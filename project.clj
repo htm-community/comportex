@@ -17,9 +17,13 @@
   :plugins [[lein-cljsbuild "1.1.4"]]
 
   :codox {:namespaces [#"comportex\.(?!demos)"]
-          :ns-aliases {org.nfrac.comportex.protocols p
+          :ns-aliases {org.nfrac.comportex.core cx
+                       org.nfrac.comportex.synapses syn
+                       org.nfrac.comportex.layer layer
+                       org.nfrac.comportex.layer.params params
+                       org.nfrac.comportex.topography topo
                        org.nfrac.comportex.encoders enc
-                       org.nfrac.comportex.cells cells}
+                       org.nfrac.comportex.util util}
           :source-uri "https://github.com/htm-community/comportex/blob/{version}/{filepath}#L{line}"}
 
   :clean-targets ["public/comportex.js" "public/out"]

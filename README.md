@@ -32,7 +32,7 @@ by Marcus Lewis.
 The core API is in the namespace `core`, and it is typically used with the layer
 implementation in `layer` and the encoder implementations in `encoders`.
 
-Parameter descriptions can be found in [`org.nfrac.comportex.layer`](https://github.com/htm-community/comportex/blob/master/src/org/nfrac/comportex/layer.cljc).
+Parameter descriptions can be found in [`org.nfrac.comportex.layer.params`](https://github.com/htm-community/comportex/blob/master/src/org/nfrac/comportex/layer/params.cljc).
 
 
 ## Minimum Viable Snippet
