@@ -1005,8 +1005,8 @@
                                         (:distal-vs-proximal-weight params)
                                         (:spontaneous-activation? params)
                                         (:depth params))
-        n-cols (reduce * (:column-dimensions params))
-        n-on (max 1 (round (* (:activation-level params) n-cols)))
+        n-on (max 1 (round (* (:activation-level params)
+                              (:n-columns layer))))
         a-cols (-> (best-by-column abs-cell-exc)
                    (inh/inhibit-globally n-on)
                    (set))]
@@ -1032,8 +1032,7 @@
                                         (:spontaneous-activation? params)
                                         (:depth params))
         col-dims (:column-dimensions params)
-        n-cols (reduce * col-dims)
-        n-on (max 1 (round (* (:activation-level params) n-cols)))
+        n-on (max 1 (round (* (:activation-level params) (:n-columns layer))))
         a-cols (-> (best-by-column abs-cell-exc)
                    (inh/inhibit-locally (topo/make-topography col-dims)
                                         (* (:inh-radius layer) (:inh-radius-scale params))
@@ -1320,7 +1319,7 @@
     (segs-proximal-bit-votes layer segs)))
 
 (defrecord LayerOfCells
-    [params rng topography
+    [params rng topography n-columns
      proximal-sg distal-sg apical-sg ilateral-sg active-state prior-active-state tp-state
      distal-state prior-distal-state apical-state prior-apical-state learn-state]
 
@@ -1479,7 +1478,7 @@
         col-dims (:column-dimensions params)
         n-cols (reduce * col-dims)
         depth (:depth params)
-        topo (topo/make-topography (conj (:column-dimensions params) depth))
+        topo (topo/make-topography (conj col-dims depth))
         active-state (assoc empty-active-state :timestep 0)
         learn-state (assoc empty-learn-state :timestep 0)
         distal-state (assoc empty-distal-state :timestep 0)]
@@ -1487,6 +1486,7 @@
     {:params params
      :rng (random/make-random (:random-seed params))
      :topography topo
+     :n-columns n-cols
      :inh-radius 1
      :active-state active-state
      :prior-active-state active-state
@@ -1530,7 +1530,7 @@
     (-> {:active 0, :predicted 0, :active-predicted 0}
         (merge (frequencies (vals col-states)))
         (assoc :timestep (cx/timestep lyr)
-               :size (reduce * (:column-dimensions (:params lyr)))))))
+               :n-columns (:n-columns lyr)))))
 
 (s/fdef column-state-freqs
         :args (s/cat :lyr ::layer-of-cells)

@@ -52,8 +52,8 @@
         distal-state (:distal-state prior-lyr)
         apical-state (:apical-state prior-lyr)
         ;; inputs to layer
-        ff-bits (:in-ff-bits active-state)
-        ff-s-bits (:in-stable-ff-bits active-state)
+        ff-bits (-> active-state :in-ff-signal :bits set)
+        ff-s-bits (-> active-state :in-ff-signal ::layer/stable-bits set)
         ff-b-bits (set/difference ff-bits ff-s-bits)
         distal-bits (:active-bits distal-state)
         apical-bits (:active-bits apical-state)

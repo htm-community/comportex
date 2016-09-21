@@ -55,7 +55,7 @@
                                         :active-columns))))
         htm1 (reduce htm-step+cols (build) (take 500 (input-seq)))
         lyr (first (cx/layer-seq htm1))
-        n-cols (cx/size-of lyr)]
+        n-cols (:n-columns lyr)]
     (testing "Column activation is distributed and moderated."
       (is (pos? (count (:active-columns (cx/layer-state lyr))))
           "Some columns are active.")

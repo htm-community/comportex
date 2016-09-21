@@ -1,7 +1,7 @@
 (ns org.nfrac.comportex.excitation-breakdowns-test
   (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.layer :as layer]
-            [org.nfrac.comportex.layer.tools :as lyrt]
+            [org.nfrac.comportex.layer.tools :as layertools]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.test :as t
@@ -48,8 +48,8 @@
     (testing "Cell excitation breakdowns"
       (let [lyr (get-in htm [:layers :layer-a])
             wc (:winner-cells (cx/layer-state lyr))
-            bd (lyrt/cell-excitation-breakdowns htm prev-htm :layer-a
-                                                (conj wc [0 0]))]
+            bd (layertools/cell-excitation-breakdowns htm prev-htm :layer-a
+                                                      (conj wc [0 0]))]
         (is (every? (comp pos? :total) (map bd wc))
             "All total excitation in range.")
         (is (every? (comp pos? first vals :proximal-unstable) (map bd wc))

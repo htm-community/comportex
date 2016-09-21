@@ -43,7 +43,7 @@
         m1 (reduce cx/htm-step (build) warmups)
         lyr (first (cx/layer-seq m1))]
     (testing "Numbers of lateral dendrite segments"
-      (let [n-cols (reduce * (:column-dimensions (:params lyr)))
+      (let [n-cols (:n-columns lyr)
             depth (:depth (:params lyr))
             distal-sg (:distal-sg lyr)
             cells-with-segs (for [col (range n-cols)
