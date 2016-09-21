@@ -38,9 +38,11 @@
 (def params
   {:column-dimensions [30 30]
    :depth 4
-   :distal-punish? true
+   :boost-active-every 100
    :duty-cycle-period 300
-   :boost-active-duty-ratio 0.01
+   :boost-active-duty-ratio 0.02
+   :adjust-overlap-duty-ratio 0
+   :float-overlap-duty-ratio 0
    :ff-potential-radius 0.15
    :ff-init-frac 0.5})
 
@@ -51,20 +53,22 @@
    :ff-init-frac 0.5
    :proximal {:perm-inc 0.05
               :perm-dec 0.05
-              :perm-connected 0.10}
+              :perm-connected 0.10
+              :stimulus-threshold 1
+              :learn? false} ;; using Q learning instead
    :ff-perm-init [0.35 0.45]
    ;; chosen for exploration - fresh connections fully boosted > 1.0:
    :max-boost 3.0
    :boost-active-every 1
    :duty-cycle-period 250
    :boost-active-duty-ratio 0.05
+   :adjust-overlap-duty-ratio 0
+   :float-overlap-duty-ratio 0
    :depth 1
    :q-alpha 0.75
    :q-discount 0.9
    ;; do not want temporal pooling here - actions are not static
-   :stable-activation-steps 1
-   ;; disable learning
-   :freeze? true})
+   :stable-activation-steps 1})
 
 (def direction->action
   {:up {:dx 0 :dy -1}
@@ -96,7 +100,7 @@
     (->> signals
          (reduce (fn [m [motion influence]]
                    (assoc! m motion (+ (get m motion 0) influence)))
-                 (transient {}))
+                 (transient (zipmap [:up :down :left :right] (repeat 0))))
          (persistent!)
          (filter (comp poss key))
          (apply max-key val)
@@ -131,8 +135,8 @@
         dy-sensor [[:action :dy] (enc/linear-encoder [100] 30 [-1 1])]
         msensor (enc/sensor-cat dx-sensor dy-sensor)]
     (cx/network {:layer-a (layer/layer-of-cells
-                             (assoc params :lateral-synapses? false))
-                   :action (layer/layer-of-cells action-params)}
+                            (assoc params :lateral-synapses? false))
+                 :action (layer/layer-of-cells action-params)}
                 {:input sensor
                  :motor msensor}
                 {:ff-deps {:layer-a [:input]
@@ -146,13 +150,14 @@
           htm-a (-> htm
                     (cx/htm-sense inval :ff)
                     (cx/htm-activate)
-                    (cx/htm-learn))
+                    ;(cx/htm-learn) do not do normal learning in action layer:
+                    (update-in [:layers :layer-a] cx/layer-learn))
           ;; scale reward to be comparable to [0-1] permanences
           reward (* 0.01 (:z inval))
           terminal-state? (>= (abs (:z inval)) 100)
           ;; do the Q learning update on action layer (except initially)
           upd-htm (if (:prev-action inval)
-                    (q-learn htm-a htm reward)
+                    (update-in htm-a [:layers :action] q-learn reward)
                     (assoc-in htm-a [:layers :action :Q-info] {}))
           ;; maintain map of state+action -> approx Q values, for diagnostics
           info (get-in upd-htm [:layers :action :Q-info])
