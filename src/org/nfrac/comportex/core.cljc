@@ -110,7 +110,8 @@
 
 (defmulti layer-spec type)
 (s/def ::layer (s/and (s/multi-spec layer-spec :gen-type)
-                      #(satisfies? PLayer %)))
+                      #(satisfies? PLayer %)
+                      #(contains? % :embedding)))
 
 (defmulti layer-unembedded-spec type)
 (s/def ::layer-unembedded (s/multi-spec layer-unembedded-spec :gen-type))
@@ -136,8 +137,7 @@
    (s/cat :layer ::layer
           :ff-signal ::signal)
    (fn [v]
-     (let [par (params (:layer v))
-           n-in (topo/size (-> par :embedding :ff-topo))]
+     (let [n-in (-> v :layer :embedding :ff-topo topo/size)]
        (every? #(< % n-in) (:bits (:ff-signal v)))))))
 
 (s/fdef layer-activate

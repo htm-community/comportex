@@ -162,7 +162,8 @@
 (s/def ::layer-of-cells
   (->
    (s/merge ::layer-of-cells-unembedded
-            (s/keys :req-un [::proximal-sg
+            (s/keys :req-un [::cx/embedding
+                             ::proximal-sg
                              ::distal-sg
                              ::apical-sg
                              ::ilateral-sg]))
@@ -171,11 +172,11 @@
 ;;; ## Synapse tracing
 
 (defn distal-sources-widths
-  [params]
+  [params embedding]
   [(if (:lateral-synapses? params)
      (reduce * (:depth params) (:column-dimensions params))
      0)
-   (topo/size (-> params :embedding :lat-topo))])
+   (topo/size (-> embedding :lat-topo))])
 
 (defn cell->id
   "Converts a cell id to an output bit index.
@@ -206,14 +207,16 @@
   "Returns a vector [k v] where k is one of :this or :lat. In the
   case of :this, v is [col ci], otherwise v gives the index in the
   lateral input field."
-  [params id]
-  (let [[this-w lat-w] (distal-sources-widths params)]
+  [params embedding id]
+  (let [[this-w lat-w] (distal-sources-widths params embedding)]
     (cond
      (< id this-w) [:this (id->cell (:depth params) id)]
      (< id (+ this-w lat-w)) [:lat (- id this-w)])))
 
 (s/fdef id->source
-        :args (s/cat :params ::params/params, :id nat-int?)
+        :args (s/cat :params ::params/params
+                     :embedding ::cx/embedding
+                     :id nat-int?)
         :ret (s/or :this (s/tuple #{:this} ::cell-id)
                    :lat (s/tuple #{:lat} nat-int?)))
 
@@ -933,7 +936,7 @@
     (assoc layer :inh-radius
            (inh/inhibition-radius (:proximal-sg layer)
                                   (topo/make-topography (:column-dimensions params))
-                                  (-> params :embedding :ff-topo)))))
+                                  (-> layer :embedding :ff-topo)))))
 
 ;; these are records only so as to work with repl/truncate-large-data-structures
 (defrecord LayerActiveState [])
@@ -1157,7 +1160,7 @@
                                                  true)]
     (->
      (assoc layer
-       :params (assoc params :embedding embedding)
+       :embedding embedding
        :rng rng
        :proximal-sg proximal-sg
        :distal-sg distal-sg
@@ -1241,7 +1244,7 @@
   (let [{:keys [params prior-active-state learn-state distal-state apical-state
                 distal-sg apical-sg]} layer
         depth (:depth params)
-        widths (distal-sources-widths params)
+        widths (distal-sources-widths params (:embedding layer))
         distal-bits (util/align-indices widths
                                         [(if (:lateral-synapses? params)
                                            (:out-immediate-ff-bits prior-active-state)
@@ -1319,7 +1322,7 @@
     (segs-proximal-bit-votes layer segs)))
 
 (defrecord LayerOfCells
-    [params rng topography n-columns
+    [params rng topography embedding n-columns
      proximal-sg distal-sg apical-sg ilateral-sg active-state prior-active-state tp-state
      distal-state prior-distal-state apical-state prior-apical-state learn-state]
 
@@ -1469,8 +1472,7 @@
 (defn init-layer-state
   [params]
   (let [unk (set/difference (set (keys params))
-                            (set (keys params/parameter-defaults))
-                            #{:embedding})]
+                            (set (keys params/parameter-defaults)))]
     (when (seq unk)
       (println "Warning: unknown keys in params:" unk)))
   (let [params (->> (util/deep-merge params/parameter-defaults params)

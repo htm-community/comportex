@@ -19,7 +19,7 @@
 (defn layer-of-cells-stepped-gen
   []
   (gen'/for [layer (s/gen ::layer/layer-of-cells)
-             :let [embedding (:embedding (cx/params layer))]
+             :let [embedding (:embedding layer)]
              ff-sig (signal-generator (:ff-topo embedding))
              :let [fb-sig {:bits ()}]]
      (-> layer
@@ -30,8 +30,7 @@
 (defn layer-activate-args-gen
   []
   (gen'/for [layer (layer-of-cells-stepped-gen)
-             :let [embedding (:embedding (cx/params layer))]
-             ff-sig (signal-generator (:ff-topo embedding))]
+             ff-sig (signal-generator (:ff-topo (:embedding layer)))]
     [layer ff-sig]))
 
 (def fancy-gens

@@ -12,8 +12,9 @@
   "Returns [src-id j] where src-id may be a layer key or sense key, and j is
   the index into the output of the source."
   [htm lyr-id i]
-  (let [params (cx/params (get-in htm [:layers lyr-id]))
-        [src-type j] (layer/id->source params i)]
+  (let [lyr (get-in htm [:layers lyr-id])
+        params (cx/params lyr)
+        [src-type j] (layer/id->source params (:embedding lyr) i)]
     (case src-type
       :this [lyr-id i]
       :lat (cx/source-of-incoming-bit htm lyr-id j :lat-deps))))

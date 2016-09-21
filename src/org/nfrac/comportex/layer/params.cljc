@@ -1,7 +1,6 @@
 (ns org.nfrac.comportex.layer.params
   "Parameter definitions for a HTM-style layer."
   (:require [org.nfrac.comportex.synapses :as syn]
-            [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.util :as util :refer [spec-finite]]
             [clojure.spec :as s]
             [#?(:clj clojure.spec.gen :cljs clojure.spec.impl.gen) :as gen]))
@@ -295,8 +294,7 @@
                        ::transition-similarity
                        ::random-seed
                        ::spatial-pooling
-                       ::temporal-pooling]
-              :opt-un [::cx/embedding])
+                       ::temporal-pooling])
       (s/merge ::homeostasis-params)))
 
 (def parameter-defaults
