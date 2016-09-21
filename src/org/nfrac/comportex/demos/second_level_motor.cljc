@@ -46,7 +46,6 @@ the three little pigs.
   (util/deep-merge
    params
    {:column-dimensions [800]
-    :stable-inbit-frac-threshold 0.5
     :ff-init-frac 0.05
     :proximal {:max-segments 5
                :new-synapse-count 12
@@ -103,7 +102,7 @@ the three little pigs.
    (build params))
   ([params]
    (cx/network {:layer-a (layer/layer-of-cells params)
-                  :layer-b (layer/layer-of-cells higher-level-params)}
+                :layer-b (layer/layer-of-cells higher-level-params)}
                {:input letter-sensor
                 :letter-motor letter-motor-sensor
                 :word-motor word-motor-sensor}
@@ -144,7 +143,7 @@ the three little pigs.
           lyr-a (get-in htm-a [:layers :layer-a])
           lyr-b (get-in htm-a [:layers :layer-b])
           a-signal (cx/signal lyr-a)
-          a-stability (/ (count (::stable-bits a-signal))
+          a-stability (/ (count (::layer/stable-bits a-signal))
                          (count (:bits a-signal)))
           word-burst? (cond-> (:word-bursting? (:action inval))
                         ;; ignore burst on first letter of word
@@ -197,7 +196,7 @@ the three little pigs.
 
           ;; next-letter-saccade represents starting a word (-1) or continuing (1)
           ;; that is all that layer-a knows.
-          action (merge {:next-word-saccade 0
+          action (merge {:next-word-saccade nil
                          :next-sentence-saccade 0
                          :word-bursting? word-burst?
                          :sentence-bursting? sent-burst?}

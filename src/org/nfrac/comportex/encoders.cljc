@@ -276,7 +276,9 @@
   cx/PEncoder
   (encode*
     [_ x]
-    (category-encode x value->index (topo/size topo)))
+    (if (nil? x)
+      ()
+      (category-encode x value->index (topo/size topo))))
   (decode*
     [this bit-votes n]
     (->> (decode-by-brute-force this (keys value->index) bit-votes)
