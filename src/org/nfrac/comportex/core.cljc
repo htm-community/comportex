@@ -244,7 +244,7 @@
 
 (s/fdef decode
         :args (s/cat :encoder ::encoder
-                     :bit-votes (s/every-kv ::bit nat-int?)
+                     :bit-votes (s/every-kv ::bit (spec-finite :min 0))
                      :n (s/int-in 0 1000))
         :ret (s/coll-of (s/keys :req-un [::votes-frac
                                          ::bit-coverage])))
@@ -581,23 +581,25 @@
          (reduce + 0))))
 
 (defn predictions
-  [htm sense-id n-predictions opts]
-  (let [sense-width (size-of (get-in htm [:senses sense-id]))
-        {:keys [fb-deps]} (add-feedback-deps (select-keys htm [:ff-deps]))
-        pr-votes (->> (fb-deps sense-id)
-                      (mapcat (fn [lyr-id]
-                                (let [lyr (get-in htm [:layers lyr-id])
-                                      start (ff-base htm lyr-id sense-id)
-                                      end (+ start sense-width)]
-                                  (->> (layer-decode-to-ff-bits lyr opts)
-                                       (keep (fn [[id votes]]
-                                               (when (and (<= start id)
-                                                          (< id end))
-                                                 [(- id start) votes])))))))
-                      (reduce (fn [m [id votes]]
-                                (assoc m id
-                                       (+ (get m id 0)
-                                          votes)))
-                              {}))
-        [_ encoder] (get-in htm [:sensors sense-id])]
-    (decode encoder pr-votes n-predictions)))
+  ([htm sense-id n-predictions]
+   (predictions htm sense-id n-predictions {}))
+  ([htm sense-id n-predictions opts]
+   (let [sense-width (size-of (get-in htm [:senses sense-id]))
+         {:keys [fb-deps]} (add-feedback-deps htm)
+         pr-votes (->> (fb-deps sense-id)
+                       (mapcat (fn [lyr-id]
+                                 (let [lyr (get-in htm [:layers lyr-id])
+                                       start (ff-base htm lyr-id sense-id)
+                                       end (+ start sense-width)]
+                                   (->> (layer-decode-to-ff-bits lyr opts)
+                                        (keep (fn [[id votes]]
+                                                (when (and (<= start id)
+                                                           (< id end))
+                                                  [(- id start) votes])))))))
+                       (reduce (fn [m [id votes]]
+                                 (assoc m id
+                                        (+ (get m id 0)
+                                           votes)))
+                               {}))
+         [_ encoder] (get-in htm [:sensors sense-id])]
+     (decode encoder pr-votes n-predictions))))
