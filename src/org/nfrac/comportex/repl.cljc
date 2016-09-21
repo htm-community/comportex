@@ -29,18 +29,16 @@
                       :cljs []))
 
 (def should-truncate {LayerOfCells
-                      [:boosts :active-duty-cycles]
+                      [:boosts :active-duty-cycles :overlap-duty-cycles]
                       SynapseGraph
                       [:syns-by-target :targets-by-source]
                       LayerActiveState
-                      [:col-overlaps :matching-ff-seg-paths
-                       :in-ff-bits :in-stable-ff-bits
-                       :out-ff-bits :out-stable-ff-bits
-                       :active-cells :col-overlaps
-                       :temporal-pooling-exc]
+                      [:col-overlaps :fully-matching-ff-segs
+                       :out-immediate-ff-bits :out-stable-ff-bits
+                       :active-cells :col-active-cells]
                       LayerDistalState
                       [:active-bits :learnable-bits :cell-exc :pred-cells
-                       :matching-seg-paths]})
+                       :fully-matching-segs]})
 
 (defrecord TruncateOnPrint [v])
 
