@@ -216,10 +216,9 @@
            (take n))))
   (input-generator
    [_]
-   (let [span (- upper lower)]
-     (gen/double* {:min (- lower (/ span 2))
-                   :max (+ upper (/ span 2))
-                   :NaN? false}))))
+   (gen/double* {:min lower
+                 :max upper
+                 :NaN? false})))
 
 (defn linear-encoder
   "Returns a simple encoder for a single number. It encodes a number

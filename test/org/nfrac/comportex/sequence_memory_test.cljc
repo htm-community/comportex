@@ -76,5 +76,5 @@
         (is (< (+ (:active sums)
                   (:active-predicted sums)
                   (:predicted sums))
-               (* (:size sums) 0.25))
+               (* (:n-columns sums) 0.25))
             "Less than 25% of columns are active or predicted.")))))
