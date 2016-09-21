@@ -1,38 +1,43 @@
 (ns org.nfrac.comportex.fancy-generators
-  (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.cells :as cells]
+  (:require [org.nfrac.comportex.core :as cx]
+            [org.nfrac.comportex.layer :as layer]
+            [org.nfrac.comportex.topography :as topo]
             [clojure.spec :as s]
+            [#?(:clj clojure.spec.gen :cljs clojure.spec.impl.gen) :as gen]
             [clojure.spec.test :as stest]
             [com.gfredericks.test.chuck :as chuck]
             [com.gfredericks.test.chuck.generators :as gen']))
 
-(defn layer-of-cells-gen
+(defn signal-generator
+  [src-topo]
+  (let [n-in (topo/size src-topo)]
+    (gen'/for [bits (s/gen (s/every (s/int-in 0 n-in) :distinct true))
+               sbits (gen'/subsequence bits)]
+      {:bits bits
+       ::layer/stable-bits sbits})))
+
+(defn layer-of-cells-stepped-gen
   []
-  (gen'/for [params (s/gen ::cells/params)
-             :let [n-in (reduce * (:input-dimensions params))]
-             bits (s/gen (s/every (s/int-in 0 n-in) :distinct true))
-             sbits (gen'/subsequence bits)]
-     (-> (cells/layer-of-cells params)
-         (p/layer-activate bits sbits)
-         (p/layer-learn)
-         (p/layer-depolarise #{} #{} #{}))))
+  (gen'/for [layer (s/gen ::layer/layer-of-cells)
+             :let [embedding (:embedding layer)]
+             ff-sig (signal-generator (:ff-topo embedding))
+             :let [fb-sig {:bits ()}]]
+     (-> layer
+         (cx/layer-activate ff-sig)
+         (cx/layer-learn)
+         (cx/layer-depolarise fb-sig fb-sig))))
 
 (defn layer-activate-args-gen
   []
-  (gen'/for [layer (layer-of-cells-gen)
-             :let [params (p/params layer)
-                   n-in (reduce * (:input-dimensions params))]
-             bits (s/gen (s/every (s/int-in 0 n-in) :distinct true))
-             sbits (gen'/subsequence bits)]
-    [layer
-     bits
-     sbits]))
+  (gen'/for [layer (layer-of-cells-stepped-gen)
+             ff-sig (signal-generator (:ff-topo (:embedding layer)))]
+    [layer ff-sig]))
 
 (def fancy-gens
-  {::cells/layer-of-cells layer-of-cells-gen
-   ::p/layer-activate-args layer-activate-args-gen})
+  {::layer/layer-of-cells layer-of-cells-stepped-gen
+   ::cx/layer-activate-args layer-activate-args-gen})
 
 #_
-(doseq [[i args] (map-indexed vector (gen/sample ((-> fancy-gens ::p/layer-activate-args)) 200))]
-  (println i #_(p/params (first args)) (rest args))
-  (s/explain ::p/layer-activate-args args))
+(doseq [[i args] (map-indexed vector (gen/sample ((-> fancy-gens ::cx/layer-activate-args)) 200))]
+  (println i #_(cx/params (first args)) (rest args))
+  (s/explain ::cx/layer-activate-args args))

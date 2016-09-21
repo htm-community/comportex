@@ -1,7 +1,32 @@
 # Change Log
 
 ## [Unreleased]
-### Changed
+### Changed - in summary
+- Removed regions completely. HTM networks now consist only of layers.
+- Layers are constructed in unembedded state, then embedded in a network.
+- Layers receive signals - consisting of SDRs - from surrounding layers/senses.
+- core namespace now largely abstract and separate from layer implementation.
+
+### Changed - in detail
+- Layer topography value is that which is exposed as a signal - the cells.
+- PFeedForward, PFeedBack, PFeedForwardMotor replaced with PSignalSource.
+- region-network renamed to network and now has simpler args.
+- regions-in-series removed.
+- region-seq, region-keys => layer-seq, layer-keys.
+- corresponding argument changes to these and related functions.
+- in demos, n-region-model => build.
+- Namespace changes:
+  - `.cells` renamed to `.layer`.
+  - `.columns` renamed to `.homeostasis` and init fn moved into `.layer`.
+  - `.protocols` absorbed into `.core`.
+  - `.layer.tools` created and holds cell-excitation-breakdowns.
+  - `.layer.params` created for parameter defaults and specs - helps with docs.
+  - `.synapses` hosts its own protocols.
+  - `.topology` renamed to `.topography` and hosts its own protocols.
+- column-state-freqs moved into `.layer`.
+- PLayer gains a layer-decode-to-ff-bits* so that `predict` can be generic.
+- Renames: p/topology, p/PTopology, p/PTopological (to p/PTopographic).
+- Rename in LayerOfCells :state to :active-state, also :prior-active-state.
 
 ## [0.0.15] - 2016-09-05
 ### Changed

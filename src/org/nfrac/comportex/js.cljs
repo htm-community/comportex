@@ -1,16 +1,18 @@
 (ns org.nfrac.comportex.js
+  "Minimal public javascript API.
+
+  Complex clojurescript objects such as encoders and HTM networks and their
+  constituent layers are not converted to native javascript types.
+  They are left as black box values intended to be used with other API fns."
   (:require
-    [org.nfrac.comportex.core :as core]
+    [org.nfrac.comportex.core :as cx]
     [org.nfrac.comportex.encoders :as encoders]
-    [org.nfrac.comportex.protocols :as p]))
+    [org.nfrac.comportex.layer :as layer]
+    [org.nfrac.comportex.util :as util]
+    [clojure.spec :as s]))
 
-;; Minimal public API
-
-;; Complex clojurescript objects such as encoders and HTM models and their
-;; constituent regions and layers are not converted to native javascript types.
-;; They are left as black box values intended to be used with other API fns.
-
-;;  `params` is the parameter specification map.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Helpers
 
 (defn js->params
   [params]
@@ -24,7 +26,7 @@
 (defn js->selector
   [selector]
   (cond
-   (satisfies? p/PSelector selector) selector
+   (satisfies? cx/PSelector selector) selector
    (string? selector) (keyword selector)
    (array? selector) (mapv js->selector selector)
    :else (throw (js/Error. (str "unknown selector " selector)))))
@@ -36,9 +38,12 @@
       (.push arr x))
     arr))
 
-;; .core
-
-;; ===================================================================
+(defn js->kw-keys
+  [js-map]
+  (reduce (fn [m k]
+            (assoc m (keyword k) (aget js-map k)))
+          {}
+          (js-keys js-map)))
 
 (defn js->sensors
   [sensors]
@@ -49,104 +54,105 @@
                     ;; do not convert encoders
                    encoder]]))))
 
-(defn ^:export regions-in-series
-  "Constructs an HTM network consisting of n regions in a linear
-  series. The regions are given keys :rgn-0, :rgn-1, etc. Senses feed
-  only to the first region. Their sensors are given in a map with
-  keyword keys. Sensors are defined to be the form `[selector encoder]`.
-  Encoders should be passed as clojure objects (as from encoder fns).
-  Selectors should be passed as strings or arrays of strings, which
-  select the value at that key or nested path of keys in an input value."
-  ([n paramseq sensors]
-   (regions-in-series n paramseq sensors nil))
-  ([n paramseq main-sensors motor-sensors]
-   (let [build-region core/sensory-region
-         paramseq (map js->params paramseq)
-         main-sensors (js->sensors main-sensors)
-         motor-sensors (js->sensors motor-sensors)]
-     (core/regions-in-series n build-region paramseq main-sensors motor-sensors))))
+(defn js->linkages
+  [linkages]
+  (->> (js->clj linkages :keywordize-keys true)
+       (util/remap (fn [deps]
+                     (util/remap #(mapv keyword %) deps)))))
 
-;; ===================================================================
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; HTM layer
 
-(defn ^:export region-seq
-  "Returns a js array of regions, each a clojure object."
-  [htm]
-  (->array (core/region-seq htm)))
-
-(defn ^:export layer-seq
-  "Returns a js array of layers in a region, each a clojure object.
-   If an HTM model is passed instead, returns layers from all regions flattened
-   into a single array."
-  [rgn-or-htm]
-  (if (:regions rgn-or-htm)
-    (->array (mapcat layer-seq (core/region-seq rgn-or-htm)))
-    (->array (map #(get rgn-or-htm %) (core/layers rgn-or-htm)))))
-
-(defn ^:export bursting-columns
-  "The set of bursting column ids."
-  [lyr]
-  (clj->js (:bursting-columns (p/layer-state lyr))))
-
-(defn ^:export active-columns
-  "The set of active column ids."
-  [lyr]
-  (clj->js (:active-columns (p/layer-state lyr))))
-
-(defn ^:export active-cells
-  "The set of active cell ids."
-  [lyr]
-  (clj->js (:active-cells (p/layer-state lyr))))
-
-(defn ^:export predictive-cells
-  "The set of predictive cell ids derived from the current active
-  cells. If the depolarise phase has not been applied yet, returns
-  nil."
-  [lyr]
-  (clj->js (:predictive-cells (p/layer-state lyr))))
-
-(defn ^:export prior-predictive-cells
-  [lyr]
-  (clj->js (:prior-predictive-cells (p/layer-state lyr))))
-
-;; ===================================================================
+(defn ^:export htm-layer
+  [params]
+  (layer/layer-of-cells (js->params params)))
 
 (defn ^:export column-state-freqs
   "Returns a map with the frequencies of columns in states
   `active` (bursting), `predicted`, `active-predicted`. Note that
   these are distinct categories. The names are possibly misleading."
-  [rgn]
-  (clj->js (core/column-state-freqs rgn)))
+  [lyr]
+  (clj->js (layer/column-state-freqs lyr)))
 
-;; ===================================================================
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Core
+
+(defn ^:export network
+  "Builds a network of layers and senses with the given linkages.
+  Linkages between these nodes are given as direct dependencies:
+  :ff-deps maps each layer to a list of nodes it takes feed-forward
+  input from. Optionally, :fb-deps maps layers to lists of nodes to
+  take feed-back input from. And :lat-deps lateral sources, which
+  may also be senses (like motor senses).
+
+  Sensors are defined to be the form `[selector encoder]`, satisfying
+  protocols PSelector and PEncoder respectively.
+
+  js: Encoders should be passed as clojure objects (as from encoder fns).
+  Selectors should be passed as strings or arrays of strings, which
+  select the value at that key or nested path of keys in an input value.
+
+  For each layer, the combined dimensions of each of its feed-forward
+  sources, feed-back sources, and lateral sources are calculated and
+  passed on to layer-embed to allow the layer to configure itself.
+
+  For example a feed-forward network `inp -> v1 -> v2`:
+
+  network({v1: v1Layer,
+           v2: v2Layer},
+          {inp: [sel, enc]},
+          {ff-deps: {v1: ['inp'],
+                     v2: ['v1']}})"
+  ([layers sensors]
+   (cx/network (js->kw-keys layers)
+               (js->sensors sensors)))
+  ([layers sensors linkages]
+   (cx/network (js->kw-keys layers)
+               (js->sensors sensors)
+               (js->linkages linkages))))
+
+(defn ^:export layer-seq
+  "Returns a js array of layers, each a clojure object."
+  [htm]
+  (->array (cx/layer-seq htm)))
 
 (defn ^:export predictions
-  [htm sense-id n-predictions]
-  (clj->js (core/predictions htm (keyword sense-id) n-predictions)))
+  [htm sense-id n-predictions opts]
+  (clj->js (cx/predictions htm (keyword sense-id) n-predictions
+                           (js->clj opts :keywordize-keys true))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Protocols fns
 
 (defn ^:export htm-step
   "Compute the next time step. Pass `htm` as a clojure object, but `inval` as
   a js value which will be converted to a clojurescript value, including
   keywordizing keys."
   [htm inval]
-  (p/htm-step htm (js->clj inval :keywordize-keys true)))
+  (cx/htm-step htm (js->clj inval :keywordize-keys true)))
 
 (defn ^:export params
-  [rgn-or-lyr]
-  (params->js (p/params rgn-or-lyr)))
+  [lyr]
+  (params->js (cx/params lyr)))
 
 (defn ^:export encode
   [encoder x]
-  (clj->js (p/encode encoder (js->clj x))))
+  (clj->js (cx/encode encoder (js->clj x))))
 
 (defn ^:export decode
   [encoder bit-votes n]
-  (clj->js (p/decode encoder (js->clj bit-votes) n)))
+  (clj->js (cx/decode encoder (js->clj bit-votes) n)))
 
 (defn ^:export timestep
   [htm]
-  (p/timestep htm))
+  (cx/timestep htm))
 
-;; encoders
+(defn ^:export layer-state
+  [lyr]
+  (clj->js (cx/layer-state lyr)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Encoders
 
 (defn ^:export encat
   "Returns an encoder for a sequence of values, where each is encoded

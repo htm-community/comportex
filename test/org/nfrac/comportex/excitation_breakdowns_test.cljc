@@ -1,6 +1,7 @@
 (ns org.nfrac.comportex.excitation-breakdowns-test
-  (:require [org.nfrac.comportex.core :as core]
-            [org.nfrac.comportex.protocols :as p]
+  (:require [org.nfrac.comportex.core :as cx]
+            [org.nfrac.comportex.layer :as layer]
+            [org.nfrac.comportex.layer.tools :as layertools]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.test :as t
@@ -35,20 +36,20 @@
 (def params
   {})
 
-(defn model
+(defn build
   []
-  (core/regions-in-series 2 core/sensory-region (repeat params)
-                          {:input sensor}))
+  (cx/network {:layer-a (layer/layer-of-cells params)}
+              {:input sensor}))
 
 (deftest exc-bd-test
   (let [[warmups continued] (split-at 50 (world-seq))
-        prev-htm (reduce p/htm-step (model) warmups)
-        htm (p/htm-step prev-htm (first continued))]
+        prev-htm (reduce cx/htm-step (build) warmups)
+        htm (cx/htm-step prev-htm (first continued))]
     (testing "Cell excitation breakdowns"
-      (let [lyr (get-in htm [:regions :rgn-0 :layer-3])
-            wc (p/winner-cells lyr)
-            bd (core/cell-excitation-breakdowns htm prev-htm :rgn-0 :layer-3
-                                                (conj wc [0 0]))]
+      (let [lyr (get-in htm [:layers :layer-a])
+            wc (:winner-cells (cx/layer-state lyr))
+            bd (layertools/cell-excitation-breakdowns htm prev-htm :layer-a
+                                                      (conj wc [0 0]))]
         (is (every? (comp pos? :total) (map bd wc))
             "All total excitation in range.")
         (is (every? (comp pos? first vals :proximal-unstable) (map bd wc))

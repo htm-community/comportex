@@ -1,6 +1,7 @@
 (ns org.nfrac.comportex.sequence-memory-test
-  (:require [org.nfrac.comportex.core :as core]
-            [org.nfrac.comportex.protocols :as p]
+  (:require [org.nfrac.comportex.core :as cx]
+            [org.nfrac.comportex.layer :as layer]
+            [org.nfrac.comportex.synapses :as syn]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]
             [clojure.test :as t
@@ -32,22 +33,22 @@
 (def params
   {})
 
-(defn model
+(defn build
   []
-  (core/regions-in-series 1 core/sensory-region [params] {:input sensor}))
+  (cx/network {:layer-a (layer/layer-of-cells params)}
+              {:input sensor}))
 
 (deftest sm-test
   (let [[warmups continued] (split-at 500 (input-seq))
-        m1 (reduce p/htm-step (model) warmups)
-        rgn (first (core/region-seq m1))]
+        m1 (reduce cx/htm-step (build) warmups)
+        lyr (first (cx/layer-seq m1))]
     (testing "Numbers of lateral dendrite segments"
-      (let [n-cols (p/size (p/topology rgn))
-            lyr (:layer-3 rgn)
-            depth (p/layer-depth lyr)
+      (let [n-cols (:n-columns lyr)
+            depth (:depth (:params lyr))
             distal-sg (:distal-sg lyr)
             cells-with-segs (for [col (range n-cols)
                                   ci (range depth)
-                                  :when (->> (p/cell-segments distal-sg [col ci])
+                                  :when (->> (syn/cell-segments distal-sg [col ci])
                                              (filter seq)
                                              (seq))]
                               [col ci])]
@@ -60,9 +61,9 @@
             "Multiple cells in some columns have grown lateral dendrite segments.")))
     (testing "Column / cell activation"
       (let [sums (->> (take 100 continued)
-                      (reductions p/htm-step m1)
-                      (map (comp first core/region-seq))
-                      (map core/column-state-freqs)
+                      (reductions cx/htm-step m1)
+                      (map (comp first cx/layer-seq))
+                      (map layer/column-state-freqs)
                       (apply merge-with +))]
         (is (> (+ (:active sums) (:active-predicted sums)) 0)
             "Some columns were active.")
@@ -75,5 +76,5 @@
         (is (< (+ (:active sums)
                   (:active-predicted sums)
                   (:predicted sums))
-               (* (:size sums) 0.25))
+               (* (:n-columns sums) 0.25))
             "Less than 25% of columns are active or predicted.")))))

@@ -1,5 +1,6 @@
 (ns org.nfrac.comportex.demos.directional-steps-1d
-  (:require [org.nfrac.comportex.core :as core]
+  (:require [org.nfrac.comportex.core :as cx]
+            [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.encoders :as enc]
             [org.nfrac.comportex.util :as util]))
 
@@ -48,10 +49,9 @@
    [[0] (enc/category-encoder [cat-bit-width] [:down :up])]
    [[1] (enc/linear-encoder [numb-bit-width] n-on-bits numb-domain)]))
 
-(defn n-region-model
-  ([n]
-   (n-region-model n params))
-  ([n params]
-   (core/regions-in-series n core/sensory-region
-                           (list* params (repeat higher-level-params))
-                           {:input sensor})))
+(defn build
+  ([]
+   (build params))
+  ([params]
+   (cx/network {:layer-a (layer/layer-of-cells params)}
+               {:input sensor})))

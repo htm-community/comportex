@@ -1,9 +1,9 @@
-(ns org.nfrac.comportex.cells
-  "Cell activation and sequence memory.
+(ns org.nfrac.comportex.layer
+  "Implements a single HTM-style layer.
 
    **Argument name conventions:**
 
-   * `col` -- a column id, an integer index in the region.
+   * `col` -- a column id, an integer index in the layer.
    * `ci` -- a cell id, an integer index in the column.
    * `si` -- a segment id, an integer index in the cell.
    * `cell-id` -- a vector `[col ci]`.
@@ -20,11 +20,12 @@
    * `a-cols` -- the set of ids of active columns.
    * `seg` or `syns` -- incoming synapses as a map from source id to permanence.
 "
-  (:require [org.nfrac.comportex.protocols :as p]
-            [org.nfrac.comportex.columns :as columns]
+  (:require [org.nfrac.comportex.layer.params :as params]
             [org.nfrac.comportex.synapses :as syn]
+            [org.nfrac.comportex.homeostasis :as homeo]
             [org.nfrac.comportex.inhibition :as inh]
-            [org.nfrac.comportex.topology :as topology]
+            [org.nfrac.comportex.topography :as topo]
+            [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.util :as util
              :refer [count-filter remap round spec-finite]]
             [clojure.test.check.random :as random]
@@ -32,467 +33,89 @@
             [clojure.spec :as s]
             [#?(:clj clojure.spec.gen :cljs clojure.spec.impl.gen) :as gen]))
 
-(s/def ::max-segments
-  #_"maximum number of dendrites segments per cell (or column for proximal)."
-  (-> (s/int-in 1 1e6)
-      (s/with-gen #(s/gen (s/int-in 1 10)))))
-
-(s/def ::max-synapse-count
-  #_"maximum number of synapses per segment."
-  (s/int-in 1 1e6))
-
-(s/def ::new-synapse-count
-  #_"number of synapses created on a new dendrite segment."
-  (s/int-in 1 1e6))
-
-(s/def ::stimulus-threshold
-  #_"minimum number of active synapses on a segment for it to become active."
-  (-> (s/int-in 0 1000)
-      (s/with-gen #(s/gen (s/int-in 0 4)))))
-
-(s/def ::learn-threshold
-  #_"minimum number of active synapses on a segment for it to be reinforced and
-  extended if it is the best matching."
-  (-> (s/int-in 1 10000)
-      (s/with-gen #(s/gen (s/int-in 1 40)))))
-
-(s/def ::perm-inc
-  #_"amount by which to increase synapse permanence to active sources when
-  reinforcing a segment."
-  ::p/permanence)
-
-(s/def ::perm-dec
-  #_"amount by which to decrease synapse permanence to inactive sources when
-  reinforcing a segment."
-  ::p/permanence)
-
-(s/def ::perm-connected
-  #_"permanence value at which a synapse is functionally connected."
-  (s/and ::p/permanence pos?))
-
-(s/def ::perm-init
-  #_"initial permanence value for new synapses on segments."
-  ::p/permanence)
-
-(s/def ::perm-stable-inc
-  #_"amount by which to increase synapse permanence to stable (predicted)
-  sources when reinforcing a segment."
-  ::p/permanence)
-
-(s/def ::perm-punish
-  #_"amount by which to decrease synapse permanence when punishing segments in
-  case of failed prediction."
-  ::p/permanence)
-
-(s/def ::punish?
-  #_"whether to reduce synapse permanence on segments incorrectly predicting
-  their own activation."
-  boolean?)
-
-(s/def ::learn?
-  #_"whether to apply learning rules to synapses. If false, they are static."
-  boolean?)
-
-(s/def ::synapse-graph-params
-  #_"A parameter set for one synapse graph, that is typically the proximal
-  dendrites, distal dendrites, or apical dendrites in one layer."
-  (s/keys :req-un [::max-segments
-                   ::max-synapse-count
-                   ::new-synapse-count
-                   ::stimulus-threshold
-                   ::learn-threshold
-                   ::perm-inc
-                   ::perm-dec
-                   ::perm-punish
-                   ::perm-connected
-                   ::perm-init
-                   ::punish?
-                   ::learn?]))
-
-(def dendrite-parameter-defaults
-  "Default parameters for distal dendrite segments. The
-  same parameters are also used for proximal segments, but with
-  different default values."
-  {:max-segments 5
-   :max-synapse-count 22
-   :new-synapse-count 12
-   :stimulus-threshold 9
-   :learn-threshold 7
-   :perm-inc 0.05
-   :perm-dec 0.01
-   :perm-punish 0.002
-   :perm-connected 0.20
-   :perm-init 0.16
-   :perm-stable-inc 0.05
-   :punish? true
-   :learn? true})
-
-(s/def ::input-dimensions
-  #_"size of input bit grid as a vector, one dimensional `[size]`,
-  two dimensional `[width height]`, etc."
-  (s/coll-of (s/int-in 1 1e7) :kind vector? :min-count 1 :max-count 3
-             :gen (fn []
-                    (s/gen (s/and (s/coll-of (s/int-in 1 2048) :kind vector?
-                                             :min-count 1 :max-count 3)
-                                  #(<= (reduce * %) 2048))))))
-
-(s/def ::column-dimensions
-  #_"size of column field as a vector, one dimensional `[size]`,
-  or two dimensional `[width height]`"
-  (s/coll-of (s/int-in 1 1e7) :kind vector? :min-count 1 :max-count 2
-             :gen (fn []
-                    (s/gen (s/and (s/coll-of (s/int-in 1 2048) :kind vector?
-                                             :min-count 1 :max-count 2)
-                                  #(<= (reduce * %) 2048))))))
-
-(s/def ::depth
-  #_"number of cells per column. Value 1 gives first-order sequence memory."
-  (-> (s/int-in 1 1e5)
-      (s/with-gen #(s/gen (s/int-in 1 8)))))
-
-(s/def ::ff-potential-radius
-  #_"range of potential feed-forward synapse connections, as a fraction of the
-  longest single dimension in the input space."
-  (spec-finite :min (/ 1 10000) :max 1.0))
-
-(s/def ::ff-init-frac
-  #_"fraction of inputs within radius of a column that will be initialised with
-  proximal synapses."
-  (spec-finite :min 0.0 :max 1.0))
-
-(s/def ::ff-perm-init
-  #_"range of initial permanence values on proximal synapses."
-  (s/and (s/tuple ::p/permanence ::p/permanence)
-         (fn [[lo hi]] (<= lo hi))))
-
-(s/def ::grow?
-  #_"whether to grow new synapses on segments, like on the usual distal segments."
-  boolean?)
-
-(s/def ::proximal
-  #_"parameters for proximal dendrite segments."
-  (s/merge ::synapse-graph-params
-           (s/keys :req-un [::perm-stable-inc
-                            ::grow?])))
-
-(s/def ::distal
-  #_"parameters for distal dendrite segments."
-  ::synapse-graph-params)
-
-(s/def ::apical
-  #_"parameters for apical dendrite segments."
-  ::synapse-graph-params)
-
-;; homeostasis-params
-
-(s/def ::max-boost
-  #_"ceiling on the column boosting factor used to increase activation frequency."
-  (s/and ::p/excitation-amt #(>= % 1)))
-
-(s/def ::duty-cycle-period
-  #_"number of time steps to average over when updating duty cycles and (thereby)
-  column boosting measures."
-  (s/and number? #(>= % 1)))
-
-(s/def ::boost-active-duty-ratio
-  #_"when a column's activation frequency is below this proportion of the
-  highest of its neighbours, its boost factor is increased."
-  (spec-finite :min 0.0 :max 1.0))
-
-(s/def ::adjust-overlap-duty-ratio
-  #_"when a column's overlap frequency differs from any of its neighbours by at
-  least this fraction, its permanences are adjusted."
-  (spec-finite :min 0.0 :max 1.0))
-
-(s/def ::float-overlap-duty-ratio
-  #_""
-  (spec-finite :min 0.0 :max 1.0))
-
-(s/def ::float-overlap-duty-ratio-hi
-  (spec-finite :min 1.0 :max 1e6))
-
-(s/def ::boost-active-every
-  #_"number of time steps between recalculating column boosting factors."
-  pos-int?)
-
-(s/def ::adjust-overlap-every
-  #_"number of time steps between adjusting column permanences to stabilise
-  overlap frequencies."
-  pos-int?)
-
-(s/def ::float-overlap-every
-  #_"number of time steps between adjusting column permanences to stabilise
-  activation frequencies."
-  pos-int?)
-
-(s/def ::homeostasis-params
-  #_"The subset of parameters used in homeostasis algorithms."
-  (s/keys :req-un [::max-boost
-                   ::duty-cycle-period
-                   ::boost-active-duty-ratio
-                   ::adjust-overlap-duty-ratio
-                   ::float-overlap-duty-ratio
-                   ::float-overlap-duty-ratio-hi
-                   ::boost-active-every
-                   ::adjust-overlap-every
-                   ::float-overlap-every]))
-
-(s/def ::inh-radius-every
-  #_"number of time steps between recalculating the effective inhibition radius."
-  pos-int?)
-
-(s/def ::lateral-synapses?
-  #_"whether distal synapses can connect laterally to other cells in the layer."
-  boolean?)
-
-(s/def ::use-feedback?
-  #_"whether distal synapses can connect to top-down feedback cells."
-  boolean?)
-
-(s/def ::distal-motor-dimensions
-  #_"defines bit field available for feed-forward motor input to distal synapses."
-  (s/coll-of (s/int-in 0 1e7) :kind vector? :min-count 1 :max-count 2
-             :gen (fn []
-                    (s/gen (s/and (s/coll-of (s/int-in 1 512) :kind vector?
-                                   :min-count 1 :max-count 2))
-                           #(<= (reduce * %) 1024)))))
-
-(s/def ::distal-topdown-dimensions
-  #_"defines bit field available for top-down feedback to distal synapses."
-  ::distal-motor-dimensions)
-
-(s/def ::activation-level
-  #_"fraction of columns that can be active; inhibition kicks in to reduce it to
-  this level."
-  (spec-finite :min (/ 1 10000) :max 1.0))
-
-(s/def ::inhibition-base-distance
-  #_"the distance in columns within which a cell will always inhibit neighbouring
-  cells with lower excitation. Used by `:spatial-pooling :local-inhibition`."
-  (s/int-in 0 1e5))
-
-(s/def ::distal-vs-proximal-weight
-  #_"scaling to apply to the number of active distal synapses (on the winning
-  segment) before adding to the number of active proximal synapses, when
-  selecting active columns. Set to zero to disable ``prediction-assisted''
-  activation."
-  (spec-finite :min 0.0 :max 1e6))
-
-(s/def ::apical-bias-frac
-  #_"probability of choosing a winner cell according to apical excitation when
-  otherwise the choice would have been random. Generates similarity between
-  cases in similar contexts."
-  (spec-finite :min 0.0 :max 1.0))
-
-(s/def ::spontaneous-activation?
-  #_"if true, cells may become active with sufficient distal synapse excitation,
-  even in the absence of any proximal synapse excitation."
-  boolean?)
-
-(s/def ::dominance-margin
-  #_"an amount of excitation (generally measured in number of active synapses) by
-  which one cell must exceed all others in the column to be considered dominant.
-  And therefore to inhibit all other cells in the column."
-  ::p/excitation-amt)
-
-(s/def ::stable-activation-steps
-  #_"number of time steps that synapses remain active from cells whose activation
-  was predicted and thus generated minibursts to metabotropic receptors. They
-  might be curtailed earlier by a manual break."
-  (s/int-in 1 1e6))
-
-(s/def ::transition-similarity
-  #_"effective time steps are delayed until the similarity (normalised column
-  overlap) between successive states falls below this level. So 1.0 means every
-  time step is effective - the usual behaviour."
-  (spec-finite :min 0.0 :max 1.0))
-
-(s/def ::random-seed
-  #_"the random seed (for reproducible results)."
-  int?)
-
-(s/def ::spatial-pooling
-  #_"keyword to look up a spatial pooling implementation of the multimethod
-  `org.nfrac.comportex.cells/spatial-pooling`. An alternative is
-  `:local-inhibition`, implemented in this namespace."
-  (-> keyword?
-      (s/with-gen #(s/gen #{:standard :local-inhibition}))))
-
-(s/def ::temporal-pooling
-  #_"keyword to look up a temporal pooling implementation of the multimethod
-  #`org.nfrac.comportex.cells/temporal-pooling`."
-  (-> keyword?
-      (s/with-gen #(s/gen #{:standard}))))
-
-(s/def ::params
-  #_"A standard parameter set for a layer."
-  (-> (s/keys :req-un [::input-dimensions
-                       ::column-dimensions
-                       ::depth
-                       ::ff-potential-radius
-                       ::ff-init-frac
-                       ::ff-perm-init
-                       ::proximal
-                       ::distal
-                       ::apical
-                       ::inh-radius-every
-                       ::lateral-synapses?
-                       ::use-feedback?
-                       ::distal-motor-dimensions
-                       ::distal-topdown-dimensions
-                       ::activation-level
-                       ::inhibition-base-distance
-                       ::distal-vs-proximal-weight
-                       ::apical-bias-frac
-                       ::spontaneous-activation?
-                       ::dominance-margin
-                       ::stable-activation-steps
-                       ::transition-similarity
-                       ::random-seed
-                       ::spatial-pooling
-                       ::temporal-pooling])
-      (s/merge ::homeostasis-params)))
-
-(def parameter-defaults
-  "Default parameter set for a layer."
-  {:input-dimensions [1]
-   :column-dimensions [1000]
-   :depth 5
-   :ff-potential-radius 1.0
-   :ff-init-frac 0.25
-   :ff-perm-init [0.10 0.25]
-   :proximal {:max-segments 1
-              :max-synapse-count 300
-              :new-synapse-count 12
-              :stimulus-threshold 2
-              :learn-threshold 7
-              :perm-inc 0.04
-              :perm-stable-inc 0.15
-              :perm-dec 0.01
-              :perm-punish 0.002
-              :perm-connected 0.20
-              :perm-init 0.25
-              :learn? true
-              :punish? false
-              :grow? false}
-   :distal (assoc dendrite-parameter-defaults
-                  :learn? true)
-   :apical (assoc dendrite-parameter-defaults
-                  :learn? false)
-   :ilateral {:max-segments 1
-              :max-synapse-count 22
-              :new-synapse-count 12
-              :stimulus-threshold 1
-              :perm-connected 0.50
-              :perm-init 0.08
-              :perm-inc 0.08
-              :perm-dec 0.01
-              :learn? false}
-   :max-boost 1.5
-   :duty-cycle-period 1000
-   :boost-active-duty-ratio (/ 1.0 200)
-   :adjust-overlap-duty-ratio (/ 1.0 100)
-   :float-overlap-duty-ratio 0.1
-   :float-overlap-duty-ratio-hi 10.0
-   :boost-active-every 100
-   :adjust-overlap-every 300
-   :float-overlap-every 100
-   :inh-radius-every 1000
-   :inh-radius-scale 1.0
-   :lateral-synapses? true
-   :distal-motor-dimensions [0]
-   :distal-topdown-dimensions [0]
-   :use-feedback? false
-   :activation-level 0.02
-   :inhibition-base-distance 1
-   :distal-vs-proximal-weight 0.0
-   :apical-bias-frac 0.0
-   :spontaneous-activation? false
-   :dominance-margin 4
-   :stable-activation-steps 5
-   :transition-similarity 1.0
-   :random-seed 42
-   ;; algorithm implementations
-   :spatial-pooling :standard
-   :temporal-pooling :standard})
-
-
-;; TODO decide on defaults (reliability vs speed), provide alternatives?
-(def better-parameter-defaults
-  (assoc parameter-defaults
-         :column-dimensions [2048]
-         :depth 16
-         :distal (assoc dendrite-parameter-defaults
-                        :max-segments 8
-                        :max-synapse-count 32
-                        :new-synapse-count 20
-                        :stimulus-threshold 13
-                        :learn-threshold 10)))
-
 ;;; ## Specs
 
-(s/def ::rng (-> #(satisfies? random/IRandom %)
-                 (s/with-gen #(gen/fmap random/make-random (gen/int)))))
+(s/def ::column-id (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 2048)))))
+(s/def ::cell-index (-> nat-int? (s/with-gen #(s/gen (s/int-in 0 32)))))
+(s/def ::cell-id (s/tuple ::column-id ::cell-index))
+(s/def ::seg-path (s/tuple ::column-id ::cell-index ::cell-index))
 
-(s/def ::active-cols ::p/active-columns)
+(s/def ::seg-exc (s/every-kv ::seg-path ::syn/excitation-amt))
+
+(s/def ::active-columns (s/coll-of ::column-id :kind set?))
+(s/def ::bursting-columns ::active-columns)
+(s/def ::active-cells (s/coll-of ::cell-id :kind set?))
+(s/def ::winner-cells
+  #_"The set of winning cell ids, one in each active column. These are
+  only _learning_ cells when they turn on, but are always _learnable_."
+  ::active-cells)
+(s/def ::predictive-cells
+  #_"The set of predictive cell ids derived from the current active
+  cells. Can be nil if the depolarise phase has not been applied yet."
+  (s/nilable ::active-cells))
+(s/def ::prior-predictive-cells
+  #_"The set of predictive cell ids from the previous timestep,
+  i.e. their prediction can be compared to the current active cells."
+  ::active-cells)
+
+
+(s/def ::active-cols ::active-columns)
 (s/def ::burst-cols ::active-cols)
-(s/def ::best-seg (s/cat :seg ::p/seg-path, :exc ::p/excitation-amt))
+(s/def ::best-seg (s/cat :seg ::seg-path, :exc ::syn/excitation-amt))
 
-(s/def ::in-ff-bits ::p/bits-set)
-(s/def ::in-stable-ff-bits ::p/bits-set)
-(s/def ::stable-active-cells ::p/active-cells)
-(s/def ::col-active-cells (s/map-of ::p/column-id (s/coll-of ::p/cell-id)))
-(s/def ::fully-matching-ff-segs (s/every-kv ::p/cell-id ::best-seg))
-(s/def ::col-overlaps (s/every-kv (s/tuple ::p/column-id #{0}) ::p/excitation-amt))
+(s/def ::in-ff-signal ::cx/signal)
+(s/def ::stable-active-cells ::active-cells)
+(s/def ::col-active-cells (s/map-of ::column-id (s/coll-of ::cell-id)))
+(s/def ::fully-matching-ff-segs (s/every-kv ::cell-id ::best-seg))
+(s/def ::col-overlaps (s/every-kv (s/tuple ::column-id #{0}) ::syn/excitation-amt))
 
 (s/def ::active-state
   #_"Represents the activation of cells in a layer; that state which is volatile
   across time steps."
   (s/keys :req-un [::fully-matching-ff-segs
                    ::active-cols
-                   ::p/active-cells
-                   ::p/timestep]
-          :opt-un [::in-ff-bits
-                   ::in-stable-ff-bits
+                   ::active-cells
+                   ::cx/timestep]
+          :opt-un [::in-ff-signal
                    ::burst-cols
                    ::col-active-cells
                    ::stable-active-cells
                    ::col-overlaps]))
 
-(s/def ::out-stable-ff-bits ::p/bits)
+(s/def ::out-stable-ff-bits ::cx/bits)
 
 (s/def ::tp-state
   #_"Represents temporal pooling state; the information about activation of
   cells which persists across many time steps."
   (s/keys :opt-un [::out-stable-ff-bits]))
 
-(s/def ::col-winners (s/map-of ::p/column-id ::p/cell-id))
+(s/def ::col-winners (s/map-of ::column-id ::cell-id))
 (s/def ::winner-seg (s/map-of #{:distal :apical} ::matching-segs))
-(s/def ::learning-cells (s/nilable (s/coll-of ::p/cell-id)))
-(s/def ::learning-updates (s/map-of ::p/cell-id ::p/seg-update))
+(s/def ::learning-cells (s/nilable (s/every ::cell-id)))
+(s/def ::learning-updates (s/map-of ::cell-id ::syn/seg-update))
 (s/def ::learning (s/map-of #{:proximal :distal :apical :ilateral}
                             ::learning-updates))
 (s/def ::punishments (s/map-of #{:proximal :distal :apical :ilateral}
-                               (s/coll-of ::p/seg-update)))
-(s/def ::prior-active-cells ::p/active-cells)
+                               (s/coll-of ::syn/seg-update)))
+(s/def ::prior-active-cells ::active-cells)
 
 (s/def ::learn-state
   #_"Represents the changes due to learning in one time step, and information
   used in the learning process."
   (s/keys :req-un [::prior-active-cells
-                   ::p/timestep]
+                   ::cx/timestep]
           :opt-un [::col-winners
                    ::winner-seg
                    ::learning-cells
                    ::learning
                    ::punishments]))
 
-(s/def ::active-bits ::p/bits-set)
-(s/def ::learnable-bits ::p/bits-set)
-(s/def ::cell-exc (s/map-of ::p/cell-id ::p/excitation-amt))
-(s/def ::pred-cells (s/every ::p/cell-id :kind set?))
-(s/def ::fully-matching-segs (s/map-of ::p/cell-id ::best-seg))
-(s/def ::matching-segs (s/map-of ::p/cell-id (s/nilable ::best-seg)))
+(s/def ::active-bits ::cx/bits-set)
+(s/def ::learnable-bits ::cx/bits-set)
+(s/def ::cell-exc (s/map-of ::cell-id ::syn/excitation-amt))
+(s/def ::pred-cells (s/every ::cell-id :kind set?))
+(s/def ::fully-matching-segs (s/map-of ::cell-id ::best-seg))
+(s/def ::matching-segs (s/map-of ::cell-id (s/nilable ::best-seg)))
 (s/def ::distal-state
   #_"Represents the activation state of a synapse graph, e.g. the distal
   segments, or apical segments, of cells in one layer."
@@ -501,32 +124,26 @@
                    ::cell-exc
                    ::pred-cells
                    ::fully-matching-segs
-                   ::p/timestep]))
+                   ::cx/timestep]))
 
-(s/def ::proximal-sg ::p/synapse-graph)
-(s/def ::distal-sg ::p/synapse-graph)
-(s/def ::apical-sg ::p/synapse-graph)
-(s/def ::ilateral-sg ::p/synapse-graph)
-(s/def ::state ::active-state)
-(s/def ::prior-state ::active-state)
+(s/def ::proximal-sg ::syn/synapse-graph)
+(s/def ::distal-sg ::syn/synapse-graph)
+(s/def ::apical-sg ::syn/synapse-graph)
+(s/def ::ilateral-sg ::syn/synapse-graph)
+(s/def ::prior-active-state ::active-state)
 (s/def ::prior-distal-state ::distal-state)
 (s/def ::apical-state ::distal-state)
 (s/def ::prior-apical-state ::distal-state)
 
 (declare layer-of-cells)
 
-(s/def ::layer-of-cells
+(s/def ::layer-of-cells-unembedded
   (->
-   (s/keys :req-un [::params
-                    ::rng
-                    ::topology
-                    ::input-topology
-                    ::proximal-sg
-                    ::distal-sg
-                    ::apical-sg
-                    ::ilateral-sg
-                    ::state
-                    ::prior-state
+   (s/keys :req-un [::params/params
+                    ::util/rng
+                    ::topography
+                    ::active-state
+                    ::prior-active-state
                     ::tp-state
                     ::distal-state
                     ::prior-distal-state
@@ -537,17 +154,29 @@
                     ::boosts
                     ::active-duty-cycles
                     ::overlap-duty-cycles])
-   ;; this only generates fresh (empty) layers; see ./generators ns.
-   (s/with-gen #(gen/fmap layer-of-cells (s/gen ::params)))))
+   ;; this only generates fresh (empty) layers; see ./fancy-generators ns.
+   (s/with-gen #(gen/fmap layer-of-cells (s/gen ::params/params)))))
+
+(declare layer-embed-impl)
+
+(s/def ::layer-of-cells
+  (->
+   (s/merge ::layer-of-cells-unembedded
+            (s/keys :req-un [::cx/embedding
+                             ::proximal-sg
+                             ::distal-sg
+                             ::apical-sg
+                             ::ilateral-sg]))
+   (s/with-gen #(util/fn->generator #'layer-embed-impl))))
 
 ;;; ## Synapse tracing
 
 (defn distal-sources-widths
-  [params]
+  [params embedding]
   [(if (:lateral-synapses? params)
      (reduce * (:depth params) (:column-dimensions params))
      0)
-   (reduce * (:distal-motor-dimensions params))])
+   (topo/size (-> embedding :lat-topo))])
 
 (defn cell->id
   "Converts a cell id to an output bit index.
@@ -556,7 +185,7 @@
   (+ (* col depth) ci))
 
 (s/fdef cell->id
-        :args (s/cat :depth ::depth, :cell-id ::p/cell-id)
+        :args (s/cat :depth ::params/depth, :cell-id ::cell-id)
         :ret nat-int?)
 
 (defn- cells->bits
@@ -571,23 +200,25 @@
    (rem id depth)])
 
 (s/fdef id->cell
-        :args (s/cat :depth ::depth, :id nat-int?)
-        :ret ::p/cell-id)
+        :args (s/cat :depth ::params/depth, :id nat-int?)
+        :ret ::cell-id)
 
 (defn id->source
-  "Returns a vector [k v] where k is one of :this or :ff. In the
-   case of :this, v is [col ci], otherwise v gives the index in the
-   feed-forward distal input field."
-  [params id]
-  (let [[this-w ff-w] (distal-sources-widths params)]
+  "Returns a vector [k v] where k is one of :this or :lat. In the
+  case of :this, v is [col ci], otherwise v gives the index in the
+  lateral input field."
+  [params embedding id]
+  (let [[this-w lat-w] (distal-sources-widths params embedding)]
     (cond
      (< id this-w) [:this (id->cell (:depth params) id)]
-     (< id (+ this-w ff-w)) [:ff (- id this-w)])))
+     (< id (+ this-w lat-w)) [:lat (- id this-w)])))
 
 (s/fdef id->source
-        :args (s/cat :params ::params, :id nat-int?)
-        :ret (s/or :this (s/tuple #{:this} ::p/cell-id)
-                   :ff (s/tuple #{:ff} nat-int?)))
+        :args (s/cat :params ::params/params
+                     :embedding ::cx/embedding
+                     :id nat-int?)
+        :ret (s/or :this (s/tuple #{:this} ::cell-id)
+                   :lat (s/tuple #{:lat} nat-int?)))
 
 ;;; ## Activation
 
@@ -602,9 +233,9 @@
                 syns))
 
 (s/fdef segment-activation
-        :args (s/cat :syns ::p/segment
-                     :active-bits ::p/bits-set
-                     :pcon ::p/permanence) ;; can be zero here
+        :args (s/cat :syns ::syn/segment
+                     :active-bits ::cx/bits-set
+                     :pcon ::syn/permanence) ;; can be zero here
         :ret nat-int?)
 
 (defn best-matching-segment
@@ -633,13 +264,13 @@
         [nil 0 {}]))))
 
 (s/fdef best-matching-segment
-        :args (s/cat :segs (s/every ::p/segment)
-                     :active-bits ::p/bits-set
-                     :min-act ::learn-threshold
-                     :pcon ::p/permanence) ;; can be zero here
+        :args (s/cat :segs (s/every ::syn/segment)
+                     :active-bits ::cx/bits-set
+                     :min-act ::params/learn-threshold
+                     :pcon ::syn/permanence) ;; can be zero here
         :ret (s/cat :seg-index (s/nilable nat-int?)
-                    :exc ::p/excitation-amt
-                    :syns ::p/segment))
+                    :exc ::syn/excitation-amt
+                    :syns ::syn/segment))
 
 (defn best-segment-excitations-and-paths
   "Finds the most excited dendrite segment for each cell. Returns two maps,
@@ -664,9 +295,9 @@
        (persistent! cell-best-seg)])))
 
 (s/fdef best-segment-excitations-and-paths
-        :args (s/cat :seg-exc ::p/seg-exc)
+        :args (s/cat :seg-exc ::seg-exc)
         :ret (s/cat :cell-exc ::cell-exc
-                    :cell-best-seg (s/map-of ::p/cell-id ::best-seg)))
+                    :cell-best-seg (s/map-of ::cell-id ::best-seg)))
 
 (defn best-by-column
   "Returns a map of column ids to representative excitation values,
@@ -681,7 +312,7 @@
 
 (s/fdef best-by-column
         :args (s/cat :cell-exc ::cell-exc)
-        :ret (s/map-of ::p/column-id ::p/excitation-amt))
+        :ret (s/map-of ::column-id ::syn/excitation-amt))
 
 (defn total-excitations
   "Combine the proximal and distal excitations in a map of cell id to
@@ -712,12 +343,12 @@
                  basic-exc))))))
 
 (s/fdef total-excitations
-        :args (s/cat :col-exc (s/every-kv (s/tuple ::p/column-id #{0})
-                                          ::p/excitation-amt)
+        :args (s/cat :col-exc (s/every-kv (s/tuple ::column-id #{0})
+                                          ::syn/excitation-amt)
                      :distal-exc ::cell-exc
-                     :distal-weight ::distal-vs-proximal-weight
-                     :spontaneous-activation? ::spontaneous-activation?
-                     :depth ::depth)
+                     :distal-weight ::params/distal-vs-proximal-weight
+                     :spontaneous-activation? ::params/spontaneous-activation?
+                     :depth ::params/depth)
         :ret ::cell-exc
         ;; check that every column in col-exc appears in result
         :fn (fn [v] (every? (->> v :ret keys (map first) (set))
@@ -766,12 +397,12 @@
           good-ids)))))
 
 (s/fdef column-active-cells
-        :args (s/cat :cols ::p/column-id
+        :args (s/cat :cols ::column-id
                      :cell-exc ::cell-exc
-                     :depth ::depth
-                     :threshold ::stimulus-threshold
-                     :dominance-margin ::dominance-margin)
-        :ret (s/coll-of ::p/cell-id :min-count 1 :distinct true))
+                     :depth ::params/depth
+                     :threshold ::params/stimulus-threshold
+                     :dominance-margin ::params/dominance-margin)
+        :ret (s/coll-of ::cell-id :min-count 1 :distinct true))
 
 (defn select-active-cells
   "Determines active cells in the given columns and whether they are bursting."
@@ -798,13 +429,13 @@
        :burst-cols (persistent! b-cols)})))
 
 (s/fdef select-active-cells
-        :args (s/cat :a-cols ::p/active-columns
+        :args (s/cat :a-cols ::active-columns
                      :cell-exc ::cell-exc
-                     :depth ::depth
-                     :threshold ::stimulus-threshold
-                     :dominance-margin ::dominance-margin)
+                     :depth ::params/depth
+                     :threshold ::params/stimulus-threshold
+                     :dominance-margin ::params/dominance-margin)
         :ret (s/keys :opt-un [::col-active-cells
-                              ::p/active-cells
+                              ::active-cells
                               ::stable-active-cells
                               ::burst-cols]))
 
@@ -827,14 +458,14 @@
         ;; TODO: perf - maintain index of targets-by-source with pcon=0
         best-partial-distal-segment
         (fn [cell-id]
-          (let [cell-segs (p/cell-segments distal-sg cell-id)
+          (let [cell-segs (syn/cell-segments distal-sg cell-id)
                 [match-si exc seg] (best-matching-segment
                                     cell-segs distal-bits min-distal 0.0)]
             (when match-si
               [(conj cell-id match-si) exc])))
         best-partial-apical-segment
         (fn [cell-id]
-          (let [cell-segs (p/cell-segments apical-sg cell-id)
+          (let [cell-segs (syn/cell-segments apical-sg cell-id)
                 [match-si exc seg] (best-matching-segment
                                     cell-segs apical-bits min-apical 0.0)]
             (when match-si
@@ -915,14 +546,14 @@
     [winner-cell distal-match apical-match]))
 
 (s/fdef select-winner-cell-and-seg
-        :args (s/cat :col-ac (s/coll-of ::p/cell-id :min-count 1 :distinct true)
+        :args (s/cat :col-ac (s/coll-of ::cell-id :min-count 1 :distinct true)
                      :distal-state ::distal-state
                      :apical-state ::distal-state
-                     :distal-sg ::p/synapse-graph
-                     :apical-sg ::p/synapse-graph
-                     :params ::params
-                     :rng ::rng)
-        :ret (s/cat :winner-cell ::p/cell-id
+                     :distal-sg ::syn/synapse-graph
+                     :apical-sg ::syn/synapse-graph
+                     :params ::params/params
+                     :rng ::util/rng)
+        :ret (s/cat :winner-cell ::cell-id
                     :distal-match (s/nilable ::best-seg)
                     :apical-match (s/nilable ::best-seg)))
 
@@ -966,10 +597,10 @@
                      :prior-winners (s/nilable ::col-winners)
                      :distal-state ::distal-state
                      :apical-state ::distal-state
-                     :distal-sg ::p/synapse-graph
-                     :apical-sg ::p/synapse-graph
-                     :params ::params
-                     :rng ::rng)
+                     :distal-sg ::syn/synapse-graph
+                     :apical-sg ::syn/synapse-graph
+                     :params ::params/params
+                     :rng ::util/rng)
         :ret (s/keys :req-un [::col-winners
                               ::winner-seg]))
 
@@ -997,12 +628,12 @@
       [(count segs) nil])))
 
 (s/fdef new-segment-id
-        :args (s/cat :segs (s/every ::p/segment)
-                     :pcon ::perm-connected
-                     :max-segs ::max-segments
-                     :max-syns ::max-synapse-count)
+        :args (s/cat :segs (s/every ::syn/segment)
+                     :pcon ::params/perm-connected
+                     :max-segs ::params/max-segments
+                     :max-syns ::params/max-synapse-count)
         :ret (s/cat :seg-index nat-int?
-                    :syns (s/nilable ::p/segment)))
+                    :syns (s/nilable ::syn/segment)))
 
 (defn segment-new-synapse-source-ids
   "Returns a collection of up to n ids chosen from the learnable
@@ -1017,10 +648,10 @@
          (remove seg))))
 
 (s/fdef segment-new-synapse-source-ids
-        :args (s/cat :seg ::p/segment
+        :args (s/cat :seg ::syn/segment
                      :learnable-bits (s/coll-of nat-int? :distinct true :kind vector?)
                      :n (s/int-in 0 1e7)
-                     :rng ::rng)
+                     :rng ::util/rng)
         :ret (s/nilable (s/coll-of nat-int? :distinct true)))
 
 (defn learning-updates
@@ -1048,7 +679,7 @@
       (if-let [cell-id (first cells)]
         (let [[matching-path exc] (get matching-segs cell-id)
               new-segment? (not matching-path)
-              cell-segs (p/cell-segments sg cell-id)
+              cell-segs (syn/cell-segments sg cell-id)
               [new-si replaced-syns] (when new-segment?
                                        (new-segment-id cell-segs pcon max-segs
                                                        max-syns))
@@ -1079,17 +710,17 @@
         (persistent! m)))))
 
 (s/fdef learning-updates
-        :args (s/cat :cells (s/nilable (s/coll-of ::p/cell-id))
+        :args (s/cat :cells (s/nilable (s/every ::cell-id :distinct true))
                      :matching-segs ::matching-segs
-                     :sg ::p/synapse-graph
-                     :learnable-bits (s/nilable ::p/bits)
-                     :rng ::rng
-                     :params (s/keys :req-un [::perm-connected
-                                              ::learn-threshold
-                                              ::new-synapse-count
-                                              ::max-synapse-count
-                                              ::max-segments]))
-        :ret (s/map-of ::p/cell-id ::p/seg-update))
+                     :sg ::syn/synapse-graph
+                     :learnable-bits (s/nilable ::cx/bits)
+                     :rng ::util/rng
+                     :params (s/keys :req-un [::params/perm-connected
+                                              ::params/learn-threshold
+                                              ::params/new-synapse-count
+                                              ::params/max-synapse-count
+                                              ::params/max-segments]))
+        :ret (s/map-of ::cell-id ::syn/seg-update))
 
 (defn learn-distal
   [sg distal-state cells matching-segs dparams rng]
@@ -1097,7 +728,7 @@
                                    sg (:learnable-bits distal-state)
                                    rng dparams)
         new-sg (if (seq learning)
-                 (p/bulk-learn sg (vals learning) (:active-bits distal-state)
+                 (syn/bulk-learn sg (vals learning) (:active-bits distal-state)
                                (:perm-inc dparams) (:perm-dec dparams)
                                (:perm-init dparams))
                  sg)]
@@ -1105,14 +736,14 @@
      learning]))
 
 (s/fdef learn-distal
-        :args (s/cat :sg ::p/synapse-graph
+        :args (s/cat :sg ::syn/synapse-graph
                      :distal-state ::distal-state
-                     :cells (s/nilable (s/coll-of ::p/cell-id))
+                     :cells (s/nilable (s/coll-of ::cell-id))
                      :matching-segs ::matching-segs
-                     :dparams ::synapse-graph-params
-                     :rng ::rng)
-        :ret (s/cat :new-sg ::p/synapse-graph
-                    :learning (s/map-of ::p/cell-id ::p/seg-update)))
+                     :dparams ::params/synapse-graph-params
+                     :rng ::util/rng)
+        :ret (s/cat :new-sg ::syn/synapse-graph
+                    :learning (s/map-of ::cell-id ::syn/seg-update)))
 
 (defn punish-distal
   [sg distal-state prior-distal-state prior-active-cells dparams]
@@ -1125,21 +756,21 @@
                           :let [[seg-path _] (fully-matching-segs cell)]]
                       (syn/seg-update seg-path :punish nil nil))
         new-sg (if punishments
-                 (p/bulk-learn sg punishments (:active-bits prior-distal-state)
-                               (:perm-inc dparams) (:perm-punish dparams)
-                               (:perm-init dparams))
+                 (syn/bulk-learn sg punishments (:active-bits prior-distal-state)
+                                 (:perm-inc dparams) (:perm-punish dparams)
+                                 (:perm-init dparams))
                  sg)]
     [new-sg
      punishments]))
 
 (s/fdef punish-distal
-        :args (s/cat :sg ::p/synapse-graph
+        :args (s/cat :sg ::syn/synapse-graph
                      :distal-state ::distal-state
                      :prior-distal-state ::distal-state
-                     :prior-active-cells (s/coll-of ::p/cell-id :kind set?)
-                     :dparams ::synapse-graph-params)
-        :ret (s/cat :new-sg ::p/synapse-graph
-                    :punishments (s/every ::p/seg-update)))
+                     :prior-active-cells (s/coll-of ::cell-id :kind set?)
+                     :dparams ::params/synapse-graph-params)
+        :ret (s/cat :new-sg ::syn/synapse-graph
+                    :punishments (s/every ::syn/seg-update)))
 
 (defn layer-learn-lateral
   [this cells matching-segs]
@@ -1213,10 +844,10 @@
 (defn layer-learn-proximal
   [this cols]
   (let [sg (:proximal-sg this)
-        state (:state this)
+        state (:active-state this)
         pparams (:proximal (:params this))
         min-prox (:learn-threshold pparams)
-        active-bits (:in-ff-bits state)
+        active-bits (set (:bits (:in-ff-signal state)))
         fully-matching-segs (:fully-matching-ff-segs state)
         ids (map vector cols (repeat 0))
         matching-segs
@@ -1224,7 +855,7 @@
          (reduce (fn [m id]
                    (if-let [full-match (fully-matching-segs id)]
                      (assoc! m id full-match)
-                     (let [cell-segs (p/cell-segments sg id)
+                     (let [cell-segs (syn/cell-segments sg id)
                            [match-si exc seg] (best-matching-segment
                                                cell-segs active-bits min-prox 0.0)]
                        (if match-si
@@ -1237,23 +868,23 @@
                                         matching-segs
                                         sg
                                         (when (:grow? pparams)
-                                          (:in-ff-bits state))
+                                          active-bits)
                                         rng* pparams)
         psg (cond-> sg
               (seq prox-learning)
-              (p/bulk-learn (vals prox-learning) (:in-ff-bits state)
-                            (:perm-inc pparams) (:perm-dec pparams)
-                            (:perm-init pparams))
+              (syn/bulk-learn (vals prox-learning) active-bits
+                              (:perm-inc pparams) (:perm-dec pparams)
+                              (:perm-init pparams))
               ;; positive learning rate is higher for stable (predicted) inputs
               (and (seq prox-learning)
-                   (seq (:in-stable-ff-bits state))
+                   (seq (::stable-bits (:in-ff-signal state)))
                    (> (:perm-stable-inc pparams) (:perm-inc pparams)))
-              (p/bulk-learn (map #(syn/seg-update (:target-id %) :reinforce nil nil)
-                                 (vals prox-learning))
-                            (:in-stable-ff-bits state)
-                            (- (:perm-stable-inc pparams) (:perm-inc pparams))
-                            (:perm-dec pparams)
-                            (:perm-init pparams)))]
+              (syn/bulk-learn (map #(syn/seg-update (:target-id %) :reinforce nil nil)
+                                   (vals prox-learning))
+                              (set (::stable-bits (:in-ff-signal state)))
+                              (- (:perm-stable-inc pparams) (:perm-inc pparams))
+                              (:perm-dec pparams)
+                              (:perm-init pparams)))]
     (assoc this
            :rng rng
            :learn-state (assoc-in (:learn-state this)
@@ -1262,7 +893,7 @@
 
 (s/fdef layer-learn-proximal
         :args (s/cat :layer ::layer-of-cells
-                     :cols (s/coll-of ::p/column-id))
+                     :cols (s/coll-of ::column-id))
         :ret ::layer-of-cells)
 
 (defn punish-proximal
@@ -1270,6 +901,7 @@
   (let [fully-matching-segs (:fully-matching-ff-segs state)
         pred-cells (set (keys fully-matching-segs))
         active-cells (set (map vector (:active-cols state) (repeat 0)))
+        active-bits (set (:bits (:in-ff-signal state)))
         bad-cells (set/difference pred-cells
                                   active-cells)
         punishments (for [cell bad-cells
@@ -1277,10 +909,10 @@
                           :when seg-path]
                       (syn/seg-update seg-path :punish nil nil))
         new-sg (if punishments
-                 (p/bulk-learn sg punishments
-                               (:in-ff-bits state)
-                               (:perm-inc pparams) (:perm-punish pparams)
-                               (:perm-init pparams))
+                 (syn/bulk-learn sg punishments
+                                 active-bits
+                                 (:perm-inc pparams) (:perm-punish pparams)
+                                 (:perm-init pparams))
                  sg)]
     [new-sg
      punishments]))
@@ -1288,7 +920,7 @@
 (defn layer-punish-proximal
   [this]
   (let [sg (:proximal-sg this)
-        state (:state this)
+        state (:active-state this)
         pparams (:proximal (:params this))
         [new-sg punishments] (punish-proximal sg state pparams)]
     (assoc this
@@ -1300,9 +932,11 @@
 
 (defn update-inhibition-radius
   [layer]
-  (assoc layer :inh-radius
-         (inh/inhibition-radius (:proximal-sg layer) (:topology layer)
-                                (:input-topology layer))))
+  (let [params (:params layer)]
+    (assoc layer :inh-radius
+           (inh/inhibition-radius (:proximal-sg layer)
+                                  (topo/make-topography (:column-dimensions params))
+                                  (-> layer :embedding :ff-topo)))))
 
 ;; these are records only so as to work with repl/truncate-large-data-structures
 (defrecord LayerActiveState [])
@@ -1335,13 +969,12 @@
 
 (defmulti spatial-pooling
   "Spatial pooling: choosing a column representation."
-  (fn [layer ff-bits stable-ff-bits fb-cell-exc]
+  (fn [layer ff-signal fb-cell-exc]
     (:spatial-pooling (:params layer))))
 
 (s/fdef spatial-pooling
-        :args (s/cat :layer ::p/layer-of-cells
-                     :ff-bits ::p/bits
-                     :stable-ff-bits ::p/bits
+        :args (s/cat :layer ::layer-of-cells
+                     :ff-signal ::cx/signal
                      :fb-cell-exc (-> ::cell-exc (s/with-gen #(gen/return {}))))
         :ret (s/keys :req-un [::active-cols
                               ::fully-matching-ff-segs
@@ -1353,29 +986,30 @@
     (:temporal-pooling (:params layer))))
 
 (s/fdef temporal-pooling
-        :args (s/cat :layer ::p/layer-of-cells
+        :args (s/cat :layer ::layer-of-cells
                      :active-state ::active-state
                      :prev-tp-state ::tp-state)
         :ret (s/keys :req-un [::out-stable-ff-bits]))
 
 (defmethod spatial-pooling :standard
-  [layer ff-bits stable-ff-bits fb-cell-exc]
+  [layer ff-signal fb-cell-exc]
   (let [proximal-sg (:proximal-sg layer)
         boosts (:boosts layer)
         params (:params layer)
         ;; proximal excitation as number of active synapses, keyed by [col 0 seg-idx]
-        col-seg-overlaps (p/excitations proximal-sg ff-bits
-                                        (:stimulus-threshold (:proximal params)))
+        col-seg-overlaps (syn/excitations proximal-sg (:bits ff-signal)
+                                          (:stimulus-threshold (:proximal params)))
         ;; these both keyed by [col 0]
         [raw-col-exc matching-ff-segs]
         (best-segment-excitations-and-paths col-seg-overlaps)
-        col-exc (columns/apply-overlap-boosting raw-col-exc boosts)
+        col-exc (homeo/apply-overlap-boosting raw-col-exc boosts)
         ;; combine excitation values for selecting columns
         abs-cell-exc (total-excitations col-exc fb-cell-exc
                                         (:distal-vs-proximal-weight params)
                                         (:spontaneous-activation? params)
                                         (:depth params))
-        n-on (max 1 (round (* (:activation-level params) (p/size-of layer))))
+        n-on (max 1 (round (* (:activation-level params)
+                              (:n-columns layer))))
         a-cols (-> (best-by-column abs-cell-exc)
                    (inh/inhibit-globally n-on)
                    (set))]
@@ -1384,25 +1018,26 @@
      :col-overlaps raw-col-exc}))
 
 (defmethod spatial-pooling :local-inhibition
-  [layer ff-bits stable-ff-bits fb-cell-exc]
+  [layer ff-signal fb-cell-exc]
   (let [proximal-sg (:proximal-sg layer)
         boosts (:boosts layer)
         params (:params layer)
         ;; proximal excitation as number of active synapses, keyed by [col 0 seg-idx]
-        col-seg-overlaps (p/excitations proximal-sg ff-bits
-                                        (:stimulus-threshold (:proximal params)))
+        col-seg-overlaps (syn/excitations proximal-sg (:bits ff-signal)
+                                          (:stimulus-threshold (:proximal params)))
         ;; these both keyed by [col 0]
         [raw-col-exc matching-ff-segs]
         (best-segment-excitations-and-paths col-seg-overlaps)
-        col-exc (columns/apply-overlap-boosting raw-col-exc boosts)
+        col-exc (homeo/apply-overlap-boosting raw-col-exc boosts)
         ;; combine excitation values for selecting columns
         abs-cell-exc (total-excitations col-exc fb-cell-exc
                                         (:distal-vs-proximal-weight params)
                                         (:spontaneous-activation? params)
                                         (:depth params))
-        n-on (max 1 (round (* (:activation-level params) (p/size-of layer))))
+        col-dims (:column-dimensions params)
+        n-on (max 1 (round (* (:activation-level params) (:n-columns layer))))
         a-cols (-> (best-by-column abs-cell-exc)
-                   (inh/inhibit-locally (:topology layer)
+                   (inh/inhibit-locally (topo/make-topography col-dims)
                                         (* (:inh-radius layer) (:inh-radius-scale params))
                                         (:inhibition-base-distance params)
                                         n-on)
@@ -1412,18 +1047,18 @@
      :col-overlaps raw-col-exc}))
 
 (defn compute-active-state
-  [layer ff-bits stable-ff-bits]
+  [layer ff-signal]
   (let [params (:params layer)
         distal-state (:distal-state layer)
         apical-state (:apical-state layer)
         ;; ignore apical excitation unless there is matching distal.
         ;; unlike other segments, allow apical excitation to add to distal
-        fb-cell-exc (if (:use-feedback? params)
+        fb-cell-exc (if (seq (:cell-exc apical-state))
                        (merge-with + (:cell-exc distal-state)
                                    (select-keys (:cell-exc apical-state)
                                                 (keys (:cell-exc distal-state))))
                        (:cell-exc distal-state))
-        sp-info (spatial-pooling layer ff-bits stable-ff-bits fb-cell-exc)
+        sp-info (spatial-pooling layer ff-signal fb-cell-exc)
         ;; find active cells in the columns
         cell-info (select-active-cells (:active-cols sp-info) fb-cell-exc
                                        (:depth params)
@@ -1434,15 +1069,13 @@
      (merge
       sp-info
       cell-info
-      {:in-ff-bits (set ff-bits)
-       :in-stable-ff-bits (set stable-ff-bits)
+      {:in-ff-signal ff-signal
        :out-immediate-ff-bits (cells->bits depth (:active-cells cell-info))
-       :timestep (inc (:timestep (:state layer)))}))))
+       :timestep (inc (:timestep (:active-state layer)))}))))
 
 (s/fdef compute-active-state
         :args (s/cat :layer ::layer-of-cells
-                     :ff-bits ::p/bits
-                     :stable-ff-bits ::p/bits)
+                     :ff-signal ::cx/signal)
         :ret ::active-state)
 
 (defmethod temporal-pooling :standard
@@ -1470,7 +1103,7 @@
 
 (defn compute-distal-state
   [sg active-bits learnable-bits dparams t]
-  (let [seg-exc (p/excitations sg active-bits (:stimulus-threshold dparams))
+  (let [seg-exc (syn/excitations sg active-bits (:stimulus-threshold dparams))
         [cell-exc fully-matching-segs] (best-segment-excitations-and-paths seg-exc)
         pc (set (keys cell-exc))]
     (map->LayerDistalState
@@ -1482,205 +1115,32 @@
       :timestep t})))
 
 (s/fdef compute-distal-state
-        :args (s/cat :sg ::p/synapse-graph
-                     :active-bits ::p/bits
-                     :learnable-bits ::p/bits
-                     :dparams ::synapse-graph-params
-                     :t ::p/timestep)
+        :args (s/cat :sg ::syn/synapse-graph
+                     :active-bits ::cx/bits
+                     :learnable-bits ::cx/bits
+                     :dparams ::params/synapse-graph-params
+                     :t ::cx/timestep)
         :ret ::distal-state)
 
-(defn layer-activate-impl
-  [layer ff-bits stable-ff-bits]
-  (let [new-active-state (compute-active-state layer ff-bits stable-ff-bits)
-        timestep (:timestep new-active-state)
-        {:keys [params prior-state tp-state]} layer
-        effective? (<= (util/set-similarity (:active-cols new-active-state)
-                                            (:active-cols prior-state))
-                       (:transition-similarity params))]
-    (-> layer
-        (assoc :state new-active-state
-               :tp-state (if effective?
-                           (compute-tp-state layer new-active-state)
-                           tp-state)
-               :prior-state (if effective?
-                              new-active-state
-                              prior-state)))))
+(declare uniform-ff-synapses)
 
-(defn layer-learn-impl
-  [layer]
-  (if (< (:timestep (:prior-state layer)) (:timestep (:state layer)))
-    layer
-    ;; effective transition, based on sufficient difference.
-    (let [{:keys [params state learn-state distal-state apical-state rng
-                  distal-sg apical-sg]} layer
-          a-cols (:active-cols state)
-          col-ac (:col-active-cells state)
-          prior-winners (when-not (:break-winners? learn-state)
-                          (:col-winners learn-state))
-          [rng* rng] (random/split rng)
-          {:keys [col-winners winner-seg]}
-          (select-winner-cells-and-segs col-ac prior-winners distal-state apical-state
-                                        distal-sg apical-sg params rng*)
-          ;; learning cells are all the winning cells
-          winner-cells (vals col-winners)
-          lc winner-cells
-          depth (:depth params)
-          out-wc-bits (set (cells->bits depth winner-cells))
-          timestep (:timestep state)]
-      (cond->
-       layer
-       true (assoc :learn-state (assoc empty-learn-state
-                                       :col-winners col-winners
-                                       :winner-seg winner-seg
-                                       :learning-cells lc
-                                       :out-wc-bits out-wc-bits
-                                       :prior-active-cells (:active-cells state)
-                                       :timestep timestep)
-                   :rng rng)
-       (:learn? (:distal params)) (layer-learn-lateral lc (:distal winner-seg))
-       (:learn? (:apical params)) (layer-learn-apical lc (:apical winner-seg))
-       (:learn? (:ilateral params)) (layer-learn-ilateral a-cols)
-       (:learn? (:proximal params)) (layer-learn-proximal a-cols)
-       (:punish? (:distal params)) (layer-punish-lateral (:prior-active-cells learn-state))
-       (:punish? (:apical params)) (layer-punish-apical (:prior-active-cells learn-state))
-       (:punish? (:proximal params)) (layer-punish-proximal)
-       true (update :active-duty-cycles columns/update-duty-cycles
-                    a-cols (:duty-cycle-period params))
-       true (update :overlap-duty-cycles columns/update-duty-cycles
-                    (map first (keys (:col-overlaps state)))
-                    (:duty-cycle-period params))
-       (zero? (mod timestep (:boost-active-every params))) (columns/boost-active)
-       (zero? (mod timestep (:adjust-overlap-every params))) (columns/adjust-overlap)
-       (zero? (mod timestep (:float-overlap-every params))) (columns/layer-float-overlap)
-       (zero? (mod timestep (:inh-radius-every params))) (update-inhibition-radius)))))
-
-(defn layer-depolarise-impl
-  [layer distal-ff-bits apical-fb-bits apical-fb-wc-bits]
-  (let [{:keys [params prior-state learn-state distal-state apical-state
-                distal-sg apical-sg]} layer
-        depth (:depth params)
-        widths (distal-sources-widths params)
-        distal-bits (util/align-indices widths
-                                        [(if (:lateral-synapses? params)
-                                           (:out-immediate-ff-bits prior-state)
-                                           [])
-                                         distal-ff-bits])
-        distal-lbits (util/align-indices widths
-                                         [(if (:lateral-synapses? params)
-                                            (:out-wc-bits learn-state)
-                                            [])
-                                          distal-ff-bits])
-        apical-bits (if (:use-feedback? params) apical-fb-bits [])
-        apical-lbits (if (:use-feedback? params) apical-fb-wc-bits [])
-        timestep (p/timestep layer)]
-   (assoc layer
-     :prior-distal-state distal-state
-     :prior-apical-state apical-state
-     :distal-state (compute-distal-state distal-sg distal-bits distal-lbits
-                                         (:distal params) timestep)
-     :apical-state (compute-distal-state apical-sg apical-bits apical-lbits
-                                         (:apical params) timestep))))
-
-(defrecord LayerOfCells
-    [params rng topology
-     proximal-sg distal-sg apical-sg ilateral-sg state prior-state tp-state
-     distal-state prior-distal-state apical-state prior-apical-state learn-state]
-
-  p/PLayerOfCells
-
-  (layer-activate*
-    [this ff-bits stable-ff-bits]
-    (layer-activate-impl this ff-bits stable-ff-bits))
-
-  (layer-learn*
-    [this]
-    (layer-learn-impl this))
-
-  (layer-depolarise*
-    [this distal-ff-bits apical-fb-bits apical-fb-wc-bits]
-    (layer-depolarise-impl this distal-ff-bits apical-fb-bits apical-fb-wc-bits))
-
-  (layer-state*
-   [_]
-   {:active-columns (:active-cols state)
-    :bursting-columns (:burst-cols state)
-    :active-cells (:active-cells state)
-    :winner-cells (set (vals (:col-winners learn-state)))
-    :predictive-cells (when (== (:timestep state)
-                                (:timestep distal-state))
-                        (:pred-cells distal-state))
-    :prior-predictive-cells (let [t-1 (dec (:timestep state))]
-                              (cond
-                                ;; after depolarise phase has run
-                                (== t-1 (:timestep prior-distal-state))
-                                (:pred-cells prior-distal-state)
-                                ;; before depolarise phase has run
-                                (== t-1 (:timestep distal-state))
-                                (:pred-cells distal-state)))})
-
-  (layer-depth* [_]
-    (:depth params))
-
-  p/PInterruptable
-  (break [this mode]
-    (case mode
-      :tm (assoc this :distal-state
-                 (assoc empty-distal-state :timestep (:timestep state)))
-      :fb (assoc this :apical-state
-                 (assoc empty-distal-state :timestep (:timestep state)))
-      :syns (update-in this [:state :stable-cells-buffer] empty)
-      :winners (assoc-in this [:learn-state :break-winners?] true)))
-
-  p/PTopological
-  (topology [this]
-    (:topology this))
-  p/PFeedForward
-  (ff-topology [this]
-    (topology/make-topology (conj (p/dims-of this)
-                                  (p/layer-depth this))))
-  (bits-value [_]
-    (set/union (:out-immediate-ff-bits state)
-               (:out-stable-ff-bits tp-state)))
-  (stable-bits-value [_]
-    (:out-stable-ff-bits tp-state))
-  (source-of-bit
-    [_ i]
-    (id->cell (:depth params) i))
-  p/PFeedBack
-  (wc-bits-value [_]
-    (:out-wc-bits learn-state))
-  p/PTemporal
-  (timestep [_]
-    (:timestep state))
-  p/PParameterised
-  (params [_]
-    params))
-
-(defn check-param-deprecations
-  [params]
-  (assert (not (contains? params :global-inhibition?))
-          (str ":global-inhibition? now implied by default :spatial-pooling; "
-               "for local algorithm use :spatial-pooling :local-inhibition")))
-
-(defn init-layer-state
-  [params]
-  (let [params (->> (util/deep-merge parameter-defaults params)
-                    (s/assert ::params))
-        input-topo (topology/make-topology (:input-dimensions params))
-        col-topo (topology/make-topology (:column-dimensions params))
-        n-cols (p/size col-topo)
+(defn layer-embed-impl
+  [layer embedding]
+  (let [{:keys [ff-topo fb-topo lat-topo]} embedding
+        params (:params layer)
+        col-topo (topo/make-topography (:column-dimensions params))
+        n-cols (topo/size col-topo)
         depth (:depth params)
         n-distal (+ (if (:lateral-synapses? params)
                       (* n-cols depth) 0)
-                    (reduce * (:distal-motor-dimensions params)))
-        n-apical (reduce * (:distal-topdown-dimensions params))
-        [rng rng*] (-> (random/make-random (:random-seed params))
-                       (random/split))
-        col-prox-syns (columns/uniform-ff-synapses col-topo input-topo
-                                                   params rng*)
+                    (topo/size lat-topo))
+        n-apical (topo/size fb-topo)
+        [rng rng*] (random/split (:rng layer))
+        col-prox-syns (uniform-ff-synapses col-topo ff-topo
+                                           params rng*)
         proximal-sg (syn/col-segs-synapse-graph col-prox-syns n-cols
                                                 (:max-segments (:proximal params))
-                                                (p/size input-topo)
+                                                (topo/size ff-topo)
                                                 (:perm-connected (:proximal params))
                                                 (:grow? (:proximal params)))
         distal-sg (syn/cell-segs-synapse-graph n-cols depth
@@ -1697,22 +1157,341 @@
                                                  (:max-segments (:ilateral params))
                                                  n-cols
                                                  (:perm-connected (:ilateral params))
-                                                 true)
-        state (assoc empty-active-state :timestep 0)
+                                                 true)]
+    (->
+     (assoc layer
+       :embedding embedding
+       :rng rng
+       :proximal-sg proximal-sg
+       :distal-sg distal-sg
+       :apical-sg apical-sg
+       :ilateral-sg ilateral-sg)
+     (update-inhibition-radius))))
+
+(s/fdef layer-embed-impl
+        :args (s/cat :layer ::layer-of-cells-unembedded
+                     :embedding ::cx/embedding)
+        :ret ::layer-of-cells)
+
+(defn layer-activate-impl
+  [layer ff-signal]
+  (let [new-active-state (compute-active-state layer ff-signal)
+        timestep (:timestep new-active-state)
+        {:keys [params prior-active-state tp-state]} layer
+        effective? (<= (util/set-similarity (:active-cols new-active-state)
+                                            (:active-cols prior-active-state))
+                       (:transition-similarity params))]
+    (-> layer
+        (assoc :active-state new-active-state
+               :tp-state (if effective?
+                           (compute-tp-state layer new-active-state)
+                           tp-state)
+               :prior-active-state (if effective?
+                                     new-active-state
+                                     prior-active-state)))))
+
+(defn layer-learn-impl
+  [layer]
+  (if (< (:timestep (:prior-active-state layer))
+         (:timestep (:active-state layer)))
+    layer
+    ;; effective transition, based on sufficient difference.
+    (let [{:keys [params active-state learn-state distal-state apical-state rng
+                  distal-sg apical-sg]} layer
+          a-cols (:active-cols active-state)
+          col-ac (:col-active-cells active-state)
+          prior-winners (when-not (:break-winners? learn-state)
+                          (:col-winners learn-state))
+          [rng* rng] (random/split rng)
+          {:keys [col-winners winner-seg]}
+          (select-winner-cells-and-segs col-ac prior-winners distal-state apical-state
+                                        distal-sg apical-sg params rng*)
+          ;; learning cells are all the winning cells
+          winner-cells (vals col-winners)
+          lc winner-cells
+          depth (:depth params)
+          out-wc-bits (set (cells->bits depth winner-cells))
+          timestep (:timestep active-state)]
+      (cond->
+       layer
+       true (assoc :learn-state (assoc empty-learn-state
+                                       :col-winners col-winners
+                                       :winner-seg winner-seg
+                                       :learning-cells lc
+                                       :out-wc-bits out-wc-bits
+                                       :prior-active-cells (:active-cells active-state)
+                                       :timestep timestep)
+                   :rng rng)
+       (:learn? (:distal params)) (layer-learn-lateral lc (:distal winner-seg))
+       (:learn? (:apical params)) (layer-learn-apical lc (:apical winner-seg))
+       (:learn? (:ilateral params)) (layer-learn-ilateral a-cols)
+       (:learn? (:proximal params)) (layer-learn-proximal a-cols)
+       (:punish? (:distal params)) (layer-punish-lateral (:prior-active-cells learn-state))
+       (:punish? (:apical params)) (layer-punish-apical (:prior-active-cells learn-state))
+       (:punish? (:proximal params)) (layer-punish-proximal)
+       true (update :active-duty-cycles homeo/update-duty-cycles
+                    a-cols (:duty-cycle-period params))
+       true (update :overlap-duty-cycles homeo/update-duty-cycles
+                    (map first (keys (:col-overlaps active-state)))
+                    (:duty-cycle-period params))
+       (zero? (mod timestep (:boost-active-every params))) (homeo/boost-active)
+       (zero? (mod timestep (:adjust-overlap-every params))) (homeo/adjust-overlap)
+       (zero? (mod timestep (:float-overlap-every params))) (homeo/layer-float-overlap)
+       (zero? (mod timestep (:inh-radius-every params))) (update-inhibition-radius)))))
+
+(defn layer-depolarise-impl
+  [layer fb-signal lat-signal]
+  (let [{:keys [params prior-active-state learn-state distal-state apical-state
+                distal-sg apical-sg]} layer
+        depth (:depth params)
+        widths (distal-sources-widths params (:embedding layer))
+        distal-bits (util/align-indices widths
+                                        [(if (:lateral-synapses? params)
+                                           (:out-immediate-ff-bits prior-active-state)
+                                           [])
+                                         (:bits lat-signal)])
+        distal-lbits (util/align-indices widths
+                                         [(if (:lateral-synapses? params)
+                                            (:out-wc-bits learn-state)
+                                            [])
+                                          (or (::winner-bits lat-signal)
+                                              (:bits lat-signal))])
+        apical-bits (:bits fb-signal)
+        apical-lbits (::winner-bits fb-signal ())
+        timestep (cx/timestep layer)]
+   (assoc layer
+     :prior-distal-state distal-state
+     :prior-apical-state apical-state
+     :distal-state (compute-distal-state distal-sg distal-bits distal-lbits
+                                         (:distal params) timestep)
+     :apical-state (compute-distal-state apical-sg apical-bits apical-lbits
+                                         (:apical params) timestep))))
+
+(defn layer-state-impl
+  [{:keys [active-state learn-state distal-state prior-active-state
+           prior-distal-state] :as layer}]
+  {:active-columns (:active-cols active-state)
+   :bursting-columns (:burst-cols active-state)
+   :active-cells (:active-cells active-state)
+   :winner-cells (set (vals (:col-winners learn-state)))
+   :predictive-cells (when (== (:timestep active-state)
+                               (:timestep distal-state))
+                       (:pred-cells distal-state))
+   :prior-predictive-cells (let [t-1 (dec (:timestep active-state))]
+                             (cond
+                               ;; after depolarise phase has run
+                               (== t-1 (:timestep prior-distal-state))
+                               (:pred-cells prior-distal-state)
+                               ;; before depolarise phase has run
+                               (== t-1 (:timestep distal-state))
+                               (:pred-cells distal-state)))})
+
+(s/def ::layer-state
+  (s/keys :req-un [::active-columns
+                   ::bursting-columns
+                   ::active-cells
+                   ::winner-cells
+                   ::predictive-cells
+                   ::prior-predictive-cells]))
+
+(s/fdef layer-state
+        :args (s/cat :layer ::layer)
+        :ret ::layer-state)
+
+
+(defn segs-proximal-bit-votes
+  [lyr seg-paths]
+  (let [psg (:proximal-sg lyr)]
+    (->> seg-paths
+         (reduce (fn [m seg-path]
+                   (let [ids (syn/sources-connected-to psg seg-path)]
+                     (reduce (fn [m id]
+                               (assoc! m id (inc (get m id 0))))
+                             m ids)))
+                 (transient {}))
+         (persistent!))))
+
+(defn layer-decode-to-ff-bits-impl
+  "Looks up a set of cells to decode into feed-forward inputs bit votes.
+  The cell set is looked up in `layer-state` return by opts key :get-state,
+  defaulting to :predictive-cells. So the default is decoding predictive cells."
+  [layer opts]
+  (let [get-cells (or (:get-state opts) :predictive-cells)
+        cells (get-cells (cx/layer-state layer))
+        segs (map #(conj % 0) cells)]
+    (segs-proximal-bit-votes layer segs)))
+
+(defrecord LayerOfCells
+    [params rng topography embedding n-columns
+     proximal-sg distal-sg apical-sg ilateral-sg active-state prior-active-state tp-state
+     distal-state prior-distal-state apical-state prior-apical-state learn-state]
+
+  cx/PLayer
+
+  (layer-embed*
+   [this embedding]
+   (layer-embed-impl this embedding))
+
+  (layer-activate*
+    [this ff-signal]
+    (layer-activate-impl this ff-signal))
+
+  (layer-learn*
+    [this]
+    (layer-learn-impl this))
+
+  (layer-depolarise*
+    [this fb-signal lat-signal]
+    (layer-depolarise-impl this fb-signal lat-signal))
+
+  (layer-state*
+   [this]
+   (layer-state-impl this))
+
+  (layer-decode-to-ff-bits*
+   [this opts]
+   (layer-decode-to-ff-bits-impl this opts))
+
+  cx/PInterruptable
+  (break [this mode]
+    (case mode
+      :tm (assoc this :distal-state
+                 (assoc empty-distal-state :timestep (:timestep active-state)))
+      :fb (assoc this :apical-state
+                 (assoc empty-distal-state :timestep (:timestep active-state)))
+      :syns (update-in this [:active-state :stable-cells-buffer] empty)
+      :winners (assoc-in this [:learn-state :break-winners?] true)))
+
+  cx/PTopographic
+  (topography [this]
+    (:topography this))
+
+  cx/PSignalSource
+  (signal* [this]
+    {:bits (set/union (:out-immediate-ff-bits active-state)
+                      (:out-stable-ff-bits tp-state))
+     ::stable-bits (:out-stable-ff-bits tp-state)
+     ::winner-bits (:out-wc-bits learn-state)})
+
+  cx/PTemporal
+  (timestep [_]
+    (:timestep active-state))
+
+  cx/PParameterised
+  (params [_]
+    params))
+
+(defn uniform-ff-synapses
+  "Generates feed-forward synapses connecting columns to the input bit array.
+  Connections are made locally by scaling the input space to the column space.
+  Potential synapses are chosen within a radius in input space of
+  `ff-potential-radius` fraction of the longest single dimension, and of those,
+  `ff-init-frac` are chosen from a uniform random distribution. Initial
+  permanence values are uniformly distributed in the range of `ff-perm-init`."
+  [topo itopo params rng]
+  (let [[p-lo p-hi] (:ff-perm-init params)
+        global? (>= (:ff-potential-radius params) 1.0)
+        ;; radius in input space, fraction of longest dimension
+        radius (long (* (:ff-potential-radius params)
+                        (apply max (topo/dimensions itopo))))
+        frac (:ff-init-frac params)
+        input-size (topo/size itopo)
+        n-cols (topo/size topo)
+        one-d? (or (== 1 (count (topo/dimensions topo)))
+                   (== 1 (count (topo/dimensions itopo))))
+        [cw ch cdepth] (topo/dimensions topo)
+        [iw ih idepth] (topo/dimensions itopo)
+        ;; range of coordinates usable as focus (adjust for radius at edges)
+        focus-ix (fn [frac width]
+                   (if (<= width (inc (* 2 radius)))
+                     (quot width 2)
+                     (-> frac
+                         (* (- width (* 2 radius)))
+                         (+ radius)
+                         (int))))
+        ;; range of z coordinates usable as focus for radius
+        focus-izs (when idepth
+                    (if (<= idepth (inc (* 2 radius)))
+                      (list (quot idepth 2))
+                      (range radius (- idepth radius))))]
+    (if global?
+      (let [n-syns (round (* frac input-size))]
+        (->> (random/split-n rng n-cols)
+             (mapv (fn [col-rng]
+                     (into {}
+                           (map (fn [rng]
+                                  (let [[rng1 rng2] (random/split rng)]
+                                    [(util/rand-int rng1 input-size)
+                                     (util/rand rng2 p-lo p-hi)])))
+                           (random/split-n col-rng n-syns))))))
+      (->> (random/split-n rng n-cols)
+           (mapv (fn [col col-rng]
+                   (let [focus-i (if one-d?
+                                   (int (* input-size (/ col n-cols)))
+                                   ;; use corresponding positions in 2D
+                                   (let [[cx cy _] (topo/coordinates-of-index topo col)
+                                         ix (focus-ix (/ cx cw) iw)
+                                         iy (focus-ix (/ cy ch) ih)
+                                         ;; in 3D, choose z coordinate from range
+                                         iz (when idepth
+                                              (nth focus-izs (mod col (count focus-izs))))
+                                         icoord (if idepth [ix iy iz] [ix iy])]
+                                     (topo/index-of-coordinates itopo icoord)))
+                         all-ids (vec (topo/neighbours-indices itopo focus-i radius -1))
+                         n (round (* frac (count all-ids)))
+                         [rng1 rng2] (random/split col-rng)
+                         ids (cond
+                               (< frac 0.4) ;; for performance:
+                               (util/sample rng1 n all-ids)
+                               (< frac 1.0)
+                               (util/reservoir-sample rng1 n all-ids)
+                               :else
+                               all-ids)]
+                     (into {}
+                           (map (fn [id rng]
+                                  [id (util/rand rng p-lo p-hi)])
+                                ids
+                                (random/split-n rng2 (count ids))))))
+                 (range))))))
+
+(s/fdef uniform-ff-synapses
+        :args (s/cat :topo ::topo/topography
+                     :itopo ::topo/topography
+                     :params (s/keys :req-un [::params/ff-perm-init
+                                              ::params/ff-init-frac
+                                              ::params/ff-potential-radius])
+                     :rng ::util/rng)
+        :ret (s/every ::syn/segment :kind vector?))
+
+(defn check-param-deprecations
+  [params]
+  (assert (not (contains? params :global-inhibition?))
+          (str ":global-inhibition? now implied by default :spatial-pooling; "
+               "for local algorithm use :spatial-pooling :local-inhibition")))
+
+(defn init-layer-state
+  [params]
+  (let [unk (set/difference (set (keys params))
+                            (set (keys params/parameter-defaults)))]
+    (when (seq unk)
+      (println "Warning: unknown keys in params:" unk)))
+  (let [params (->> (util/deep-merge params/parameter-defaults params)
+                    (s/assert ::params/params))
+        col-dims (:column-dimensions params)
+        n-cols (reduce * col-dims)
+        depth (:depth params)
+        topo (topo/make-topography (conj col-dims depth))
+        active-state (assoc empty-active-state :timestep 0)
         learn-state (assoc empty-learn-state :timestep 0)
         distal-state (assoc empty-distal-state :timestep 0)]
     (check-param-deprecations params)
     {:params params
-     :rng rng
-     :topology col-topo
-     :input-topology input-topo
+     :rng (random/make-random (:random-seed params))
+     :topography topo
+     :n-columns n-cols
      :inh-radius 1
-     :proximal-sg proximal-sg
-     :distal-sg distal-sg
-     :apical-sg apical-sg
-     :ilateral-sg ilateral-sg
-     :state state
-     :prior-state state
+     :active-state active-state
+     :prior-active-state active-state
      :learn-state learn-state
      :distal-state distal-state
      :prior-distal-state distal-state
@@ -1727,10 +1506,37 @@
   [params]
   (->
    (init-layer-state params)
-   (map->LayerOfCells)
-   (update-inhibition-radius)))
+   (map->LayerOfCells)))
 
-(s/fdef layer-of-cells :ret ::layer-of-cells)
+(s/fdef layer-of-cells :ret ::layer-of-cells-unembedded)
 
-(defmethod p/layer-spec LayerOfCells [_]
+(defmethod cx/layer-spec LayerOfCells [_]
   ::layer-of-cells)
+
+(defmethod cx/layer-unembedded-spec LayerOfCells [_]
+  ::layer-of-cells-unembedded)
+
+(defn column-state-freqs
+  "Returns a map with the frequencies of columns in states
+  `:active` (bursting), `:predicted`, `:active-predicted`. Note that
+  these are distinct categories. The names are possibly misleading."
+  [lyr]
+  (let [lstate (cx/layer-state lyr)
+        a-cols (:active-columns lstate)
+        ppc (:prior-predictive-cells lstate)
+        pp-cols (into #{} (map first ppc))
+        hit-cols (set/intersection pp-cols a-cols)
+        col-states (merge (zipmap pp-cols (repeat :predicted))
+                          (zipmap a-cols (repeat :active))
+                          (zipmap hit-cols (repeat :active-predicted)))]
+    (-> {:active 0, :predicted 0, :active-predicted 0}
+        (merge (frequencies (vals col-states)))
+        (assoc :timestep (cx/timestep lyr)
+               :n-columns (:n-columns lyr)))))
+
+(s/fdef column-state-freqs
+        :args (s/cat :lyr ::layer-of-cells)
+        :ret (s/keys :req-un [::active
+                              ::predicted
+                              ::active-predicted
+                              ::cx/timestep]))

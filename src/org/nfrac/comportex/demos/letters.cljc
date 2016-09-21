@@ -1,6 +1,7 @@
 (ns org.nfrac.comportex.demos.letters
-  (:require [org.nfrac.comportex.core :as core]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.encoders :as enc]
+            [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.util :as util]
             [clojure.string :as str]))
 
@@ -29,10 +30,9 @@
   [:value
    (enc/unique-encoder [bit-width] n-on-bits)])
 
-(defn n-region-model
-  ([n]
-   (n-region-model n params))
-  ([n params]
-   (core/regions-in-series n core/sensory-region
-                           (list* params (repeat higher-level-params))
-                           {:input random-sensor})))
+(defn build
+  ([]
+   (build params))
+  ([params]
+   (cx/network {:layer-a (layer/layer-of-cells params)}
+               {:input random-sensor})))

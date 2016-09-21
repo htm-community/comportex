@@ -1,5 +1,6 @@
 (ns org.nfrac.comportex.inhibition
-  (:require [org.nfrac.comportex.protocols :as p]
+  (:require [org.nfrac.comportex.synapses :as syn]
+            [org.nfrac.comportex.topography :as topo]
             [org.nfrac.comportex.util :as util
              :refer [abs round mean remap]]))
 
@@ -11,12 +12,12 @@
   "Returns the span over the input bit array to which this column has
    connected synapses. Takes the maximum span in any one dimension."
   [sg itopo col]
-  (let [ids (p/sources-connected-to sg [col 0 0]) ;; first segment only - good enough?
-        coords (map (partial p/coordinates-of-index itopo) ids)]
+  (let [ids (syn/sources-connected-to sg [col 0 0]) ;; first segment only - good enough?
+        coords (map (partial topo/coordinates-of-index itopo) ids)]
     (if (seq coords)
       (if (number? (first coords))
         (numeric-span coords)
-        (let [m (count (p/dimensions itopo))]
+        (let [m (count (topo/dimensions itopo))]
           (->> (for [j (range m)]
                  (numeric-span (map #(nth % j) coords)))
                (apply max))))
@@ -25,7 +26,7 @@
 (defn avg-receptive-field-size
   [sg topo itopo]
   (-> (map (partial column-receptive-field-size sg itopo)
-           (range (p/size topo)))
+           (range (topo/size topo)))
       (mean)))
 
 (defn inhibition-radius
@@ -34,13 +35,13 @@
 
    * `sg` is the synapse graph linking the inputs to targets.
 
-   * `topo` is the topology of the targets (e.g. columns).
+   * `topo` is the topography of the targets (e.g. columns).
 
-   * `itopo` is the topology of the inputs."
+   * `itopo` is the topography of the inputs."
   [sg topo itopo]
   (let [shared-frac 0.0
-        max-dim (apply max (p/dimensions topo))
-        max-idim (apply max (p/dimensions itopo))
+        max-dim (apply max (topo/dimensions topo))
+        max-idim (apply max (topo/dimensions itopo))
         arfs (avg-receptive-field-size sg topo itopo)
         ;; columns in this range will have some overlap of inputs
         cols-diameter (* max-dim (/ arfs max-idim))
@@ -81,16 +82,16 @@
 
 (defn- mask-out-inhibited-by-col
   [emask col x topo inh-radius inh-base-dist]
-  (let [coord (p/coordinates-of-index topo col)
+  (let [coord (topo/coordinates-of-index topo col)
         x (double x)
         inh-radius (double inh-radius)
         inh-base-dist (double inh-base-dist)]
-    (loop [nbs (p/neighbours topo coord (int inh-radius) 0)
+    (loop [nbs (topo/neighbours topo coord (int inh-radius) 0)
            emask emask]
       (if-let [nb-coord (first nbs)]
-        (let [nb-col (p/index-of-coordinates topo nb-coord)]
+        (let [nb-col (topo/index-of-coordinates topo nb-coord)]
           (if-let [nb-x (emask nb-col)]
-            (let [dist (double (p/coord-distance topo coord nb-coord))]
+            (let [dist (double (topo/coord-distance topo coord nb-coord))]
               (if (<= nb-x (inhibits-exc x dist inh-radius inh-base-dist))
                 (recur (next nbs)
                        (assoc! emask nb-col nil))
@@ -102,13 +103,13 @@
 
 (defn inhibit-locally
   "Returns the set of column ids which should become active given the
-   map of column excitations `exc` and the column topology. Applies
+   map of column excitations `exc` and the column topography. Applies
    local inhibition to remove any columns dominated by their
    neighbours."
   [exc topo inh-radius inh-base-dist n-on]
   (loop [sel-cols ()
          more-cols (keys (sort-by val > exc))
-         emask (transient (map->vec (p/size topo) exc))]
+         emask (transient (map->vec (topo/size topo) exc))]
     (if (< (count sel-cols) n-on)
       (if-let [col (first more-cols)]
         (if-let [x (emask col)]

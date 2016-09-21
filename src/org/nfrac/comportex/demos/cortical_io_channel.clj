@@ -1,6 +1,6 @@
 (ns org.nfrac.comportex.demos.cortical-io-channel
-  (:require [org.nfrac.comportex.core :as core]
-            [org.nfrac.comportex.protocols :as p]
+  (:require [org.nfrac.comportex.core :as cx]
+            [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.cortical-io :refer [cortical-io-encoder
                                                      cache-fingerprint!]]
             [clojure.string :as str]
@@ -29,11 +29,10 @@
        ;(mapv #(conj % "."))
 
 
-(defn n-region-model
-  [api-key cache n]
-  (core/regions-in-series n core/sensory-region
-                          (list* params (repeat higher-level-params))
-                          {:input (cortical-io-encoder api-key cache)}))
+(defn build
+  [api-key cache]
+  (cx/network {:layer-a (layer/layer-of-cells params)}
+              {:input [[] (cortical-io-encoder api-key cache)]}))
 
 (comment
 
@@ -46,7 +45,7 @@
   (def input-c (chan 5))
   (def cache (atom {}))
   ;; the HTM model
-  (def current (atom (n-region-model api-key cache 1)))
+  (def current (atom (build api-key cache 1)))
 
   (defn submit
     [txt]
@@ -78,7 +77,7 @@
 
   (defn predict
     [n]
-    (println (map :value (core/predictions @current n))))
+    (println (map :value (cx/predictions @current n))))
 
   (submit "greetings earth, greetings earth, greetings earth, greetings earth")
   (submit "neural networks, neural networks, neural networks, neural networks")
@@ -88,7 +87,7 @@
     [n]
     (loop [i n]
       (when (pos? i)
-       (let [p-word (:value (first (core/predictions @current 1)))]
+       (let [p-word (:value (first (cx/predictions @current 1)))]
          (when p-word
            (submit p-word)
            (Thread/sleep 1000)

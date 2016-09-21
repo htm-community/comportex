@@ -1,6 +1,7 @@
 (ns org.nfrac.comportex.demos.mixed-gaps-1d
-  (:require [org.nfrac.comportex.core :as core]
+  (:require [org.nfrac.comportex.core :as cx]
             [org.nfrac.comportex.encoders :as enc]
+            [org.nfrac.comportex.layer :as layer]
             [org.nfrac.comportex.util :as util]))
 
 (def bit-width 400)
@@ -77,10 +78,9 @@
    (enc/ensplat
     (enc/linear-encoder [bit-width] n-on-bits numb-domain))])
 
-(defn n-region-model
-  ([n]
-   (n-region-model n params))
-  ([n params]
-   (core/regions-in-series n core/sensory-region
-                           (list* params (repeat higher-level-params))
-                           {:input block-sensor})))
+(defn build
+  ([]
+   (build params))
+  ([params]
+   (cx/network {:layer-a (layer/layer-of-cells params)}
+               {:input block-sensor})))
