@@ -1367,7 +1367,7 @@
                  (assoc empty-distal-state :timestep (:timestep active-state)))
       :fb (assoc this :apical-state
                  (assoc empty-distal-state :timestep (:timestep active-state)))
-      :syns (update-in this [:active-state :stable-cells-buffer] empty)
+      :syns (update-in this [:tp-state :stable-cells-buffer] empty)
       :winners (assoc-in this [:learn-state :break-winners?] true)))
 
   cx/PTopographic
