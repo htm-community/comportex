@@ -28,6 +28,7 @@
 - Renames: p/topology, p/PTopology, p/PTopological (to p/PTopographic).
 - Rename in LayerOfCells :state to :active-state, also :prior-active-state.
 - Fixed predictions function, it was dropping votes from cells with index > 0.
+- Boosting is now off by default - see parameters :boost-active-duty-ratio etc.
 
 ## [0.0.15] - 2016-09-05
 ### Changed

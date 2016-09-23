@@ -160,19 +160,22 @@
 
 (s/def ::boost-active-duty-ratio
   #_"when a column's activation frequency is below this proportion of the
-  highest of its neighbours, its boost factor is increased."
+  highest of its neighbours, its boost factor is increased. 0 = disabled."
   (spec-finite :min 0.0 :max 1.0))
 
 (s/def ::adjust-overlap-duty-ratio
   #_"when a column's overlap frequency differs from any of its neighbours by at
-  least this fraction, its permanences are adjusted."
+  least this fraction, its permanences are adjusted. 0 = disabled."
   (spec-finite :min 0.0 :max 1.0))
 
 (s/def ::float-overlap-duty-ratio
-  #_""
+  #_"when a column's activation frequency is below this fraction of the target
+  activation rate, its permanences are adjusted up by pcon/10. 0 = disabled."
   (spec-finite :min 0.0 :max 1.0))
 
 (s/def ::float-overlap-duty-ratio-hi
+  #_"when a column's activation frequency is above this multiple of the target
+  activation rate, its permanences are adjusted down by pcon/10."
   (spec-finite :min 1.0 :max 1e6))
 
 (s/def ::boost-active-every
@@ -333,10 +336,10 @@
               :learn? false}
    :max-boost 1.5
    :duty-cycle-period 1000
-   :boost-active-duty-ratio (/ 1.0 200)
-   :adjust-overlap-duty-ratio (/ 1.0 100)
-   :float-overlap-duty-ratio 0.1
-   :float-overlap-duty-ratio-hi 10.0
+   :boost-active-duty-ratio 0
+   :adjust-overlap-duty-ratio 0
+   :float-overlap-duty-ratio 0
+   :float-overlap-duty-ratio-hi 20.0
    :boost-active-every 100
    :adjust-overlap-every 300
    :float-overlap-every 100
