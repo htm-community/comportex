@@ -1311,14 +1311,22 @@
                  (transient {}))
          (persistent!))))
 
+(defn- cells->columns
+  [cells]
+  (sequence (comp (map first) (distinct)) cells))
+
 (defn layer-decode-to-ff-bits-impl
-  "Looks up a set of cells to decode into feed-forward inputs bit votes.
-  The cell set is looked up in `layer-state` return by opts key :get-state,
-  defaulting to :predictive-cells. So the default is decoding predictive cells."
-  [layer opts]
-  (let [get-cells (or (:get-state opts) :predictive-cells)
-        cells (get-cells (cx/layer-state layer))
-        segs (map #(conj % 0) cells)]
+  "Decodes a set of columns into corresponding feed-forward input bits. Each
+  column adds its connections to an accumulated number of votes for each input
+  bit. The default is the columns containing predictive cells. To override,
+  pass a function in opts key `:get-columns` which takes the layer and returns
+  a collection of column ids."
+  [layer {:keys [get-columns] :as opts
+          :or {get-columns (comp cells->columns :predictive-cells cx/layer-state)}}]
+  (when-let [unk (keys (dissoc opts :get-columns))]
+    (println "Unknown opts keys to layer-decode-to-ff-bits: " unk))
+  (let [cols (get-columns layer)
+        segs (map (fn [col] [col 0 0]) cols)]
     (segs-proximal-bit-votes layer segs)))
 
 (defrecord LayerOfCells

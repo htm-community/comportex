@@ -172,7 +172,7 @@
 
 
 (defn layer-decode-to-ff-bits
-  "Converts the current active or predictive state of layer into a distribution
+  "Converts the current predictive state of layer (by default) into a distribution
   of feed-forward input bits that matches it."
   [layer opts]
   (layer-decode-to-ff-bits* layer opts))

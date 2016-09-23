@@ -27,6 +27,7 @@
 - PLayer gains a layer-decode-to-ff-bits* so that `predict` can be generic.
 - Renames: p/topology, p/PTopology, p/PTopological (to p/PTopographic).
 - Rename in LayerOfCells :state to :active-state, also :prior-active-state.
+- Fixed predictions function, it was dropping votes from cells with index > 0.
 
 ## [0.0.15] - 2016-09-05
 ### Changed
